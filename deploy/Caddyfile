@@ -1,0 +1,33 @@
+# Caddy obtains and renews the HTTPS certificate for {$DOMAIN} automatically.
+# DOMAIN must point (DNS A/AAAA record) to this server, and ports 80 and 443 must be open.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+
+	# Strip secrets from access-log query strings. Cookies and Authorization headers are
+	# already redacted by Caddy by default.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					delete token
+					delete wstoken
+					delete code
+				}
+			}
+		}
+	}
+
+	reverse_proxy app:8000
+}

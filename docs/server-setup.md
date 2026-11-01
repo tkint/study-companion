@@ -1,0 +1,142 @@
+# Server setup: VPS, domain, HTTPS and install
+
+This guide takes you from nothing to `https://study.<your-domain>` opening on your phone.
+It targets an **Infomaniak VPS Lite** (Geneva) running Debian 12 or Ubuntu 24.04, but any
+small Linux VPS works.
+
+## 1. Order the VPS
+
+1. Order [Infomaniak VPS Lite](https://www.infomaniak.com/en/hosting/vps-lite): 1 vCPU, 2 GB RAM,
+   20 GB NVMe is enough (the server does no AI work). Pick the bigger plan only if your courses
+   contain lots of video.
+2. Choose **Debian 12** or **Ubuntu 24.04** and add your **SSH public key** during the order.
+   (No key yet? `ssh-keygen -t ed25519` on your computer, then paste `~/.ssh/id_ed25519.pub`.)
+3. Note the server's public IPv4 (and IPv6 if shown).
+4. In the Infomaniak manager, open the VPS firewall and allow only **TCP 22, 80, 443** and
+   **UDP 443** (HTTP/3). Everything else stays closed.
+
+## 2. Point a domain at it
+
+Create DNS records at your domain registrar (for Infomaniak domains: Manager > Domains > DNS zone):
+
+| Type | Name    | Value              |
+| ---- | ------- | ------------------ |
+| A    | `study` | your VPS IPv4      |
+| AAAA | `study` | your VPS IPv6 (optional) |
+
+Check it resolves before continuing: `dig +short study.yourname.ch` should print the IP.
+Caddy needs this to obtain the HTTPS certificate.
+
+## 3. Harden the server
+
+Log in as the default user (`ssh debian@<ip>` or `ssh ubuntu@<ip>`; Infomaniak shows it) and
+run the following. Replace `me` with the username you want.
+
+```bash
+# Updates and basics
+sudo apt update && sudo apt full-upgrade -y
+sudo apt install -y ufw fail2ban unattended-upgrades curl ca-certificates
+
+# Your own sudo user with your SSH key (skip if you keep the default user)
+sudo adduser --disabled-password --gecos "" me
+sudo usermod -aG sudo me
+sudo mkdir -p /home/me/.ssh && sudo cp ~/.ssh/authorized_keys /home/me/.ssh/
+sudo chown -R me:me /home/me/.ssh && sudo chmod 700 /home/me/.ssh && sudo chmod 600 /home/me/.ssh/authorized_keys
+echo "me ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/90-me   # or set a password instead
+```
+
+Open a **second terminal** and check `ssh me@<ip>` works before going on.
+
+```bash
+# SSH: keys only, no root login
+sudo tee /etc/ssh/sshd_config.d/99-hardening.conf >/dev/null <<'CONF'
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+CONF
+sudo systemctl restart ssh
+
+# Firewall: only SSH, HTTP, HTTPS
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 443/udp
+sudo ufw --force enable
+
+# fail2ban protects SSH with its default jail
+sudo tee /etc/fail2ban/jail.d/sshd.local >/dev/null <<'CONF'
+[sshd]
+enabled = true
+backend = systemd
+maxretry = 5
+bantime = 1h
+CONF
+sudo systemctl enable --now fail2ban
+
+# Automatic security updates
+sudo dpkg-reconfigure -f noninteractive unattended-upgrades
+```
+
+> **Docker and ufw:** ports published by Docker bypass ufw rules. That is fine here because only
+> Caddy publishes ports (80 and 443); the app container publishes none and is reachable only
+> through Caddy on the internal Docker network. Keep the Infomaniak firewall from step 1 as a
+> second layer.
+
+## 4. Install Docker
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER   # log out and back in afterwards
+docker compose version
+```
+
+## 5. Install the app
+
+```bash
+mkdir -p ~/study && cd ~/study
+curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/moodle-study-companion-deploy.tar.gz \
+  | tar xz --strip-components=1
+cp .env.example .env
+chmod 600 .env
+nano .env
+```
+
+Fill in `.env`:
+
+- `DOMAIN`: your subdomain, e.g. `study.yourname.ch`
+- `APP_PASSWORD`: a long password for the web UI (12+ characters)
+- `SECRET_KEY`: output of `openssl rand -hex 32`
+- `MOODLE_URL`, `MOODLE_TOKEN`: can stay empty until M1
+
+Start it:
+
+```bash
+docker compose up -d
+docker compose logs -f caddy   # watch for "certificate obtained successfully", then Ctrl+C
+```
+
+Open `https://study.yourname.ch` on your phone, sign in, and you should see
+**Hello from Study Companion**. Use your browser's "Add to Home Screen" for quick access.
+
+## Update
+
+```bash
+cd ~/study
+docker compose pull && docker compose up -d
+```
+
+To pin a version instead of following `latest`, set `IMAGE_TAG=0.1.0` in `.env`.
+
+## Troubleshooting
+
+- **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
+  or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
+- **App container restarting:** `docker compose logs app`. A missing or too short
+  `APP_PASSWORD` / `SECRET_KEY` stops the app with a clear message.
+- **Too many failed attempts:** the login locks for 15 minutes after 5 wrong passwords
+  (restarting the app clears it).
+
+Backups (restic) are added in M1 and the claude.ai connector guide in M3.
