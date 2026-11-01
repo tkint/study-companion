@@ -1,0 +1,42 @@
+# Moodle Study Companion: app + Caddy (automatic HTTPS).
+# Usage: fill in .env (see .env.example), then `docker compose up -d`.
+
+services:
+  app:
+    image: ghcr.io/tkint/moodle-study-companion:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - app-data:/data
+    # No published ports: the app is only reachable through Caddy.
+    expose:
+      - "8000"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:
