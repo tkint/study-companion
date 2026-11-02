@@ -20,6 +20,7 @@ input, button { width: 100%; font-size: 16px; padding: 12px; border-radius: 10px
 input { border: 1px solid #8886; background: transparent; color: inherit; margin-bottom: 12px; }
 button { border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .error { color: #dc2626; opacity: 1; }
+.alert { border: 1px solid #dc2626; border-radius: 10px; padding: 10px 12px; }
 a { color: var(--accent); }
 details { margin: 0 0 12px; } summary { cursor: pointer; margin-bottom: 8px; }
 .muted { font-size: .85rem; opacity: .6; margin-top: 16px; }
@@ -144,7 +145,19 @@ synced {_when(c["synced_at"])}</p></div>"""
     )
 
 
-def settings_page(creds, *, message: str = "", error: str = "", version: str = "") -> str:
+def settings_page(
+    creds,
+    *,
+    message: str = "",
+    error: str = "",
+    moodle_error: str = "",
+    url_value: str | None = None,
+    version: str = "",
+) -> str:
+    url_value = creds.url if url_value is None else url_value
+    moodle_notice = (
+        f'<p class="error alert" role="alert">{escape(moodle_error)}</p>' if moodle_error else ""
+    )
     notice = ""
     if message:
         notice += f'<p class="ok" role="status">{escape(message)}</p>'
@@ -182,11 +195,12 @@ def settings_page(creds, *, message: str = "", error: str = "", version: str = "
 {notice}
 <div class="card">
 <h2>Moodle connection</h2>
+{moodle_notice}
 {token_state}
 <form method="post" action="/settings/moodle" autocomplete="off">
   <label for="url">Moodle address</label>
   <input id="url" name="url" type="url" inputmode="url" required
-         placeholder="https://moodle.your-university.ch" value="{escape(creds.url)}">
+         placeholder="https://moodle.your-university.ch" value="{escape(url_value)}">
   <label for="token">Token</label>
   <input id="token" name="token" type="password" autocomplete="off" spellcheck="false"
          placeholder="{"Leave empty to keep the saved token" if creds.token else "Paste the token or the moodlemobile:// link"}">
