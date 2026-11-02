@@ -11,6 +11,31 @@ from typing import Optional
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
+class Account(SQLModel, table=True):
+    """The app's user. Single-user for now (id 1); the table is ready for more."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = ""
+    password_hash: str = Field(default="", repr=False)
+    # Bumped on password change: invalidates every existing session cookie.
+    session_epoch: int = 0
+    created_at: int = 0
+    updated_at: int = 0
+
+
+class MoodleAccount(SQLModel, table=True):
+    """A user's Moodle site and web service token (encrypted with SECRET_KEY)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="account.id", unique=True, index=True)
+    url: str = ""
+    token_encrypted: str = Field(default="", repr=False)
+    token_updated_at: Optional[int] = None
+    checked_at: Optional[int] = None
+    check_ok: Optional[bool] = None
+    check_message: str = ""
+
+
 class Site(SQLModel, table=True):
     id: int = Field(default=1, primary_key=True)  # single row
     url: str = ""

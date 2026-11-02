@@ -4,6 +4,7 @@ import logging
 import pytest
 from sqlmodel import select
 
+from app import accounts
 from app.config import Settings
 from app.db import make_engine, session, snapshot
 from app.models import Course, Deadline, File, Module, Section, Site
@@ -31,9 +32,15 @@ def moodle():
     return FakeMoodle()
 
 
+def make_service(settings, factory):
+    engine = make_engine(settings.data_dir)
+    accounts.bootstrap(engine, settings)  # imports MOODLE_URL/MOODLE_TOKEN into the DB
+    return SyncService(settings, engine, factory, clock=lambda: NOW)
+
+
 @pytest.fixture
 def service(settings, moodle):
-    return SyncService(settings, make_engine(settings.data_dir), moodle.client, clock=lambda: NOW)
+    return make_service(settings, moodle.client)
 
 
 def sync(service, trigger="test"):
@@ -224,28 +231,34 @@ def test_file_errors_mark_run_partial(service, moodle):
 
 def test_invalid_token_stops_sync_with_clear_message(settings, moodle, caplog):
     bad = "b" * 32
-    service = SyncService(
-        settings, make_engine(settings.data_dir), lambda: moodle.client(token=bad), clock=lambda: NOW
-    )
+    service = make_service(settings, lambda url, token: moodle.client(token=bad))
     with caplog.at_level(logging.DEBUG):
         run = sync(service)
     assert run.status == "error"
-    assert "MOODLE_TOKEN" in run.message and "expired" in run.message
+    assert "settings page" in run.message and "expired" in run.message
     assert bad not in caplog.text and bad not in run.message
+    creds = accounts.get_moodle(service.engine, settings.secret_key)
+    assert creds.check_ok is False
 
 
-def test_no_token_and_password_fallback(settings, tmp_path):
-    moodle = FakeMoodle(token="fedcba9876543210fedcba9876543210")
-    pw_settings = Settings(**{**settings.__dict__, "moodle_token": "",
-                              "moodle_username": "jdoe", "moodle_password": "pw"})
-    service = SyncService(pw_settings, make_engine(tmp_path), lambda: moodle.client(token=""),
-                          clock=lambda: NOW)
-    assert sync(service).status == "ok"
-
-    nothing = Settings(**{**settings.__dict__, "moodle_token": ""})
-    service = SyncService(nothing, make_engine(tmp_path), lambda: moodle.client(token=""))
+def test_no_saved_token(settings, moodle):
+    service = make_service(Settings(**{**settings.__dict__, "moodle_token": ""}), moodle.client)
+    assert not service.configured()
     run = sync(service)
-    assert run.status == "error" and "MOODLE_TOKEN" in run.message
+    assert run.status == "error" and "No Moodle token saved" in run.message
+
+
+def test_token_unreadable_after_secret_key_change(settings, moodle):
+    make_service(settings, moodle.client)
+    rotated = Settings(**{**settings.__dict__, "secret_key": "r" * 64, "moodle_token": ""})
+    service = make_service(rotated, moodle.client)
+    run = sync(service)
+    assert run.status == "error" and "SECRET_KEY changed" in run.message
+
+
+def test_token_is_encrypted_at_rest(service, settings):
+    raw = (settings.data_dir / "app.db").read_bytes()
+    assert TOKEN.encode() not in raw
 
 
 def test_logs_never_contain_the_token(service, caplog):
@@ -261,10 +274,7 @@ def test_only_one_sync_at_a_time(settings, moodle):
     async def blocking_sleep(_s):
         await gate.wait()
 
-    service = SyncService(
-        settings, make_engine(settings.data_dir),
-        lambda: moodle.client(sleep=blocking_sleep), clock=lambda: NOW,
-    )
+    service = make_service(settings, lambda url, token: moodle.client(url, token, sleep=blocking_sleep))
 
     async def go():
         first = asyncio.create_task(service.run("a"))

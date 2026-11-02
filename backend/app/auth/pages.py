@@ -20,6 +20,8 @@ input, button { width: 100%; font-size: 16px; padding: 12px; border-radius: 10px
 input { border: 1px solid #8886; background: transparent; color: inherit; margin-bottom: 12px; }
 button { border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .error { color: #dc2626; opacity: 1; }
+a { color: var(--accent); }
+details { margin: 0 0 12px; } summary { cursor: pointer; margin-bottom: 8px; }
 .muted { font-size: .85rem; opacity: .6; margin-top: 16px; }
 .card { border: 1px solid #8884; border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; }
 .card h2 { font-size: 1rem; margin: 0 0 4px; overflow-wrap: anywhere; }
@@ -85,9 +87,8 @@ def home_page(
     overview = overview or []
     if not configured:
         status = (
-            '<p class="warn">Moodle is not connected yet. Set <code>MOODLE_URL</code> and '
-            "<code>MOODLE_TOKEN</code> in <code>.env</code> (see docs/moodle-token.md), "
-            "then restart the app.</p>"
+            '<p class="warn">Moodle is not connected yet. Open <a href="/settings">Settings</a> '
+            "and paste your Moodle token.</p>"
         )
     elif running:
         status = '<p>Sync in progress… refresh in a minute.</p>'
@@ -134,9 +135,88 @@ synced {_when(c["synced_at"])}</p></div>"""
 <h1>Study Companion</h1>
 {status}
 <div class="row">{sync_button}
+<form method="get" action="/settings"><button type="submit" class="secondary">Settings</button></form>
 <form method="post" action="/logout"><button type="submit" class="secondary">Sign out</button></form>
 </div>
 {courses_html}
 <p class="muted">Version {escape(version)}. The full web UI arrives in the next release.</p>""",
+        wide=True,
+    )
+
+
+def settings_page(creds, *, message: str = "", error: str = "", version: str = "") -> str:
+    notice = ""
+    if message:
+        notice += f'<p class="ok" role="status">{escape(message)}</p>'
+    if error:
+        notice += f'<p class="error" role="alert">{escape(error)}</p>'
+
+    if creds.token_unreadable:
+        token_state = (
+            '<p class="warn">The saved token can no longer be read because SECRET_KEY changed. '
+            "Paste it again.</p>"
+        )
+    elif creds.token:
+        check = ""
+        if creds.check_ok is False:
+            check = f' <span class="warn">Last check failed: {escape(creds.check_message)}</span>'
+        elif creds.check_message:
+            check = f" {escape(creds.check_message)}."
+        token_state = (
+            f"<p>A token is saved (encrypted), updated {_when(creds.token_updated_at)}.{check}</p>"
+        )
+    else:
+        token_state = '<p class="warn">No token saved yet.</p>'
+
+    forget = (
+        '<form method="post" action="/settings/moodle/forget">'
+        '<button type="submit" class="secondary">Remove saved token</button></form>'
+        if creds.token or creds.token_unreadable
+        else ""
+    )
+    return _page(
+        "Settings · Study Companion",
+        f"""
+<h1>Settings</h1>
+<p><a href="/">← Back</a></p>
+{notice}
+<div class="card">
+<h2>Moodle connection</h2>
+{token_state}
+<form method="post" action="/settings/moodle" autocomplete="off">
+  <label for="url">Moodle address</label>
+  <input id="url" name="url" type="url" inputmode="url" required
+         placeholder="https://moodle.your-university.ch" value="{escape(creds.url)}">
+  <label for="token">Token</label>
+  <input id="token" name="token" type="password" autocomplete="off" spellcheck="false"
+         placeholder="{"Leave empty to keep the saved token" if creds.token else "Paste the token or the moodlemobile:// link"}">
+  <p class="muted">With university SSO, copy the token from Moodle's
+  <em>Preferences › Security keys</em> page, or capture it from the Moodle app sign-in.
+  Steps: docs/moodle-token.md in the repository. Tokens can expire; paste a new one here
+  when the sync reports it.</p>
+  <details><summary>No SSO? Sign in with username and password instead</summary>
+  <p class="muted">Used once to get a token from Moodle; the password is not stored.</p>
+  <label for="username">Moodle username</label>
+  <input id="username" name="username" autocomplete="off">
+  <label for="mpassword">Moodle password</label>
+  <input id="mpassword" name="password" type="password" autocomplete="off">
+  </details>
+  <button type="submit">Test and save</button>
+</form>
+<div class="row">{forget}</div>
+</div>
+<div class="card">
+<h2>Web UI password</h2>
+<form method="post" action="/settings/password">
+  <label for="current">Current password</label>
+  <input id="current" name="current" type="password" autocomplete="current-password" required>
+  <label for="new">New password (12+ characters)</label>
+  <input id="new" name="new" type="password" autocomplete="new-password" minlength="12" required>
+  <label for="confirm">Repeat new password</label>
+  <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required>
+  <button type="submit">Change password</button>
+</form>
+</div>
+<p class="muted">Version {escape(version)}</p>""",
         wide=True,
     )

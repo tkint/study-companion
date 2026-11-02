@@ -172,6 +172,11 @@ class MoodleClient:
     def has_token(self) -> bool:
         return bool(self._token)
 
+    @property
+    def token(self) -> str:
+        """The token in use (after ``login_with_password``); never log it."""
+        return self._token
+
     def _redact(self, text: str) -> str:
         return redact_text(text, [self._token])
 

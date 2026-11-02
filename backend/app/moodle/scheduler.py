@@ -16,6 +16,9 @@ FIRST_RUN_DELAY = timedelta(minutes=2)
 
 
 async def _scheduled_sync(service: SyncService) -> None:
+    if not service.configured():
+        logger.info("Scheduled sync skipped: no Moodle site/token saved yet")
+        return
     try:
         await service.run("schedule")
     except SyncAlreadyRunning:

@@ -1,6 +1,8 @@
-"""Application settings, read from environment variables only.
+"""Application settings from environment variables.
 
-Secrets (APP_PASSWORD, SECRET_KEY, MOODLE_TOKEN, MOODLE_PASSWORD) are never logged or
+SECRET_KEY is required. APP_PASSWORD, MOODLE_URL and MOODLE_TOKEN are only first-start
+values: they are copied into the database (password hashed, token encrypted) and can then
+be changed on the settings page without touching ``.env``. Secrets are never logged or
 rendered, and are kept out of ``repr``.
 """
 
@@ -46,6 +48,24 @@ def _float(name: str, value: str | None, default: float) -> float:
         raise ConfigError(f"{name} must be a number") from exc
 
 
+def validate_moodle_url(url: str) -> str:
+    """Return the normalised site URL or raise ValueError."""
+    url = (url or "").strip().rstrip("/")
+    for suffix in ("/login/index.php", "/my", "/index.php"):
+        if url.endswith(suffix):
+            url = url[: -len(suffix)]
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        raise ValueError("not a valid URL") from None
+    local = parts.hostname in {"localhost", "127.0.0.1"}
+    if parts.scheme != "https" and not (parts.scheme == "http" and local):
+        raise ValueError("the Moodle address must start with https://")
+    if not parts.hostname or parts.query or parts.fragment or parts.username:
+        raise ValueError("not a valid Moodle address (expected e.g. https://moodle.example.ch)")
+    return url
+
+
 def _token(value: str) -> str:
     try:
         return parse_pasted_token(value)
@@ -62,9 +82,6 @@ class Settings:
     data_dir: Path = Path("/data")
     moodle_url: str = ""
     moodle_token: str = field(default="", repr=False)
-    # Fallback for sites without SSO: exchange username/password at /login/token.php.
-    moodle_username: str = ""
-    moodle_password: str = field(default="", repr=False)
     moodle_service: str = "moodle_mobile_app"
     moodle_rate_limit: float = 2.0  # requests per second
     moodle_timeout: float = 60.0
@@ -77,10 +94,8 @@ class Settings:
     version: str = __version__
 
     def __post_init__(self) -> None:
-        if len(self.app_password) < MIN_PASSWORD_LENGTH:
-            raise ConfigError(
-                f"APP_PASSWORD must be set and at least {MIN_PASSWORD_LENGTH} characters long"
-            )
+        if self.app_password and len(self.app_password) < MIN_PASSWORD_LENGTH:
+            raise ConfigError(f"APP_PASSWORD must be at least {MIN_PASSWORD_LENGTH} characters long")
         if len(self.secret_key) < MIN_SECRET_KEY_LENGTH:
             raise ConfigError(
                 f"SECRET_KEY must be set and at least {MIN_SECRET_KEY_LENGTH} characters long "
@@ -89,20 +104,15 @@ class Settings:
         if self.session_max_age <= 0:
             raise ConfigError("SESSION_MAX_AGE must be positive")
         if self.moodle_url:
-            parts = urlsplit(self.moodle_url)
-            local = parts.hostname in {"localhost", "127.0.0.1"}
-            if parts.scheme != "https" and not (parts.scheme == "http" and local):
-                raise ConfigError("MOODLE_URL must start with https://")
-            if not parts.hostname:
-                raise ConfigError("MOODLE_URL is not a valid URL")
+            try:
+                validate_moodle_url(self.moodle_url)
+            except ValueError as exc:
+                raise ConfigError(f"MOODLE_URL: {exc}") from None
         if self.moodle_rate_limit <= 0:
             raise ConfigError("MOODLE_RATE_LIMIT must be positive")
         if self.sync_interval_hours < 0:
             raise ConfigError("SYNC_INTERVAL_HOURS must be 0 (off) or positive")
 
-    @property
-    def moodle_configured(self) -> bool:
-        return bool(self.moodle_url and (self.moodle_token or self.moodle_password))
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "Settings":
@@ -114,8 +124,6 @@ class Settings:
             data_dir=Path(env.get("DATA_DIR", "/data") or "/data"),
             moodle_url=env.get("MOODLE_URL", "").rstrip("/"),
             moodle_token=_token(env.get("MOODLE_TOKEN", "")),
-            moodle_username=env.get("MOODLE_USERNAME", ""),
-            moodle_password=env.get("MOODLE_PASSWORD", ""),
             moodle_service=env.get("MOODLE_SERVICE", "") or "moodle_mobile_app",
             moodle_rate_limit=_float("MOODLE_RATE_LIMIT", env.get("MOODLE_RATE_LIMIT"), 2.0),
             moodle_timeout=_float("MOODLE_TIMEOUT", env.get("MOODLE_TIMEOUT"), 60.0),

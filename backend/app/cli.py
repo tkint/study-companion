@@ -14,6 +14,7 @@ import asyncio
 import logging
 import sys
 
+from app import accounts
 from app.config import ConfigError, Settings
 from app.db import make_engine, snapshot
 from app.moodle import api
@@ -24,9 +25,11 @@ SNAPSHOT_PATH = "backup/app.db"
 
 
 async def _check(settings: Settings) -> int:
-    async with default_client_factory(settings)() as client:
-        if not client.has_token and settings.moodle_username:
-            await client.login_with_password(settings.moodle_username, settings.moodle_password)
+    creds = accounts.get_moodle(make_engine(settings.data_dir), settings.secret_key)
+    if not creds.configured:
+        print("No Moodle site/token saved yet: add them on the settings page.", file=sys.stderr)
+        return 1
+    async with default_client_factory(settings)(creds.url, creds.token) as client:
         site = await api.get_site_info(client)
         courses = await api.get_user_courses(client, site["userid"])
     print(f"OK: signed in to {site['sitename']!r} (Moodle {site['release']}) as {site['fullname']}")

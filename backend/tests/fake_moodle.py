@@ -90,13 +90,14 @@ class FakeMoodle:
             )
         return httpx.Response(404)
 
-    def client(self, token: str | None = None, **kwargs) -> MoodleClient:
+    def client(self, url: str | None = None, token: str | None = None, **kwargs) -> MoodleClient:
+        """Usable as a sync ClientFactory: ``client(url, token)``."""
         async def no_sleep(_s: float) -> None:
             return None
 
         kwargs.setdefault("sleep", no_sleep)
         return MoodleClient(
-            BASE,
+            url or BASE,
             self.token if token is None else token,
             transport=httpx.MockTransport(self.handler),
             **kwargs,

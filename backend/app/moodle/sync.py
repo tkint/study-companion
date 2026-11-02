@@ -18,6 +18,7 @@ from pathlib import Path
 from sqlalchemy.engine import Engine
 from sqlmodel import select
 
+from app import accounts
 from app.config import Settings
 from app.db import session as db_session
 from app.models import Course, Deadline, File, Module, Section, Site, SyncRun
@@ -34,14 +35,14 @@ EVENTS_FUTURE_DAYS = 365
 # Modules whose files go straight into the section folder (one file per module, usually).
 FLAT_MODULES = {"resource"}
 
-ClientFactory = Callable[[], MoodleClient]
+ClientFactory = Callable[[str, str], MoodleClient]  # (site url, token) -> client
 
 
 def default_client_factory(settings: Settings) -> ClientFactory:
-    def factory() -> MoodleClient:
+    def factory(url: str, token: str) -> MoodleClient:
         return MoodleClient(
-            settings.moodle_url,
-            settings.moodle_token,
+            url,
+            token,
             rate_limit=settings.moodle_rate_limit,
             timeout=settings.moodle_timeout,
             service=settings.moodle_service,
@@ -66,7 +67,11 @@ class SyncService:
         self.engine = engine
         self.client_factory = client_factory or default_client_factory(settings)
         self.clock = clock
+        self.base_url = ""
         self._lock = asyncio.Lock()
+
+    def configured(self) -> bool:
+        return accounts.get_moodle(self.engine, self.settings.secret_key).configured
 
     @property
     def running(self) -> bool:
@@ -92,17 +97,18 @@ class SyncService:
             s.commit()
             s.refresh(run)
         problems: list[str] = []
+        creds = accounts.get_moodle(self.engine, self.settings.secret_key)
+        self.base_url = creds.url
         try:
-            if not self.settings.moodle_url:
-                raise MoodleError("MOODLE_URL is not set")
-            async with self.client_factory() as client:
-                if not client.has_token:
-                    if self.settings.moodle_username and self.settings.moodle_password:
-                        await client.login_with_password(
-                            self.settings.moodle_username, self.settings.moodle_password
-                        )
-                    else:
-                        raise MoodleAuthError("MOODLE_TOKEN is not set (see docs/moodle-token.md)")
+            if not creds.url:
+                raise MoodleError("No Moodle site set: add it on the settings page")
+            if not creds.token:
+                raise MoodleAuthError(
+                    "The saved token can no longer be read (SECRET_KEY changed)"
+                    if creds.token_unreadable
+                    else "No Moodle token saved"
+                )
+            async with self.client_factory(creds.url, creds.token) as client:
                 site = await api.get_site_info(client)
                 self._save_site(site)
                 courses = await api.get_user_courses(client, site["userid"])
@@ -126,8 +132,9 @@ class SyncService:
             run.status = "error"
             run.message = (
                 f"{exc}. The Moodle token is missing, invalid or expired: get a new one and "
-                "update MOODLE_TOKEN (docs/moodle-token.md)."
+                "paste it on the settings page (docs/moodle-token.md)."
             )
+            accounts.record_check(self.engine, False, run.message)
             logger.error("Sync stopped: Moodle token rejected")
         except MoodleError as exc:
             run.status = "error"
@@ -154,7 +161,7 @@ class SyncService:
     def _save_site(self, site: dict) -> None:
         with db_session(self.engine) as s:
             row = s.get(Site, 1) or Site(id=1)
-            row.url = self.settings.moodle_url
+            row.url = self.base_url
             row.sitename = clean_text(site["sitename"])
             row.release = site["release"]
             row.userid = site["userid"]
@@ -365,7 +372,7 @@ class SyncService:
                     "name": a["name"], "kind": "due", "due_at": a["duedate"],
                     "open_at": a["opendate"], "cutoff_at": a["cutoffdate"],
                     "grade": a["grade"], "description": a["intro"],
-                    "url": _view_url(self.settings.moodle_url, "assign", a["cmid"]),
+                    "url": _view_url(self.base_url, "assign", a["cmid"]),
                 })
             for q in rows.get("quiz", []):
                 items.setdefault("quiz", []).append({
@@ -373,7 +380,7 @@ class SyncService:
                     "name": q["name"], "kind": "close", "due_at": q["timeclose"],
                     "open_at": q["timeopen"], "cutoff_at": None,
                     "grade": q["grade"], "description": q["intro"],
-                    "url": _view_url(self.settings.moodle_url, "quiz", q["cmid"]),
+                    "url": _view_url(self.base_url, "quiz", q["cmid"]),
                 })
             for e in rows.get("event", []):
                 if (e["modulename"], e["instance"]) in covered:

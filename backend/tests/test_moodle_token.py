@@ -56,7 +56,6 @@ def test_settings_decode_pasted_link():
          "MOODLE_URL": "https://moodle.example.ch", "MOODLE_TOKEN": launch_link()}
     )
     assert s.moodle_token == TOKEN
-    assert s.moodle_configured
     assert TOKEN not in repr(s)
 
 
