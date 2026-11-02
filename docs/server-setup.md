@@ -97,7 +97,7 @@ docker compose version
 
 ```bash
 mkdir -p ~/study && cd ~/study
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/moodle-study-companion-deploy.tar.gz \
+curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
   | tar xz --strip-components=1
 cp .env.example .env
 chmod 600 .env

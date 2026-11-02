@@ -1,3 +1,3 @@
-"""Moodle Study Companion backend."""
+"""Study Companion backend."""
 
 __version__ = "0.1.0"

@@ -1,4 +1,4 @@
-# Moodle Study Companion
+# Study Companion
 
 A self-hosted, single-user study companion. It syncs your Moodle courses, shows what is due,
 and exposes your course material to Claude (phone, desktop and web) through a remote MCP
@@ -24,7 +24,7 @@ See **[docs/server-setup.md](docs/server-setup.md)**: order and harden the VPS, 
 domain at it, install Docker, then:
 
 ```bash
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/moodle-study-companion-deploy.tar.gz \
+curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
   | tar xz --strip-components=1
 cp .env.example .env && chmod 600 .env   # fill in DOMAIN, APP_PASSWORD, SECRET_KEY
 docker compose up -d
@@ -62,7 +62,7 @@ APP_PASSWORD=dev-password-123 SECRET_KEY=$(openssl rand -hex 32) COOKIE_SECURE=f
 Full stack locally (Caddy issues a local certificate for `localhost`):
 
 ```bash
-docker build -f docker/Dockerfile -t ghcr.io/tkint/moodle-study-companion:latest .
+docker build -f docker/Dockerfile -t ghcr.io/tkint/study-companion:latest .
 cp .env.example .env   # set DOMAIN=localhost, APP_PASSWORD, SECRET_KEY
 docker compose up -d && curl -k https://localhost/healthz
 ```
@@ -70,7 +70,7 @@ docker compose up -d && curl -k https://localhost/healthz
 ## Releases
 
 Push a tag `vX.Y.Z` matching `backend/app/__init__.py`; GitHub Actions tests, builds the
-amd64/arm64 image to `ghcr.io/tkint/moodle-study-companion` and publishes a GitHub Release with
+amd64/arm64 image to `ghcr.io/tkint/study-companion` and publishes a GitHub Release with
 the deploy files. Details in [docs/releasing.md](docs/releasing.md).
 
 ## Repository layout

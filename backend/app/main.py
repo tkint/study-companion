@@ -37,7 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     throttle = LoginThrottle(settings.login_max_attempts, settings.login_window_seconds)
 
     app = FastAPI(
-        title="Moodle Study Companion",
+        title="Study Companion",
         version=settings.version,
         docs_url=None,
         redoc_url=None,

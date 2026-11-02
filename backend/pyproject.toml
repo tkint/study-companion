@@ -3,8 +3,8 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "moodle-study-companion"
-description = "Self-hosted Moodle study companion with a remote MCP connector for Claude"
+name = "study-companion"
+description = "Self-hosted study companion (syncs from Moodle) with a remote MCP connector for Claude"
 requires-python = ">=3.12"
 dynamic = ["version"]
 dependencies = [

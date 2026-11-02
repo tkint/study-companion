@@ -1,6 +1,6 @@
 # Conventions for Claude working on this repo
 
-Moodle Study Companion: self-hosted, single-user. FastAPI backend + (from M2) React/Vite PWA,
+Study Companion: self-hosted, single-user. FastAPI backend + (from M2) React/Vite PWA,
 served from one image behind Caddy via Docker Compose. The build plan (project knowledge) is
 the source of truth; work one milestone at a time and open one PR per milestone.
 

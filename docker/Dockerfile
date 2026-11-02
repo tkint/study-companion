@@ -27,8 +27,8 @@ RUN groupadd --system --gid 1000 app \
 
 COPY --from=build /opt/venv /opt/venv
 
-LABEL org.opencontainers.image.title="moodle-study-companion" \
-      org.opencontainers.image.description="Self-hosted Moodle study companion with a remote MCP connector for Claude" \
+LABEL org.opencontainers.image.title="study-companion" \
+      org.opencontainers.image.description="Self-hosted study companion (syncs from Moodle) with a remote MCP connector for Claude" \
       org.opencontainers.image.source="https://github.com/tkint/study-companion"
 
 USER app

@@ -14,14 +14,14 @@ Releases are fully automated from a version tag.
    - runs the CI workflow (tests, compose/Caddyfile validation, image smoke test),
    - checks the tag matches `__version__`,
    - builds the multi-arch image (amd64, arm64) and pushes
-     `ghcr.io/tkint/moodle-study-companion:X.Y.Z`, `:X.Y` and `:latest`,
+     `ghcr.io/tkint/study-companion:X.Y.Z`, `:X.Y` and `:latest`,
    - creates a GitHub Release with generated notes and attaches
-     `moodle-study-companion-deploy.tar.gz` (compose file, `.env.example` pinned to the version,
+     `study-companion-deploy.tar.gz` (compose file, `.env.example` pinned to the version,
      Caddyfile), plus `docker-compose.yml`, `env.example` and `server-setup.md`.
 
 ## First release only: make the image public
 
 GHCR packages are private when first created. Either make it public
-(GitHub > your profile > Packages > moodle-study-companion > Package settings > Change visibility)
+(GitHub > your profile > Packages > study-companion > Package settings > Change visibility)
 so the VPS can pull without credentials, or keep it private and run
 `docker login ghcr.io -u tkint` on the VPS with a personal access token that has `read:packages`.

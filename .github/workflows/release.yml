@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/moodle-study-companion
+  IMAGE: ghcr.io/${{ github.repository_owner }}/study-companion
 
 jobs:
   test:
@@ -66,19 +66,19 @@ jobs:
       - name: Bundle deploy files
         run: |
           version="${GITHUB_REF_NAME#v}"
-          mkdir -p dist/moodle-study-companion/deploy
-          cp docker-compose.yml .env.example dist/moodle-study-companion/
-          cp deploy/Caddyfile dist/moodle-study-companion/deploy/
-          sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${version}/" dist/moodle-study-companion/.env.example
-          tar -C dist -czf dist/moodle-study-companion-deploy.tar.gz moodle-study-companion
+          mkdir -p dist/study-companion/deploy
+          cp docker-compose.yml .env.example dist/study-companion/
+          cp deploy/Caddyfile dist/study-companion/deploy/
+          sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${version}/" dist/study-companion/.env.example
+          tar -C dist -czf dist/study-companion-deploy.tar.gz study-companion
           cp docker-compose.yml dist/
-          cp dist/moodle-study-companion/.env.example dist/env.example
+          cp dist/study-companion/.env.example dist/env.example
           cp docs/server-setup.md dist/
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            dist/moodle-study-companion-deploy.tar.gz
+            dist/study-companion-deploy.tar.gz
             dist/docker-compose.yml
             dist/env.example
             dist/server-setup.md
