@@ -8,6 +8,7 @@ has no Moodle settings yet. After that, the settings page is the source of truth
 from __future__ import annotations
 
 import time
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 
 from sqlalchemy.engine import Engine
@@ -55,13 +56,24 @@ def bootstrap(engine: Engine, settings: Settings, now: int | None = None) -> Non
             s.add(account)
             s.commit()
         moodle = s.exec(select(MoodleAccount).where(MoodleAccount.user_id == USER_ID)).first()
-        if moodle is None and settings.moodle_url:
+        if moodle is not None and not moodle.token_encrypted and _is_placeholder(moodle.url):
+            # Earlier versions imported the .env.example placeholder; drop it.
+            moodle.url = ""
+            s.add(moodle)
+            s.commit()
+        placeholder = _is_placeholder(settings.moodle_url) and not settings.moodle_token
+        if moodle is None and settings.moodle_url and not placeholder:
             moodle = MoodleAccount(user_id=USER_ID, url=settings.moodle_url)
             if settings.moodle_token:
                 moodle.token_encrypted = encrypt_secret(settings.secret_key, settings.moodle_token)
                 moodle.token_updated_at = now
             s.add(moodle)
             s.commit()
+
+
+def _is_placeholder(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower()
+    return host == "example.ch" or host.endswith((".example.ch", ".example.com", ".example.org"))
 
 
 def session_epoch(engine: Engine) -> int:

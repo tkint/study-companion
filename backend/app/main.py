@@ -196,10 +196,23 @@ def create_app(
             start_sync()
         return RedirectResponse("/", status_code=303)
 
-    def render_settings(message: str = "", error: str = "", status: int = 200) -> HTMLResponse:
+    def render_settings(
+        message: str = "",
+        error: str = "",
+        status: int = 200,
+        moodle_error: str = "",
+        url_value: str | None = None,
+    ) -> HTMLResponse:
         creds = accounts.get_moodle(engine, settings.secret_key)
         return HTMLResponse(
-            settings_page(creds, message=message, error=error, version=settings.version),
+            settings_page(
+                creds,
+                message=message,
+                error=error,
+                moodle_error=moodle_error,
+                url_value=url_value,
+                version=settings.version,
+            ),
             status_code=status,
         )
 
@@ -223,18 +236,24 @@ def create_app(
         if form is None:
             return render_settings(error="Request too large.", status=413)
         current = accounts.get_moodle(engine, settings.secret_key)
+        entered_url = form.get("url", "").strip()
+
+        def failed(reason: str) -> HTMLResponse:
+            # Keep what was typed (except secrets) and say plainly that nothing was saved.
+            logger.warning("Moodle settings not saved: %s", reason)
+            return render_settings(
+                moodle_error=f"Not saved: {reason}", url_value=entered_url, status=400
+            )
+
         try:
-            url = validate_moodle_url(form.get("url", ""))
+            url = validate_moodle_url(entered_url)
             token = parse_pasted_token(form.get("token", ""))
         except (ValueError, TokenFormatError) as exc:
-            return render_settings(error=str(exc), status=400)
+            return failed(str(exc))
         username, password = form.get("username", "").strip(), form.get("password", "")
         if not token and not (username and password):
             if url != current.url or not current.token:
-                return render_settings(
-                    error="Paste a token (or enter your Moodle username and password).",
-                    status=400,
-                )
+                return failed("paste a token (or enter your Moodle username and password).")
             token_to_test = current.token
         else:
             token_to_test = token
@@ -245,9 +264,9 @@ def create_app(
                     token = client.token
                 site = await moodle_api.get_site_info(client)
         except MoodleAuthError as exc:
-            return render_settings(error=f"Moodle refused the token: {exc}", status=400)
+            return failed(f"Moodle refused the token ({exc}).")
         except MoodleError as exc:
-            return render_settings(error=f"Could not reach Moodle: {exc}", status=400)
+            return failed(f"could not reach Moodle at {url} ({exc}).")
         accounts.save_moodle(
             engine,
             settings.secret_key,

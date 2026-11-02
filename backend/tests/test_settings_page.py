@@ -74,9 +74,31 @@ def test_pasted_moodlemobile_link_is_decoded(client, app):
 def test_rejected_token_is_not_saved(client, app):
     login(client)
     r = client.post("/settings/moodle", data={"url": BASE, "token": "b" * 32})
-    assert r.status_code == 400 and "refused" in r.text
+    assert r.status_code == 400 and "Not saved" in r.text and "refused" in r.text
     assert "b" * 32 not in r.text
     assert creds(app).token == ""
+
+
+def test_failed_save_keeps_the_entered_address(client, app):
+    login(client)
+    r = client.post("/settings/moodle", data={"url": "https://moodle.uni.ch", "token": "b" * 32})
+    assert r.status_code == 400
+    assert 'value="https://moodle.uni.ch"' in r.text
+    assert creds(app).url == ""
+
+
+def test_placeholder_url_from_env_example_is_not_imported(settings):
+    placeholder = Settings(**{**settings.__dict__, "moodle_url": "https://moodle.example.ch"})
+    app = create_app(placeholder)
+    assert creds(app).url == ""
+    assert 'value=""' in __import__("app.auth.pages", fromlist=["x"]).settings_page(creds(app))
+
+
+def test_placeholder_url_saved_by_older_version_is_cleared(settings):
+    app = create_app(settings)
+    accounts.save_moodle(app.state.engine, settings.secret_key, "https://moodle.example.ch", "")
+    app = create_app(settings)  # restart
+    assert creds(app).url == ""
 
 
 def test_invalid_url_and_token_format(client):

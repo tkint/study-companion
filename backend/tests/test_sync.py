@@ -242,7 +242,8 @@ def test_invalid_token_stops_sync_with_clear_message(settings, moodle, caplog):
 
 
 def test_no_saved_token(settings, moodle):
-    service = make_service(Settings(**{**settings.__dict__, "moodle_token": ""}), moodle.client)
+    no_token = {**settings.__dict__, "moodle_url": "https://moodle.uni-test.ch", "moodle_token": ""}
+    service = make_service(Settings(**no_token), moodle.client)
     assert not service.configured()
     run = sync(service)
     assert run.status == "error" and "No Moodle token saved" in run.message
