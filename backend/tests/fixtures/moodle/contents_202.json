@@ -1,0 +1,31 @@
+[
+  {
+    "id": 2001, "name": "", "section": 0, "summary": "", "visible": 1,
+    "modules": [
+      {"id": 6001, "name": "Announcements", "modname": "forum", "instance": 1}
+    ]
+  },
+  {
+    "id": 2002, "name": "Week 1: Introduction to sorting", "section": 1,
+    "summary": "<p>This week we cover the basics of sorting and the analysis of algorithms.</p>",
+    "modules": [
+      {
+        "id": 6002, "name": "Lecture notes", "modname": "resource", "instance": 11,
+        "contents": [
+          {"type": "file", "filename": "notes.pdf", "filepath": "/", "filesize": 9,
+           "fileurl": "https://moodle.example.ch/pluginfile.php/1200/mod_resource/content/3/notes.pdf",
+           "timemodified": 1756200000, "mimetype": "application/pdf"}
+        ]
+      },
+      {
+        "id": 6003, "name": "Reading: sorting in practice", "modname": "page", "instance": 12,
+        "contents": [
+          {"type": "file", "filename": "index.html", "filepath": "/", "filesize": 0,
+           "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1201/mod_page/content/index.html",
+           "timemodified": 1756200500}
+        ]
+      },
+      {"id": 6004, "name": "Quiz 1", "modname": "quiz", "instance": 21}
+    ]
+  }
+]

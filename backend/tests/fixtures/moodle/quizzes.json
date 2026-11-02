@@ -1,0 +1,7 @@
+{
+  "quizzes": [
+    {"id": 21, "course": 202, "coursemodule": 6004, "name": "Quiz 1", "intro": "",
+     "timeopen": 1761000000, "timeclose": 1761600000, "grade": 10}
+  ],
+  "warnings": []
+}

@@ -31,8 +31,8 @@ def test_from_env_rejects_invalid(env):
 
 
 def test_secrets_not_in_repr():
-    s = Settings.from_env({**VALID, "MOODLE_TOKEN": "tok-123456"})
+    s = Settings.from_env({**VALID, "MOODLE_TOKEN": "0123456789abcdef0123456789abcdef"})
     text = repr(s)
     assert VALID["APP_PASSWORD"] not in text
     assert VALID["SECRET_KEY"] not in text
-    assert "tok-123456" not in text
+    assert "0123456789abcdef" not in text

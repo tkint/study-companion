@@ -1,0 +1,8 @@
+{
+  "statuses": [
+    {"cmid": 5001, "modname": "resource", "instance": 71, "state": 1, "timecompleted": 1757000000,
+     "tracking": 1, "overrideby": null, "valueused": false},
+    {"cmid": 5004, "modname": "assign", "instance": 81, "state": 0, "timecompleted": 0, "tracking": 2}
+  ],
+  "warnings": []
+}

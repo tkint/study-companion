@@ -12,9 +12,9 @@ Infomaniak VPS Lite in Geneva.
 
 | Milestone | Scope | State |
 | --- | --- | --- |
-| M0 | Skeleton, password-protected hello page, Docker + Caddy, CI, release pipeline, server guide | ✅ this release |
-| M1 | Moodle sync (courses, contents, files, deadlines), nightly backups | next |
-| M2 | Web UI: dashboard, course view, calendar + ICS, phone layout | |
+| M0 | Skeleton, password-protected hello page, Docker + Caddy, CI, release pipeline, server guide | ✅ v0.1.0 |
+| M1 | Moodle sync (courses, contents, files, deadlines, course language), settings page, nightly backups | ✅ this release |
+| M2 | Web UI: dashboard, course view, calendar + ICS, phone layout | next |
 | M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | |
 | M4 | Study loop: Claude's notes and questions, flashcards, catch-up plan | |
 
@@ -30,21 +30,44 @@ cp .env.example .env && chmod 600 .env   # fill in DOMAIN, APP_PASSWORD, SECRET_
 docker compose up -d
 ```
 
+Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
+**[docs/moodle-token.md](docs/moodle-token.md)** explains how to get the token with
+university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)**.
+
 Update with `docker compose pull && docker compose up -d`.
 
 ## Configuration
 
-All settings come from environment variables (`.env` on the server, never committed).
+Server settings come from environment variables (`.env` on the server, never committed).
+Your Moodle site, token and the web UI password are managed on the **Settings** page and
+stored in the database (token encrypted with `SECRET_KEY`, password hashed with scrypt), so
+you never edit `.env` to change them.
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `DOMAIN` | yes | Public hostname, e.g. `study.yourname.ch`. Caddy gets its certificate. |
-| `APP_PASSWORD` | yes | Web UI password, 12+ characters. |
-| `SECRET_KEY` | yes | 32+ characters; `openssl rand -hex 32`. Rotating it signs you out. |
+| `SECRET_KEY` | yes | 32+ characters; `openssl rand -hex 32`. Signs sessions and encrypts the Moodle token: rotating it signs you out and means pasting the token again. |
+| `APP_PASSWORD` | first start | Initial web UI password, 12+ characters. Ignored once set; change it on the Settings page. |
 | `IMAGE_TAG` | no | Image version to run (default `latest`). |
-| `MOODLE_URL`, `MOODLE_TOKEN` | from M1 | Moodle site and web service token. |
+| `MOODLE_URL`, `MOODLE_TOKEN` | no | Optional pre-fill, imported once on the first start. `MOODLE_TOKEN` also accepts a `moodlemobile://token=…` link. |
+| `SYNC_INTERVAL_HOURS` | no | Scheduled sync interval (default 6; `0` turns it off). |
+| `MOODLE_MAX_FILE_MB` | no | Larger files (usually videos) are listed but not downloaded (default 200). |
+| `MOODLE_RATE_LIMIT` | no | Moodle requests per second (default 2). |
 | `SESSION_MAX_AGE` | no | Session length in seconds (default 7 days). |
 | `COOKIE_SECURE` | no | Default `true`; set `false` only for local plain-HTTP development. |
+
+## Moodle sync
+
+The sync runs every 6 hours, a couple of minutes after start-up, and when you press
+**Sync now**. It stores courses (with their language: English, French, Spanish…), sections,
+activities, completion and deadlines in SQLite, and downloads files to
+`/data/courses/<course>/<NN section>/`, skipping files Moodle reports as unchanged. From the
+server you can also run:
+
+```bash
+docker compose exec app python -m app.cli check   # test the saved token, list courses
+docker compose exec app python -m app.cli sync    # full sync now, prints a summary
+```
 
 ## Development
 
@@ -76,11 +99,13 @@ the deploy files. Details in [docs/releasing.md](docs/releasing.md).
 ## Repository layout
 
 ```
-backend/app/        FastAPI app (config, auth; moodle, extract, planner, prompts, mcp in later milestones)
+backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (client, sync,
+                    scheduler), api/ (extract, planner, prompts, mcp in later milestones)
 backend/tests/      pytest (Moodle responses always mocked)
 deploy/Caddyfile    HTTPS reverse proxy
 docker/Dockerfile   multi-stage image
 docker-compose.yml  app + Caddy
-docs/               server setup, releasing (backups and connector guide follow)
+deploy/backup.sh    nightly restic backup of the data volume
+docs/               server setup, Moodle token, backups, releasing (connector guide in M3)
 .github/workflows/  ci.yml, release.yml
 ```

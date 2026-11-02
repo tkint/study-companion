@@ -109,7 +109,7 @@ Fill in `.env`:
 - `DOMAIN`: your subdomain, e.g. `study.yourname.ch`
 - `APP_PASSWORD`: a long password for the web UI (12+ characters)
 - `SECRET_KEY`: output of `openssl rand -hex 32`
-- `MOODLE_URL`, `MOODLE_TOKEN`: can stay empty until M1
+- `MOODLE_URL`, `MOODLE_TOKEN`: leave them out; you connect Moodle on the Settings page
 
 Start it:
 
@@ -118,8 +118,17 @@ docker compose up -d
 docker compose logs -f caddy   # watch for "certificate obtained successfully", then Ctrl+C
 ```
 
-Open `https://study.yourname.ch` on your phone, sign in, and you should see
-**Hello from Study Companion**. Use your browser's "Add to Home Screen" for quick access.
+Open `https://study.yourname.ch` on your phone and sign in. Then open **Settings**, enter
+your Moodle address and paste your token ([docs/moodle-token.md](moodle-token.md) explains how
+to get it with university SSO). The first sync starts right away; refresh the home page to
+follow it. Use your browser's "Add to Home Screen" for quick access.
+
+After the first start you can remove `APP_PASSWORD` from `.env`; change the password on the
+Settings page instead.
+
+## 6. Nightly backups
+
+Follow [docs/backups.md](backups.md) to back up the data volume with restic every night.
 
 ## Update
 
@@ -128,15 +137,19 @@ cd ~/study
 docker compose pull && docker compose up -d
 ```
 
-To pin a version instead of following `latest`, set `IMAGE_TAG=0.1.0` in `.env`.
+To pin a version instead of following `latest`, set `IMAGE_TAG=0.2.0` in `.env`.
 
 ## Troubleshooting
 
 - **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
   or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
 - **App container restarting:** `docker compose logs app`. A missing or too short
-  `APP_PASSWORD` / `SECRET_KEY` stops the app with a clear message.
+  `SECRET_KEY`, or no `APP_PASSWORD` on the very first start, stops the app with a clear message.
+- **Sync says the token is invalid or expired:** get a new one ([docs/moodle-token.md](moodle-token.md))
+  and paste it on the Settings page.
+- **Forgot the web UI password:** `docker compose exec app python -m app.cli reset-password`
+  sets a new one and signs every device out.
 - **Too many failed attempts:** the login locks for 15 minutes after 5 wrong passwords
   (restarting the app clears it).
 
-Backups (restic) are added in M1 and the claude.ai connector guide in M3.
+The claude.ai connector guide arrives in M3.

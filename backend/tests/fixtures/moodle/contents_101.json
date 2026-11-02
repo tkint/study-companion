@@ -1,0 +1,61 @@
+[
+  {
+    "id": 1001, "name": "Généralités", "visible": 1, "summary": "", "summaryformat": 1,
+    "section": 0, "hiddenbynumsections": 0, "uservisible": true,
+    "modules": [
+      {
+        "id": 5001, "url": "https://moodle.example.ch/mod/resource/view.php?id=5001",
+        "name": "Plan du cours", "instance": 71, "contextid": 900, "visible": 1,
+        "uservisible": true, "visibleoncoursepage": 1, "modicon": "", "modname": "resource",
+        "modplural": "Fichiers", "indent": 0, "onclick": "", "afterlink": null,
+        "customdata": "", "noviewlink": false, "completion": 1,
+        "contents": [
+          {
+            "type": "file", "filename": "plan_du_cours.pdf", "filepath": "/", "filesize": 11,
+            "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/900/mod_resource/content/1/plan_du_cours.pdf?forcedownload=1",
+            "timecreated": 1756000000, "timemodified": 1756000100, "sortorder": 1,
+            "mimetype": "application/pdf", "isexternalfile": false, "userid": 2, "author": "Prof",
+            "license": "allrightsreserved"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 1002, "name": "Semaine 1 : Vecteurs / matrices", "visible": 1,
+    "summary": "<p>Les vecteurs et les matrices.</p>", "section": 1, "uservisible": true,
+    "modules": [
+      {
+        "id": 5002, "name": "Diapositives", "instance": 72, "modname": "folder", "visible": 1,
+        "url": "https://moodle.example.ch/mod/folder/view.php?id=5002",
+        "contents": [
+          {"type": "file", "filename": "cours1.pptx", "filepath": "/", "filesize": 7,
+           "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/901/mod_folder/content/0/cours1.pptx?forcedownload=1",
+           "timemodified": 1756100000, "mimetype": "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+          {"type": "file", "filename": "../../../etc/passwd", "filepath": "/../../", "filesize": 4,
+           "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/901/mod_folder/content/0/evil?forcedownload=1",
+           "timemodified": 1756100000, "mimetype": "text/plain"},
+          {"type": "file", "filename": "vidéo.mp4", "filepath": "/vidéos/", "filesize": 999999999999,
+           "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/901/mod_folder/content/0/videos/video.mp4?forcedownload=1",
+           "timemodified": 1756100000, "mimetype": "video/mp4"}
+        ]
+      },
+      {
+        "id": 5003, "name": "Lien externe", "instance": 73, "modname": "url", "visible": 1,
+        "url": "https://moodle.example.ch/mod/url/view.php?id=5003",
+        "contents": [{"type": "url", "filename": "Lien", "fileurl": "https://example.org/article"}]
+      },
+      {
+        "id": 5004, "name": "Devoir 1", "instance": 81, "modname": "assign", "visible": 1,
+        "url": "https://moodle.example.ch/mod/assign/view.php?id=5004",
+        "description": "<p>Exercices 1 à 5.</p>"
+      },
+      {
+        "id": 5005, "name": "Fichier hébergé ailleurs", "instance": 74, "modname": "resource",
+        "visible": 1,
+        "contents": [{"type": "file", "filename": "ailleurs.pdf", "filepath": "/", "filesize": 3,
+                      "fileurl": "https://evil.example.com/steal.pdf", "timemodified": 1756100000}]
+      }
+    ]
+  }
+]

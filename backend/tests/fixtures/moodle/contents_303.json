@@ -1,0 +1,16 @@
+[
+  {
+    "id": 3001, "name": "Semana 1: La independencia", "section": 1,
+    "summary": "<p>Lecturas de la semana sobre la independencia y los procesos políticos.</p>",
+    "modules": [
+      {
+        "id": 7001, "name": "Lectura obligatoria", "modname": "resource", "instance": 31,
+        "contents": [
+          {"type": "file", "filename": "lectura.pdf", "filepath": "/", "filesize": 5,
+           "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1300/mod_resource/content/1/lectura.pdf",
+           "timemodified": 1756300000, "mimetype": "application/pdf"}
+        ]
+      }
+    ]
+  }
+]

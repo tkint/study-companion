@@ -1,0 +1,24 @@
+[
+  {
+    "id": 101, "shortname": "MATH-101", "fullname": "Algèbre linéaire",
+    "displayname": "Algèbre linéaire", "enrolledusercount": 120, "idnumber": "",
+    "visible": 1, "summary": "<p>Cours d'algèbre linéaire pour la première année.</p>",
+    "summaryformat": 1, "format": "topics", "showgrades": true, "lang": "fr",
+    "enablecompletion": true, "completionhascriteria": false, "completionusertracked": true,
+    "category": 7, "progress": 25.5, "completed": false, "startdate": 1756684800,
+    "enddate": 1767139200, "marker": 0, "lastaccess": 1759000000, "isfavourite": false,
+    "hidden": false, "overviewfiles": [], "showactivitydates": true,
+    "showcompletionconditions": true, "timemodified": 1756000000
+  },
+  {
+    "id": 202, "shortname": "CS 202/Algorithms", "fullname": "Algorithms and Data Structures",
+    "visible": 1, "summary": "<p>An introduction to the design and analysis of algorithms.</p>",
+    "lang": "", "category": 3, "startdate": 1756684800, "enddate": 0
+  },
+  {
+    "id": 303, "shortname": "HIS-303", "fullname": "<span lang=\"es\" class=\"multilang\">Historia de América Latina</span><span lang=\"en\" class=\"multilang\">Latin American History</span>",
+    "summary": "<p>Este curso es una introducción a la historia de la región, con lecturas para cada semana.</p>",
+    "category": 9
+  },
+  {"id": 1, "shortname": "site", "fullname": "Front page"}
+]

@@ -7,8 +7,11 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 ## Hard rules
 
 - **No LLM API calls** anywhere in the app. AI happens in the Claude apps via the MCP connector.
-- **Secrets only via environment variables** (`app/config.py`). Never log tokens, passwords,
-  or URLs that contain tokens (Moodle `fileurl` + `token=`). Keep secrets out of `repr`.
+- **Server secrets via environment variables** (`app/config.py`). User credentials the user
+  changes in the UI (Moodle URL/token, UI password) live in SQLite: the token encrypted with
+  SECRET_KEY (`app/auth/crypto.py`), the password scrypt-hashed (`app/accounts.py`). Never log
+  tokens, passwords, or URLs that contain tokens (Moodle `fileurl` + `token=`). Keep secrets
+  out of `repr`.
 - **Tests never call a real Moodle.** Every Moodle API call gets a pytest test with recorded or
   mock JSON. Handle missing fields defensively; Moodle versions differ.
 - **Rate-limit Moodle requests** (about 2 req/s) and back off on errors.
@@ -26,7 +29,13 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 
 - `backend/app/main.py` app factory (`create_app(settings)`; uvicorn uses `get_app --factory`)
 - `backend/app/config.py` `Settings.from_env()`; validates required secrets at startup
-- `backend/app/auth/` UI password login (signed cookie, login throttle); OAuth for MCP in M3
+- `backend/app/auth/` UI password login (signed cookie, login throttle), crypto helpers; OAuth for MCP in M3
+- `backend/app/accounts.py` account + Moodle credentials (single user id 1, schema ready for more)
+- `backend/app/models.py`, `db.py` SQLModel tables, SQLite engine, DB snapshot for backups
+- `backend/app/moodle/` `client.py` (rate limit, backoff, redaction), `api.py` (one wrapper per
+  web service function), `sync.py`, `scheduler.py`, `names.py` (safe paths), `text.py` (multilang, language)
+- `backend/app/cli.py` `python -m app.cli check|sync|snapshot-db`
+- `deploy/backup.sh` restic backup of the data volume (docs/backups.md)
 - `backend/tests/` pytest; `conftest.py` builds an app with test settings
 - `docker/Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile`, `.env.example`
 - `.github/workflows/ci.yml` (tests, compose/Caddyfile validation, image smoke test),
