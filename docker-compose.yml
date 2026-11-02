@@ -1,9 +1,9 @@
-# Moodle Study Companion: app + Caddy (automatic HTTPS).
+# Study Companion: app + Caddy (automatic HTTPS).
 # Usage: fill in .env (see .env.example), then `docker compose up -d`.
 
 services:
   app:
-    image: ghcr.io/tkint/moodle-study-companion:${IMAGE_TAG:-latest}
+    image: ghcr.io/tkint/study-companion:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
