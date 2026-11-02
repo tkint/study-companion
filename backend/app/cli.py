@@ -3,6 +3,7 @@
     docker compose exec app python -m app.cli check        # test the Moodle token
     docker compose exec app python -m app.cli sync         # run a full sync now
     docker compose exec app python -m app.cli snapshot-db  # consistent DB copy for backups
+    docker compose exec app python -m app.cli reset-password  # forgot the UI password
 
 No command prints the token.
 """
@@ -51,9 +52,28 @@ async def _sync(settings: Settings) -> int:
     return 0 if run.status in {"ok", "partial"} else 1
 
 
+def _reset_password(settings: Settings) -> int:
+    import getpass
+
+    engine = make_engine(settings.data_dir)
+    new = getpass.getpass("New web UI password (12+ characters): ")
+    if new != getpass.getpass("Repeat: "):
+        print("The passwords do not match.", file=sys.stderr)
+        return 1
+    try:
+        if not accounts.verify_password(engine, new):  # make sure the account exists
+            accounts.bootstrap(engine, Settings(**{**settings.__dict__, "app_password": new}))
+        accounts.change_password(engine, new)
+    except (ValueError, ConfigError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print("Password changed; every device has been signed out.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
-    parser.add_argument("command", choices=["check", "sync", "snapshot-db"])
+    parser.add_argument("command", choices=["check", "sync", "snapshot-db", "reset-password"])
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     try:
@@ -66,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
             return asyncio.run(_check(settings))
         if args.command == "sync":
             return asyncio.run(_sync(settings))
+        if args.command == "reset-password":
+            return _reset_password(settings)
         make_engine(settings.data_dir)  # make sure the database exists
         dest = snapshot(settings.data_dir, settings.data_dir / SNAPSHOT_PATH)
         print(f"Database snapshot written to {dest}")
