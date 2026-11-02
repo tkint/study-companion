@@ -44,7 +44,7 @@ def test_login_then_home_then_logout(client):
 
     r = client.get("/")
     assert r.status_code == 200
-    assert "Hello from Study Companion" in r.text
+    assert "Sync now" in r.text
 
     r = client.post("/logout")
     assert r.status_code == 303

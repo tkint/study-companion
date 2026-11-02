@@ -1,0 +1,15 @@
+{
+  "courses": [
+    {
+      "id": 101, "fullname": "Algèbre linéaire", "shortname": "MATH-101", "timemodified": 1756000000,
+      "assignments": [
+        {"id": 81, "cmid": 5004, "course": 101, "name": "Devoir 1", "nosubmissions": 0,
+         "duedate": 1762000000, "allowsubmissionsfromdate": 1756684800, "grade": 20,
+         "timemodified": 1756000000, "cutoffdate": 0, "gradingduedate": 0,
+         "intro": "<p>Exercices 1 à 5.</p>", "introformat": 1, "configs": []}
+      ]
+    },
+    {"id": 202, "assignments": []}
+  ],
+  "warnings": []
+}

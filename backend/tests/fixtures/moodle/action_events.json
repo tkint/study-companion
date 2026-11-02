@@ -1,0 +1,13 @@
+{
+  "events": [
+    {"id": 9001, "name": "Devoir 1 is due", "activityname": "Devoir 1", "modulename": "assign",
+     "instance": 81, "timestart": 1762000000, "timesort": 1762000000, "course": {"id": 101},
+     "coursemoduleid": 5004, "url": "https://moodle.example.ch/mod/assign/view.php?id=5004"},
+    {"id": 9002, "name": "Ensayo final", "activityname": "Ensayo final", "modulename": "lesson",
+     "instance": 55, "timestart": 1763000000, "timesort": 1763000000, "course": {"id": 303},
+     "coursemoduleid": 7009, "url": "https://moodle.example.ch/mod/lesson/view.php?id=7009",
+     "description": "<p>Entrega del ensayo.</p>"}
+  ],
+  "firstid": 9001,
+  "lastid": 9002
+}
