@@ -16,8 +16,8 @@ Releases are fully automated from a version tag.
    - builds the multi-arch image (amd64, arm64) and pushes
      `ghcr.io/tkint/study-companion:X.Y.Z`, `:X.Y` and `:latest`,
    - creates a GitHub Release with generated notes and attaches
-     `study-companion-deploy.tar.gz` (compose file, `.env.example` pinned to the version,
-     Caddyfile), plus `docker-compose.yml`, `env.example` and `server-setup.md`.
+     `study-companion-deploy.tar.gz` (compose file, `.env.example` with `IMAGE_TAG=latest`,
+     Caddyfile, backup script), plus `docker-compose.yml`, `env.example` and `server-setup.md`.
 
 ## First release only: make the image public
 

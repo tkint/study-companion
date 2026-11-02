@@ -132,15 +132,38 @@ Follow [docs/backups.md](backups.md) to back up the data volume with restic ever
 
 ## Update
 
+`docker compose pull` fetches the image named by `IMAGE_TAG` in `.env`. With
+`IMAGE_TAG=latest` it follows new releases; with a version number (e.g. `0.1.0`) it stays on
+that version.
+
 ```bash
 cd ~/study
+grep IMAGE_TAG .env                                       # should print IMAGE_TAG=latest
+sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=latest/' .env           # if it shows a version number
 docker compose pull && docker compose up -d
+docker compose exec app python -c "import app; print(app.__version__)"   # running version
 ```
 
-To pin a version instead of following `latest`, set `IMAGE_TAG=0.2.0` in `.env`.
+Releases can also add deploy files (for example `deploy/backup.sh` in 0.2.0). Refresh them
+without touching `.env` or your data:
+
+```bash
+cd ~/study
+curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
+  | tar xz --strip-components=1 --exclude=.env.example
+docker compose up -d
+```
+
+To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run the same
+`pull` and `up -d`.
+
+> The v0.1.0 release bundle shipped `.env.example` with `IMAGE_TAG=0.1.0`, so an `.env`
+> copied from it stays on 0.1.0 until you change that line as shown above.
 
 ## Troubleshooting
 
+- **`docker compose pull` doesn't update the app:** `IMAGE_TAG` in `.env` is pinned to an
+  old version; set it to `latest` (see Update above).
 - **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
   or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
 - **App container restarting:** `docker compose logs app`. A missing or too short
