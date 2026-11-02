@@ -45,7 +45,7 @@ you never edit `.env` to change them.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DOMAIN` | yes | Public hostname, e.g. `study.yourname.ch`. Caddy gets its certificate. |
+| `DOMAIN` | yes | Public hostname, e.g. `study-companion.ch`. Caddy gets its certificate. |
 | `SECRET_KEY` | yes | 32+ characters; `openssl rand -hex 32`. Signs sessions and encrypts the Moodle token: rotating it signs you out and means pasting the token again. |
 | `APP_PASSWORD` | first start | Initial web UI password, 12+ characters. Ignored once set; change it on the Settings page. |
 | `IMAGE_TAG` | no | Image version to run (default `latest`). |

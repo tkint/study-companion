@@ -24,7 +24,7 @@ Create DNS records at your domain registrar (for Infomaniak domains: Manager > D
 | A    | `study` | your VPS IPv4      |
 | AAAA | `study` | your VPS IPv6 (optional) |
 
-Check it resolves before continuing: `dig +short study.yourname.ch` should print the IP.
+Check it resolves before continuing: `dig +short study-companion.ch` should print the IP.
 Caddy needs this to obtain the HTTPS certificate.
 
 ## 3. Harden the server
@@ -106,7 +106,7 @@ nano .env
 
 Fill in `.env`:
 
-- `DOMAIN`: your subdomain, e.g. `study.yourname.ch`
+- `DOMAIN`: your subdomain, e.g. `study-companion.ch`
 - `APP_PASSWORD`: a long password for the web UI (12+ characters)
 - `SECRET_KEY`: output of `openssl rand -hex 32`
 - `MOODLE_URL`, `MOODLE_TOKEN`: leave them out; you connect Moodle on the Settings page
@@ -118,7 +118,7 @@ docker compose up -d
 docker compose logs -f caddy   # watch for "certificate obtained successfully", then Ctrl+C
 ```
 
-Open `https://study.yourname.ch` on your phone and sign in. Then open **Settings**, enter
+Open `https://study-companion.ch` on your phone and sign in. Then open **Settings**, enter
 your Moodle address and paste your token ([docs/moodle-token.md](moodle-token.md) explains how
 to get it with university SSO). The first sync starts right away; refresh the home page to
 follow it. Use your browser's "Add to Home Screen" for quick access.
