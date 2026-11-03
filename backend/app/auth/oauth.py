@@ -79,6 +79,13 @@ def redirect_allowed(uri: str, allowed_hosts: tuple[str, ...]) -> bool:
     return parts.scheme == "http" and host in LOCAL_HOSTS
 
 
+def _host(uri: str) -> str:
+    try:
+        return (urlsplit(uri).hostname or "?")[:100]
+    except ValueError:
+        return "?"
+
+
 def metadata(base: str) -> dict:
     return {
         "issuer": base,
@@ -126,13 +133,14 @@ def register_client(engine: Engine, data: object, allowed_hosts: tuple[str, ...]
         isinstance(u, str) and len(u) <= 2000 for u in uris
     ):
         raise OAuthError("invalid_redirect_uri", "redirect_uris must be a list of URLs")
-    for uri in uris:
-        if not redirect_allowed(uri, allowed_hosts):
-            raise OAuthError(
-                "invalid_redirect_uri",
-                f"redirect URI not allowed: hosts allowed are {', '.join(allowed_hosts)} "
-                "(set OAUTH_REDIRECT_HOSTS on the server to change this)",
-            )
+    refused = [u for u in uris if not redirect_allowed(u, allowed_hosts)]
+    if refused:
+        hosts = sorted({_host(u) for u in refused})
+        raise OAuthError(
+            "invalid_redirect_uri",
+            f"redirect URI not allowed for host {', '.join(hosts)}: hosts allowed are "
+            f"{', '.join(allowed_hosts)} (set OAUTH_REDIRECT_HOSTS on the server to change this)",
+        )
     method = data.get("token_endpoint_auth_method") or "none"
     if method not in AUTH_METHODS:
         raise OAuthError("invalid_client_metadata",
