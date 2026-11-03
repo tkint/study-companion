@@ -20,6 +20,10 @@ input, button { width: 100%; font-size: 16px; padding: 12px; border-radius: 10px
 input { border: 1px solid #8886; background: transparent; color: inherit; margin-bottom: 12px; }
 button { border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .error { color: #dc2626; opacity: 1; }
+.helper { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 12px; }
+.helper ol { margin: 4px 0 8px; padding-left: 20px; font-size: .9rem; }
+.helper p { margin: 0 0 4px; opacity: 1; }
+a[aria-disabled="true"] { opacity: .5; pointer-events: none; }
 .alert { border: 1px solid #dc2626; border-radius: 10px; padding: 10px 12px; }
 a { color: var(--accent); }
 details { margin: 0 0 12px; } summary { cursor: pointer; margin-bottom: 8px; }
@@ -145,6 +149,39 @@ synced {_when(c["synced_at"])}</p></div>"""
     )
 
 
+LAUNCH_PATH = "/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=12345&urlscheme=moodlemobile"
+
+_TOKEN_LINK_JS = """
+<script>
+(function () {
+  var url = document.getElementById("url"), link = document.getElementById("token-link"),
+      hint = document.getElementById("token-hint");
+  if (!url || !link) return;
+  function update() {
+    var v = url.value.trim().replace(/\\/+$/, "").replace(/\\/(login\\/index\\.php|my|index\\.php)$/, "");
+    var ok = /^https:\\/\\/[^\\/?#\\s]+(\\/[^?#\\s]*)?$/.test(v);
+    link.href = ok ? v + "%s" : "#";
+    if (ok) { link.removeAttribute("aria-disabled"); hint.textContent = ""; }
+    else { link.setAttribute("aria-disabled", "true"); hint.textContent = "Enter the Moodle address first."; }
+  }
+  url.addEventListener("input", update);
+  link.addEventListener("click", function (e) { if (link.getAttribute("href") === "#") e.preventDefault(); });
+  update();
+})();
+</script>""" % LAUNCH_PATH
+
+
+def _launch_url(site: str) -> str:
+    """Moodle's app sign-in page, which hands out the token after SSO (see docs/moodle-token.md)."""
+    from app.config import validate_moodle_url
+
+    try:
+        base = validate_moodle_url(site)
+    except ValueError:
+        return "#"
+    return base + LAUNCH_PATH if base.startswith("https://") else "#"
+
+
 def settings_page(
     creds,
     *,
@@ -201,12 +238,25 @@ def settings_page(
   <label for="url">Moodle address</label>
   <input id="url" name="url" type="url" inputmode="url" required
          placeholder="https://moodle.your-university.ch" value="{escape(url_value)}">
+  <div class="helper">
+  <p><strong>Get your token (university SSO)</strong></p>
+  <ol class="muted">
+    <li>Use a computer browser (Chrome, Edge or Firefox) where you are signed in to Moodle.</li>
+    <li>Open the link below. In the new tab press <strong>F12</strong> and open <em>Console</em>
+      (reload the tab if the console is empty).</li>
+    <li>Copy the whole <code>moodlemobile://token=…</code> link from the
+      <em>Failed to launch</em> message and paste it in the Token field.</li>
+  </ol>
+  <p><a id="token-link" href="{escape(_launch_url(url_value))}" target="_blank" rel="noopener noreferrer"
+     {'' if _launch_url(url_value) != '#' else 'aria-disabled="true"'}>Open the Moodle token page ↗</a>
+     <span id="token-hint" class="muted">{'' if _launch_url(url_value) != '#' else 'Enter the Moodle address first.'}</span></p>
+  </div>
   <label for="token">Token</label>
   <input id="token" name="token" type="password" autocomplete="off" spellcheck="false"
          placeholder="{"Leave empty to keep the saved token" if creds.token else "Paste the token or the moodlemobile:// link"}">
   <p class="muted">With university SSO, copy the token from Moodle's
   <em>Preferences › Security keys</em> page, or capture it from the Moodle app sign-in.
-  Steps: docs/moodle-token.md in the repository. Tokens can expire; paste a new one here
+  More help: docs/moodle-token.md in the repository. Tokens can expire; paste a new one here
   when the sync reports it.</p>
   <details><summary>No SSO? Sign in with username and password instead</summary>
   <p class="muted">Used once to get a token from Moodle; the password is not stored.</p>
@@ -231,6 +281,7 @@ def settings_page(
   <button type="submit">Change password</button>
 </form>
 </div>
-<p class="muted">Version {escape(version)}</p>""",
+<p class="muted">Version {escape(version)}</p>
+{_TOKEN_LINK_JS}""",
         wide=True,
     )

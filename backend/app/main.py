@@ -259,6 +259,7 @@ def create_app(
             token_to_test = token
         try:
             async with client_factory(url, token_to_test) as client:
+                client.max_retries = 1  # someone is waiting on this page: fail fast
                 if not token_to_test:
                     await client.login_with_password(username, password)
                     token = client.token
