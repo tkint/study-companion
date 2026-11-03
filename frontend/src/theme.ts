@@ -1,0 +1,42 @@
+import { useEffect, useState } from "react";
+
+// "system" follows the device; light/dark override it. Stored per device (index.html applies
+// it before the first paint, so there is no flash).
+export type Theme = "system" | "light" | "dark";
+const KEY = "theme";
+
+export function storedTheme(): Theme {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === "light" || v === "dark" ? v : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function apply(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", theme);
+  const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#151b26" : "#ffffff");
+}
+
+export function useTheme(): [Theme, (t: Theme) => void] {
+  const [theme, setTheme] = useState<Theme>(storedTheme);
+  useEffect(() => {
+    apply(theme);
+    try {
+      if (theme === "system") localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, theme);
+    } catch {
+      /* private mode: still applies for this visit */
+    }
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => apply("system");
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [theme]);
+  return [theme, setTheme];
+}

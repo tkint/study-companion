@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { Status, useLoad } from "../components/common";
-import { CourseCards } from "./Dashboard";
+import { CourseList } from "../components/CourseList";
 
 export default function Courses() {
   const { data, error } = useLoad(api.dashboard, []);
@@ -8,7 +8,7 @@ export default function Courses() {
   return (
     <>
       <h1>Courses</h1>
-      <CourseCards data={data} />
+      <CourseList courses={data.courses} />
     </>
   );
 }

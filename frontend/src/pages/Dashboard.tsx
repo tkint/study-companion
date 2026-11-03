@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { api, type Dashboard as Data, type Deadline, type SyncState } from "../api";
-import { Progress, Status, useLoad } from "../components/common";
+import { api, type Deadline, type SyncState } from "../api";
+import { Status, useLoad } from "../components/common";
+import { CourseList } from "../components/CourseList";
 import { DeadlineList } from "../components/DeadlineList";
 import { fromNow } from "../format";
-import { href } from "../router";
 
 function replace(list: Deadline[], d: Deadline) {
   return list.map((x) => (x.id === d.id ? d : x));
@@ -30,37 +30,31 @@ export default function Dashboard() {
     <>
       <SyncBar sync={data.sync} onDone={reload} />
       <section className="summary" aria-label="Summary">
-        <a className={`stat${overdue.filter((d) => !d.done).length ? " bad" : ""}`} href="#overdue">
-          <strong>{overdue.filter((d) => !d.done).length}</strong>
-          <span>overdue</span>
-        </a>
-        <a className="stat" href="#week">
-          <strong>{week.filter((d) => !d.done).length}</strong>
-          <span>due in 7 days</span>
-        </a>
-        <a className="stat" href="#later">
-          <strong>{data.later.filter((d) => !d.done).length}</strong>
-          <span>later</span>
-        </a>
+        <Stat target="overdue" count={overdue.filter((d) => !d.done).length} label="overdue" bad />
+        <Stat target="week" count={week.filter((d) => !d.done).length} label="due in 7 days" />
+        <Stat target="later" count={data.later.filter((d) => !d.done).length} label="later" />
       </section>
 
-      <section id="overdue">
-        <h2>Overdue</h2>
-        <DeadlineList items={overdue} empty="Nothing overdue. Nice." onChange={changed} />
-      </section>
-      <section id="week">
-        <h2>Due in the next 7 days</h2>
-        <DeadlineList items={week} empty="Nothing due this week." onChange={changed} />
-      </section>
-      <section id="later">
-        <h2>Later</h2>
-        <DeadlineList items={data.later} empty="Nothing scheduled yet." onChange={changed} />
-      </section>
-
-      <section>
-        <h2>Catch-up progress</h2>
-        <CourseCards data={data} />
-      </section>
+      <div className="dash">
+        <div>
+          <section id="overdue">
+            <h2>Overdue</h2>
+            <DeadlineList items={overdue} empty="Nothing overdue. Nice." onChange={changed} />
+          </section>
+          <section id="week">
+            <h2>Due in the next 7 days</h2>
+            <DeadlineList items={week} empty="Nothing due this week." onChange={changed} />
+          </section>
+          <section id="later">
+            <h2>Later</h2>
+            <DeadlineList items={data.later} empty="Nothing scheduled yet." onChange={changed} />
+          </section>
+        </div>
+        <section className="dash-side" id="progress">
+          <h2>Catch-up progress</h2>
+          <CourseList courses={data.courses} search={data.courses.length > 4} />
+        </section>
+      </div>
       <p className="footnote">
         Study Companion {data.version} · <a href="/status">sync details</a>
       </p>
@@ -68,38 +62,15 @@ export default function Dashboard() {
   );
 }
 
-export function CourseCards({ data }: { data: Pick<Data, "courses"> }) {
-  if (!data.courses.length) return <p className="empty">No courses yet. Run a sync after connecting Moodle.</p>;
+// Buttons rather than #anchors: the hash is the app's route, and scrollIntoView honours the
+// scroll-margin that keeps the heading clear of the sticky top bar.
+function Stat({ target, count, label, bad }: { target: string; count: number; label: string; bad?: boolean }) {
   return (
-    <ul className="cards">
-      {data.courses.map((c) => (
-        <li key={c.id}>
-          <a className="card" href={href.course(c.id)}>
-            <div className="card-title">{c.fullname}</div>
-            <div className="card-meta">
-              <span>{c.shortname}</span>
-              {c.overdue > 0 && <span className="late">{c.overdue} overdue</span>}
-              {c.upcoming > 0 && <span>{c.upcoming} upcoming</span>}
-            </div>
-            {c.progress != null ? (
-              <>
-                <Progress value={c.progress} />
-                <div className="card-meta">
-                  <span>{Math.round(c.progress)}% complete</span>
-                  {c.activities_tracked > 0 && (
-                    <span>
-                      {c.activities_done}/{c.activities_tracked} activities
-                    </span>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="card-meta muted">No completion tracking in Moodle</div>
-            )}
-          </a>
-        </li>
-      ))}
-    </ul>
+    <button type="button" className={`stat${bad && count ? " bad" : ""}`}
+      onClick={() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+      <strong>{count}</strong>
+      <span>{label}</span>
+    </button>
   );
 }
 
