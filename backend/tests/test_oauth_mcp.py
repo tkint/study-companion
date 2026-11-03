@@ -278,7 +278,9 @@ def test_gemini_connector_flow(c):
     token = r.json()
     assert token["refresh_token"]
     assert rpc(c, token["access_token"], "tools/list").status_code == 200
-    # Other Google hosts stay refused.
+    # ChatGPT's stable callback registers too; other Google hosts stay refused.
+    assert register(c, redirect_uris=["https://chatgpt.com/connector_platform_oauth_redirect"])
+
     r = c.post("/oauth/register", json={"redirect_uris": ["https://evil.googleusercontent.com/r/x"]})
     assert r.status_code == 400
 

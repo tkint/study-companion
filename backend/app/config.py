@@ -20,9 +20,11 @@ from app.moodle.token import TokenFormatError, parse_pasted_token
 MIN_SECRET_KEY_LENGTH = 32
 MIN_PASSWORD_LENGTH = 12
 # OAuth redirect hosts for the MCP connector. oauth-redirect.googleusercontent.com is the
-# relay Gemini registers its custom MCP connector callback on (/r/user_bound_custom-mcp-...).
+# relay Gemini registers its custom MCP connector callback on (/r/user_bound_custom-mcp-...);
+# ChatGPT uses chatgpt.com/connector_platform_oauth_redirect (we send RFC 9207 `iss`).
 DEFAULT_REDIRECT_HOSTS: tuple[str, ...] = (
-    "claude.ai", "claude.com", "oauth-redirect.googleusercontent.com", "localhost", "127.0.0.1",
+    "claude.ai", "claude.com", "oauth-redirect.googleusercontent.com", "chatgpt.com",
+    "localhost", "127.0.0.1",
 )
 
 
@@ -107,7 +109,7 @@ class Settings:
     # Dates in MCP tool output and prompt periods (deadlines are shown in this time zone).
     timezone: str = "Europe/Zurich"
     # Hosts allowed as OAuth redirect targets for the MCP connector: claude.ai, Gemini's
-    # OAuth relay and local tools such as Claude Code or the MCP Inspector on localhost.
+    # OAuth relay, ChatGPT and local tools such as Claude Code or the MCP Inspector on localhost.
     oauth_redirect_hosts: tuple[str, ...] = DEFAULT_REDIRECT_HOSTS
     oauth_access_ttl: int = 3600
     oauth_refresh_ttl: int = 30 * 86400
