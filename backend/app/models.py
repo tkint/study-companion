@@ -1,7 +1,7 @@
 """SQLModel tables. Moodle ids are kept as primary keys where Moodle provides stable ones.
 
 Timestamps are Unix seconds (UTC) like Moodle's, ``None`` when Moodle has none (e.g. no due
-date). Later milestones add notes, questions and FTS5 tables. New tables (rather than new
+date). New tables (rather than new
 columns) keep existing databases working, since `create_all` only adds missing tables.
 """
 
@@ -231,3 +231,89 @@ class OAuthToken(SQLModel, table=True):
     resource: str = ""
     expires_at: int = 0
     created_at: int = 0
+
+
+# ------------------------------------------------------------------ M4: study loop
+# Rows Claude writes through the connector, and your study progress. They point at Moodle
+# sections/courses by id without foreign keys on purpose: a resync that drops a section must
+# never fail or take your notes with it (the UI shows orphaned notes under the course).
+
+
+class StudyNote(SQLModel, table=True):
+    """A Markdown summary Claude saved for a section (one per section, replaced on save)."""
+
+    __table_args__ = (UniqueConstraint("user_id", "section_id", "kind"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    course_id: int = Field(index=True)
+    section_id: int = Field(index=True)
+    kind: str = "summary"
+    title: str = ""
+    markdown: str = ""
+    source: str = "claude"  # claude (MCP) or web
+    created_at: int = 0
+    updated_at: int = 0
+
+
+class StudyQuestion(SQLModel, table=True):
+    """A practice question / flashcard, with its spaced repetition state.
+
+    Scheduling is a small SM-2 variant (``app.study``): ``interval`` in days, ``ease`` the
+    growth factor, ``due_at`` when the card should come back (None: new, due now).
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    course_id: int = Field(index=True)
+    section_id: Optional[int] = Field(default=None, index=True)
+    kind: str = "short"  # short, mcq, flashcard
+    question: str = ""
+    answer: str = ""
+    choices: str = ""  # JSON list of strings for mcq, else ""
+    explanation: str = ""
+    source: str = ""  # where it comes from, e.g. "cours.pdf p. 3"
+    origin: str = "claude"
+    created_at: int = 0
+    # spaced repetition
+    reps: int = 0
+    lapses: int = 0
+    interval: float = 0.0
+    ease: float = 2.5
+    due_at: Optional[int] = Field(default=None, index=True)
+    last_reviewed_at: Optional[int] = None
+    last_grade: Optional[int] = None  # 0 again, 1 hard, 2 good, 3 easy
+
+
+class QuizResult(SQLModel, table=True):
+    """One quiz or study session: Claude's quiz (record_quiz_result) or a web review."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    course_id: int = Field(index=True)
+    section_id: Optional[int] = Field(default=None, index=True)
+    source: str = "claude"  # claude or web
+    topic: str = ""
+    score: float = 0
+    total: float = 0
+    notes: str = ""
+    taken_at: int = Field(default=0, index=True)
+
+
+class SectionMark(SQLModel, table=True):
+    """A section you marked as studied (the catch-up plan leaves it out)."""
+
+    __table_args__ = (UniqueConstraint("user_id", "section_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    section_id: int = Field(index=True)
+    studied_at: int = 0
+
+
+class StudyPrefs(SQLModel, table=True):
+    """Per-user settings of the catch-up plan."""
+
+    user_id: int = Field(primary_key=True)
+    hours_per_day: float = 2.0
+    updated_at: int = 0
