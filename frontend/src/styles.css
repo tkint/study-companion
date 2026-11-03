@@ -305,3 +305,92 @@ details.past > summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
 .prompt-head strong { overflow-wrap: anywhere; }
 .prompt-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; margin: 8px 0 0;
   padding: 10px; border-radius: 8px; background: var(--bg); max-height: 50vh; overflow: auto; }
+
+/* ---- study loop: Claude's notes, quiz results, flashcards, plan ---- */
+.tag.ai { color: var(--accent); border-color: var(--accent); }
+details.section > summary .tag { margin-left: 6px; vertical-align: middle; }
+button.link.danger { color: var(--bad); }
+.btn.ok { background: transparent; color: var(--ok); border-color: var(--ok); }
+.row.tight { margin: 0; gap: 6px; }
+.row.end { justify-content: flex-end; }
+h3.sub { font-size: .95rem; margin: 18px 0 8px; }
+.ai-note { border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface)); padding: 10px 14px; margin: 8px 0 12px; }
+.ai-note-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ai-note-head strong { flex: 1 1 160px; overflow-wrap: anywhere; }
+.fade { max-height: 18rem; overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.md { font-size: .93rem; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 6px; }
+.md p, .md ul, .md ol, .md blockquote, .md pre { margin: 6px 0; }
+.md ul, .md ol { padding-left: 1.3em; }
+.md li { margin: 2px 0; }
+.md h3, .md h4, .md h5, .md h6 { font-size: 1rem; margin: 12px 0 4px; }
+.md h4, .md h5, .md h6 { font-size: .95rem; }
+.md code { font-size: .88em; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+.md pre { background: var(--bg); padding: 8px 10px; border-radius: 8px; overflow-x: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
+.md hr { border: 0; border-top: 1px solid var(--border); }
+.md-table { overflow-x: auto; margin: 6px 0; }
+.md table { border-collapse: collapse; font-size: .88rem; min-width: 100%; }
+.md th, .md td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.section-study { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 10px 0 14px;
+  border-top: 1px solid var(--border); }
+.study-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 10px 10px 14px; border-radius: var(--radius); background: var(--surface);
+  border: 1px solid var(--border); margin-bottom: 12px; }
+.results { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.result { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); }
+.result-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.score { flex: none; min-width: 3.2em; text-align: center; font-weight: 700; color: var(--ok);
+  padding: 4px 6px; border-radius: 8px; background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.score.low { color: var(--bad); background: var(--bad-bg); }
+.course-row.static:hover { border-color: var(--border); }
+.stat.static { cursor: default; }
+.stat.static strong { font-size: 1.4rem; }
+
+.flash-page { max-width: 640px; margin: 0 auto; }
+.flash-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.flashcard { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: 16px 18px 18px; margin: 12px 0; display: grid; gap: 12px; min-height: 40vh; align-content: start; }
+.flash-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-height: 1.2em; }
+.flash-q { font-size: 1.12rem; font-weight: 600; }
+.flash-a { border-top: 1px dashed var(--border); padding-top: 10px; display: grid; gap: 6px; }
+.choices-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.choice-btn { width: 100%; text-align: left; font: inherit; min-height: 44px; padding: 10px 12px;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.choice-btn:disabled { cursor: default; }
+.choice-btn.picked { border-color: var(--accent); }
+.choice-btn.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, var(--bg)); }
+.choice-btn.wrong { border-color: var(--bad); background: var(--bad-bg); }
+.grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; position: sticky;
+  bottom: calc(var(--tabbar) + 8px + env(safe-area-inset-bottom)); }
+@media (min-width: 641px) { .grades { bottom: 12px; } }
+.grade { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 56px; padding: 8px 4px;
+  font: inherit; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); cursor: pointer; box-shadow: 0 1px 3px #0002; }
+.grade span { font-size: .75rem; color: var(--muted); }
+.grade.g0 strong { color: var(--bad); }
+.grade.g1 strong { color: var(--warn); }
+.grade.g2 strong { color: var(--ok); }
+.grade.g3 strong { color: var(--accent); }
+
+.plan-controls { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 16px; }
+.plan-controls label { display: grid; gap: 4px; font-size: .9rem; flex: 1 1 140px; max-width: 220px; }
+.plan-controls select { font: inherit; font-size: 16px; min-height: 44px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.plan-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.plan-item { display: flex; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); }
+.plan-item.late-item, .plan-item.overdue { border-color: var(--bad); }
+.plan-main { flex: 1; min-width: 0; }
+.plan-title { font-weight: 600; overflow-wrap: anywhere; }
+.plan-title a { color: var(--text); }
+.plan-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.plan-side strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 640px) {
+  .tabs a { font-size: .65rem; }
+}

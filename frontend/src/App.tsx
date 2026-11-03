@@ -3,19 +3,26 @@ import { href, useRoute, type Route } from "./router";
 import Dashboard from "./pages/Dashboard";
 import Courses from "./pages/Courses";
 import Course from "./pages/Course";
+import Plan from "./pages/Plan"; // shares its rows with the dashboard
 import ThemeSwitch from "./components/ThemeSwitch";
 
 // Heavy parts (FullCalendar, pdf.js) load only when opened.
 const Calendar = lazy(() => import("./pages/Calendar"));
 const FileViewer = lazy(() => import("./pages/FileViewer"));
 const Prompt = lazy(() => import("./pages/Prompt"));
+const Study = lazy(() => import("./pages/Study"));
+
 
 function Page({ route }: { route: Route }) {
   switch (route.name) {
     case "courses":
       return <Courses />;
     case "course":
-      return <Course id={route.id} />;
+      return <Course id={route.id} section={route.section} />;
+    case "study":
+      return <Study course={route.course} section={route.section} all={route.all} due={route.due} />;
+    case "plan":
+      return <Plan />;
     case "calendar":
       return <Calendar />;
     case "prompt":
@@ -30,13 +37,14 @@ function Page({ route }: { route: Route }) {
 const TABS = [
   { route: "dashboard", label: "Today", href: href.dashboard, icon: "M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10" },
   { route: "courses", label: "Courses", href: href.courses, icon: "M4 5h7a3 3 0 013 3v12a2 2 0 00-2-2H4zM20 5h-5a3 3 0 00-3 3" },
+  { route: "study", label: "Study", href: href.study(), icon: "M4 7l8-4 8 4-8 4zM8 9v5c0 1.5 2 3 4 3s4-1.5 4-3V9M20 7v6" },
   { route: "calendar", label: "Calendar", href: href.calendar, icon: "M4 6h16v14H4zM4 10h16M9 3v5M15 3v5" },
   { route: "prompt", label: "Prompt", href: href.prompt(), icon: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5" },
 ] as const;
 
 export default function App() {
   const route = useRoute();
-  const active = route.name === "course" ? "courses" : route.name;
+  const active = route.name === "course" ? "courses" : route.name === "plan" ? "dashboard" : route.name;
   if (route.name === "file") {
     return (
       <Suspense fallback={<p className="loading">Loading viewer…</p>}>

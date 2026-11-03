@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { api, type Deadline, type SyncState } from "../api";
+import { api, type Dashboard as DashboardData, type Deadline, type SyncState } from "../api";
 import { Status, useLoad } from "../components/common";
 import { CourseList } from "../components/CourseList";
 import { DeadlineList } from "../components/DeadlineList";
 import { fromNow } from "../format";
+import { href } from "../router";
+import { minutes, PlanRow } from "./Plan";
 
 function replace(list: Deadline[], d: Deadline) {
   return list.map((x) => (x.id === d.id ? d : x));
@@ -37,6 +39,7 @@ export default function Dashboard() {
 
       <div className="dash">
         <div>
+          <StudyToday data={data} onChange={reload} />
           <section id="overdue">
             <h2>Overdue</h2>
             <DeadlineList items={overdue} empty="Nothing overdue. Nice." onChange={changed} />
@@ -59,6 +62,40 @@ export default function Dashboard() {
         Study Companion {data.version} · <a href="/status">sync details</a>
       </p>
     </>
+  );
+}
+
+function StudyToday({ data, onChange }: { data: DashboardData; onChange: () => void }) {
+  const plan = data.plan;
+  const today = plan.today;
+  const due = data.study.due;
+  if (!today && !due && !plan.sections_left) return null;
+  return (
+    <section id="today">
+      <div className="list-head">
+        <h2>Study today{today ? ` · ${minutes(today.minutes)}` : ""}</h2>
+        <a href={href.plan} className="small">Full plan →</a>
+      </div>
+      {due > 0 && (
+        <div className="banner">
+          <span><strong>{due}</strong> flashcard{due === 1 ? "" : "s"} due for review</span>
+          <a className="btn small" href={href.study({ due: true })}>Review</a>
+        </div>
+      )}
+      {today ? (
+        <ul className="plan-list">
+          {today.items.map((it, i) => <PlanRow key={i} item={it} onStudied={onChange} />)}
+        </ul>
+      ) : (
+        <p className="empty">Nothing planned today.</p>
+      )}
+      {plan.late > 0 && (
+        <p className="banner warn small">
+          {plan.late} item{plan.late === 1 ? "" : "s"} in the next 7 days only fit after their deadline. Add study time in
+          the <a href={href.plan}>plan</a>.
+        </p>
+      )}
+    </section>
   );
 }
 

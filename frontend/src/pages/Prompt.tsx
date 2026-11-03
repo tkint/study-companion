@@ -108,6 +108,7 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
   const [days, setDays] = useState(7);
   const [deadlines, setDeadlines] = useState(true);
   const [completion, setCompletion] = useState(true);
+  const [save, setSave] = useState(true);
   const [built, setBuilt] = useState<Built | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -156,9 +157,10 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
       days: timeMode === "daily" ? days : null,
       include_deadlines: deadlines,
       include_completion: completion,
+      save_results: save,
     };
   }, [courses, goal, period, from, to, secFrom, secTo, single, topic, goalInfo, depth, language,
-      timeMode, hoursTotal, hoursPerDay, days, deadlines, completion]);
+      timeMode, hoursTotal, hoursPerDay, days, deadlines, completion, save]);
 
   // Rebuild the preview shortly after each change.
   useEffect(() => {
@@ -344,6 +346,10 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
           <label className="choice">
             <input type="checkbox" checked={completion} onChange={(e) => setCompletion(e.target.checked)} />
             <span>Use completion status (skip what is done)</span>
+          </label>
+          <label className="choice">
+            <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
+            <span>Save results to the app (summaries, flashcards, quiz scores)</span>
           </label>
         </fieldset>
       </div>
