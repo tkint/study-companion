@@ -437,7 +437,7 @@ def test_ask_question_is_an_mcp_app(c):
     # A client without MCP Apps gets the question to write in its reply.
     assert rpc(c, token, "initialize", {**init, "capabilities": {}}).status_code == 200
     text = rpc(c, token, "tools/call", call, id_=2).json()["result"]["content"][0]["text"]
-    assert "cannot show clickable choices" in text and "2 + 2?\n\nA) 3\nB) 4\nC) 5" in text
+    assert "Present it your own way" in text and "2 + 2?\n\nA) 3\nB) 4\nC) 5" in text
 
     # The client's capabilities at initialize are remembered for its OAuth client.
     assert rpc(c, token, "initialize", {**init, "capabilities": APPS_CAPS}, id_=3).status_code == 200

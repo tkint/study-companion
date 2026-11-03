@@ -663,8 +663,11 @@ class StudyTools:
                     f"Their choice arrives as their next message, like \"B) ...\". Do not "
                     "repeat the question or the choices and do not reveal the answer: end "
                     "your turn and wait for it.\n\n" + listed)
-        return ("This app cannot show clickable choices. Ask the question in your reply, "
-                "exactly as below, then wait for the student's letter:\n\n"
+        return ("This app does not show Study Companion's question card, so the student "
+                "cannot see this question yet. Present it your own way: use your app's own "
+                "quiz or clickable-choice format if it has one, otherwise write the question "
+                "with lettered choices in your reply. Then wait for the student's answer "
+                "without revealing it.\n\n"
                 f"{question}\n\n{listed}")
 
     def trigger_sync(self) -> str:

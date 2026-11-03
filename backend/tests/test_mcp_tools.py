@@ -140,7 +140,8 @@ def test_ask_question_text(tools):
     assert "clickable choices A to B" in shown and "B) Mitochondrion" in shown
     assert "Which organelle" not in shown  # Claude already has it; the card shows it
     plain = tools.ask_question("Which organelle makes ATP?", ["Nucleus", "Mitochondrion"], False)
-    assert plain.startswith("This app cannot show clickable choices")
+    assert plain.startswith("This app does not show Study Companion's question card")
+    assert "your own way" in plain
     assert "Which organelle makes ATP?\n\nA) Nucleus\nB) Mitochondrion" in plain
     for question, choices in [("", ["a", "b"]), ("Q", ["a"]), ("Q", ["a", "A"]),
                               ("Q", [str(i) for i in range(9)])]:

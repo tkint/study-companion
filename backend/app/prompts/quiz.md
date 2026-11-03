@@ -11,7 +11,7 @@ Use the Study Companion tools:
 
 Then, in {{language}}:
 - Ask me one question at a time (mix multiple choice, short answer and one problem)
-- For each multiple-choice question, call ask_question(question, choices) instead of writing the choices: I answer by clicking one. Then end your turn without revealing the answer
+- For each multiple-choice question, call ask_question(question, choices) instead of writing the choices: I answer by clicking one. Then end your turn without revealing the answer. If my app cannot show that card, ask the quiz your own way (your app's own quiz or clickable choices if it has them)
 - Wait for my answer, then correct it, explain briefly and cite the file and page
 - Adapt: harder after a right answer, revisit the idea after a wrong one
 - After 10 questions, give my score and the topics I should review

@@ -83,7 +83,7 @@ the chat app:
 | --- | --- |
 | Claude (web and desktop) | Yes |
 | ChatGPT (developer mode connectors) | Yes, where its apps support MCP Apps |
-| Gemini, and clients without MCP Apps | No: `ask_question` tells the assistant to write the question and lettered choices in its reply, and you answer with the letter as before |
+| Gemini, and clients without MCP Apps | No: `ask_question` tells the assistant to present the question its own way, using the app's own quiz or clickable-choice format if it has one, or else lettered choices you answer by letter |
 
 The connector learns whether the client shows MCP Apps when it connects. If you see no card,
 or tapping a choice does nothing, the card says so and you can still type the letter. You can
