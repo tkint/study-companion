@@ -38,7 +38,7 @@ screen, subscribing to your deadlines from your phone or Outlook calendar, and t
 builder. **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses.
 
-Updates: tagging a release can deploy it automatically over SSH (see
+Updates: run the **Deploy** workflow from GitHub Actions (see
 [docs/releasing.md](docs/releasing.md)). Manually: `docker compose pull && docker compose up -d`.
 
 ## Configuration

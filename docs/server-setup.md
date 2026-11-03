@@ -132,8 +132,8 @@ Follow [docs/backups.md](backups.md) to back up the data volume with restic ever
 
 ## Update
 
-**Automatic:** the release workflow can SSH into this server and run the update right after
-the image is published, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#automatic-deploy-to-the-vps).
+**From GitHub:** run the **Deploy** workflow in GitHub Actions; it SSHes into this server and
+updates it, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual).
 
 **Manual:**
 
