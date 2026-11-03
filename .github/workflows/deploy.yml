@@ -20,13 +20,34 @@ jobs:
       - name: Update the VPS
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          HOST: ${{ vars.DEPLOY_HOST }}
-          SSH_USER: ${{ vars.DEPLOY_USER }}
-          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
-          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '~/study' }}
-          HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
+          HOST: ${{ vars.DEPLOY_HOST || secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_USER || secrets.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || secrets.DEPLOY_DIR || '~/study' }}
+          HOST_KEY: ${{ vars.DEPLOY_HOST_KEY || secrets.DEPLOY_HOST_KEY }}
           VERSION: ${{ inputs.version }}
         run: |
+          missing=0
+          if [ -z "$SSH_KEY" ]; then
+            echo "::error::Missing DEPLOY_SSH_KEY. Add it as an Actions secret."
+            missing=1
+          fi
+          if [ -z "$HOST" ]; then
+            echo "::error::Missing DEPLOY_HOST. Add it as an Actions variable or secret."
+            missing=1
+          fi
+          if [ -z "$SSH_USER" ]; then
+            echo "::error::Missing DEPLOY_USER. Add it as an Actions variable or secret."
+            missing=1
+          fi
+          if [ -z "$HOST_KEY" ]; then
+            echo "::error::Missing DEPLOY_HOST_KEY. Add it as an Actions variable or secret."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Use repository settings or the production environment; deployment has not started."
+            exit 1
+          fi
           if ! printf '%s' "$VERSION" | grep -Eq '^[A-Za-z0-9._-]+$'; then
             echo "::error::Invalid version"; exit 1
           fi

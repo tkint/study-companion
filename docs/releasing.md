@@ -45,6 +45,16 @@ that run; to stay on it permanently, set `IMAGE_TAG` in the server's `.env`.
 3. The job uses an environment named `production`; add required reviewers to it
    (Settings > Environments) if you want an approval step.
 
+The `DEPLOY_*` settings other than `DEPLOY_SSH_KEY` can also be stored as Actions secrets;
+variables take precedence if both are set. Use repository-level settings or the
+`production` environment, not a different environment. `DEPLOY_SSH_KEY` must be a secret.
+
+If the run shows empty `HOST`, `SSH_USER`, or `HOST_KEY`, the corresponding settings are
+missing or unavailable to the job. Add `DEPLOY_HOST`, `DEPLOY_USER`, and `DEPLOY_HOST_KEY`
+under **Settings > Secrets and variables > Actions > Variables > New repository variable**
+(or as secrets). Then rerun the workflow. It checks required settings before attempting SSH
+and reports missing names without printing their values.
+
 Changes to the Caddyfile or compose file still need the deploy bundle, see
 [server-setup.md](server-setup.md#update). If the VPS firewall restricts SSH, allow GitHub-hosted
 runners or use a self-hosted runner on the VPS.
