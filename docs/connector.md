@@ -80,18 +80,24 @@ docker compose exec app python -m app.cli extract --force  # every file again
 
 ## Gemini and ChatGPT (optional)
 
-The same URL also works as a custom MCP connector in Gemini. In Gemini, add a custom connector
-with the URL `https://<DOMAIN>/mcp` and leave the client ID and secret empty: Gemini registers
-itself, and its callback on `oauth-redirect.googleusercontent.com` is allowed by default. Approve
-it on the Study Companion page with your password, as for Claude. The prompts in the web UI are
-written for Claude but name the same tools, so they work in Gemini too. If you set
-`OAUTH_REDIRECT_HOSTS` in `.env`, add `oauth-redirect.googleusercontent.com` to it. If you don't
-use Gemini, you can leave it out.
+Only Claude is allowed by default. To use the same server from Gemini or ChatGPT, add its
+callback host to `OAUTH_REDIRECT_HOSTS` in `.env` (the list replaces the default, so keep the
+Claude hosts) and run `docker compose up -d`:
 
-ChatGPT works the same way where your plan offers custom connectors (developer mode): add a
-connector with the URL `https://<DOMAIN>/mcp`, choose OAuth, leave the client fields empty
-(dynamic registration), and approve it with your password. Its callback is
-`https://chatgpt.com/connector_platform_oauth_redirect`, allowed by default (`chatgpt.com`).
+```
+OAUTH_REDIRECT_HOSTS=claude.ai,claude.com,localhost,127.0.0.1,oauth-redirect.googleusercontent.com,chatgpt.com
+```
+
+| Client | Host to add | Callback it registers |
+|---|---|---|
+| Gemini | `oauth-redirect.googleusercontent.com` | `https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-...` |
+| ChatGPT | `chatgpt.com` | `https://chatgpt.com/connector_platform_oauth_redirect` |
+
+Then add a custom connector in that app with the URL `https://<DOMAIN>/mcp`, leave the client ID
+and secret empty (the app registers itself), and approve it on the Study Companion page with your
+password, as for Claude. ChatGPT needs developer mode, where your plan offers it. The prompts in
+the web UI are written for Claude but name the same tools, so they work there too. Remove a host
+from the list to stop new connections from that app; **Disconnect all** signs out existing ones.
 
 ## Security
 
@@ -99,10 +105,8 @@ connector with the URL `https://<DOMAIN>/mcp`, choose OAuth, leave the client fi
   `/.well-known/oauth-authorization-server`), dynamic client registration, the authorization code
   flow with PKCE (S256 only), refresh token rotation and revocation.
 - You approve each new connection on the app's own page with your password. Redirects are only
-  allowed to the hosts in `OAUTH_REDIRECT_HOSTS` (default `claude.ai, claude.com,
-  oauth-redirect.googleusercontent.com` (Gemini), `chatgpt.com` (ChatGPT), `localhost,
-  127.0.0.1`), so a code can't be
-  sent elsewhere. Anyone can register a client, but nobody gets a token without your password.
+  allowed to the hosts in `OAUTH_REDIRECT_HOSTS` (default `claude.ai, claude.com, localhost,
+  127.0.0.1`; Gemini and ChatGPT only if you add them), so a code can't be sent elsewhere. Anyone can register a client, but nobody gets a token without your password.
 - Access tokens last one hour (`OAUTH_ACCESS_TTL`), refresh tokens 30 days of inactivity
   (`OAUTH_REFRESH_TTL`). Tokens and codes are stored only as SHA-256 hashes.
 - **Settings › Claude connector › Disconnect all** signs every client out. Changing the web UI
