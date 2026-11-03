@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
+from uvicorn.logging import AccessFormatter
 
 from app.api import ics
 from app.db import session
@@ -178,6 +179,14 @@ def test_course_detail(client):
     assert client.get("/api/courses/999").status_code == 404
 
 
+def test_file_info(client):
+    login(client)
+    info = client.get("/api/files/1").json()
+    assert info["filename"] == "slides.pdf" and info["course_id"] == 10
+    assert "local_path" not in info and "fileurl" not in info
+    assert client.get("/api/files/999").status_code == 404
+
+
 def test_pdf_is_served_inline(client):
     login(client)
     r = client.get("/files/1")
@@ -252,8 +261,11 @@ def test_access_log_redacts_feed_token():
         ("1.2.3.4", "GET", "/calendar.ics?token=abc123", "1.1", 200), None,
     )
     RedactTokens().filter(record)
-    assert "abc123" not in record.getMessage()
-    assert "token=***" in record.getMessage()
+    # uvicorn's own formatter unpacks the args: it must still work.
+    line = AccessFormatter("%(client_addr)s %(request_line)s %(status_code)s",
+                           use_colors=False).format(record)
+    assert "abc123" not in line
+    assert "/calendar.ics?token=***" in line
 
 
 def test_static_cache_headers_and_spa_shell(settings, tmp_path):
@@ -263,6 +275,9 @@ def test_static_cache_headers_and_spa_shell(settings, tmp_path):
     (dist / "assets" / "index-abc.js").write_text("console.log(1)")
     (dist / "manifest.webmanifest").write_text("{}")
     (dist / "sw.js").write_text("")
+    (dist / "pdfjs" / "cmaps").mkdir(parents=True)
+    (dist / "pdfjs" / "cmaps" / "a.bcmap").write_bytes(b"x")
+    (dist / "assets" / "pdf.worker.min-x.mjs").write_text("")
     app = create_app(replace(settings, frontend_dir=dist))
     with TestClient(app, follow_redirects=False) as c:
         assert c.get("/").headers["location"] == "/login"  # the shell needs a session
@@ -270,6 +285,9 @@ def test_static_cache_headers_and_spa_shell(settings, tmp_path):
         assert c.get("/sw.js").headers["cache-control"] == "no-cache"
         r = c.get("/assets/index-abc.js")
         assert "immutable" in r.headers["cache-control"]
+        assert c.get("/pdfjs/cmaps/a.bcmap").status_code == 200
+        # A module worker must be served as JavaScript or the browser refuses it.
+        assert c.get("/assets/pdf.worker.min-x.mjs").headers["content-type"].startswith("text/javascript")
         login(c)
         assert "id=root" in c.get("/").text
         assert "Study Companion" in c.get("/status").text

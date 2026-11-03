@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlsplit
 
@@ -50,13 +51,21 @@ PUBLIC_FILES = {
 }
 
 
+# Slim images have no /etc/mime.types: the pdf.js worker must be served as JavaScript.
+for _ext, _type in ((".mjs", "text/javascript"), (".wasm", "application/wasm"),
+                    (".webmanifest", "application/manifest+json")):
+    mimetypes.add_type(_type, _ext)
+
+
 class RedactTokens(logging.Filter):
     """Hide ``token=`` values (the ICS feed URL) in uvicorn's access log."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if record.args:
-            record.msg = redact_text(record.getMessage(), [])
-            record.args = ()
+        # Keep the args tuple: uvicorn's access formatter unpacks it.
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                redact_text(a, []) if isinstance(a, str) else a for a in record.args
+            )
         return True
 
 
@@ -177,7 +186,7 @@ def create_app(
     @app.middleware("http")
     async def no_store(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/assets/") and response.status_code == 200:
+        if request.url.path.startswith(("/assets/", "/pdfjs/")) and response.status_code == 200:
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         response.headers.setdefault("Cache-Control", "no-store")
         return response
@@ -423,6 +432,10 @@ def create_app(
         if assets.is_dir():
             # Hashed file names: safe to cache for a year.
             app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        pdfjs = frontend / "pdfjs"
+        if pdfjs.is_dir():
+            # pdf.js fonts, character maps and decoders (public library files).
+            app.mount("/pdfjs", StaticFiles(directory=pdfjs), name="pdfjs")
 
         for name in PUBLIC_FILES:
             path = frontend / name

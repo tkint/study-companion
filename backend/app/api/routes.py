@@ -107,6 +107,16 @@ def register(
 
     # ------------------------------------------------------------------ files
 
+    @app.get("/api/files/{file_id}")
+    async def file_info(request: Request, file_id: int) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        with session(engine) as s:
+            f = s.get(File, file_id)
+        if f is None:
+            return not_found()
+        return JSONResponse({**ui.file_dict(f), "course_id": f.course_id, "module_id": f.module_id})
+
     @app.get("/files/{file_id}/{name:path}")
     @app.get("/files/{file_id}")
     async def get_file(request: Request, file_id: int, name: str = "") -> Response:
