@@ -38,14 +38,18 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `backend/app/extract/` `formats.py` (PDF/DOCX/PPTX/HTML/text to pages), `index.py` (FileText/FilePage,
   FTS5 `search_index`, run after each sync)
 - `backend/app/materials.py` course read model (period -> sections) shared by MCP tools and prompts
-- `backend/app/mcp_tools.py` read tools as plain text functions (`TOOL_NAMES`); `mcp_server.py` registers
-  them with the official MCP SDK (stateless streamable HTTP, JSON) at `/mcp` behind the bearer check
+- `backend/app/study.py` study loop: Claude's notes, questions (SM-2 spaced repetition), quiz results,
+  sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan
+- `backend/app/mcp_tools.py` read and write tools as plain text functions (`TOOL_NAMES`); `mcp_server.py`
+  registers them with the official MCP SDK (stateless streamable HTTP, JSON) at `/mcp` behind the bearer check
 - `backend/app/prompts/` Markdown templates + builder (`__init__.py`); `api/prompts.py` its JSON API
 - `backend/app/api/` `routes.py` (UI JSON API, `/files/{id}`, `/calendar.ics`), `ui.py` (read
-  models: dashboard, course detail, deadlines), `ics.py` (ICS + feed token), `status.py`
+  models: dashboard, course detail, deadlines), `study.py` (notes, flashcards, results, plan API),
+  `ics.py` (ICS + feed token), `status.py`
 - `frontend/` React + Vite + TS PWA (hash routes in `src/router.ts`, API types in `src/api.ts`);
   `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
   Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
+  Claude's Markdown is rendered by `src/components/Markdown.tsx` into React elements (no innerHTML).
 - `backend/app/cli.py` `python -m app.cli check|sync|snapshot-db`
 - `deploy/backup.sh` restic backup of the data volume (docs/backups.md)
 - `backend/tests/` pytest; `conftest.py` builds an app with test settings

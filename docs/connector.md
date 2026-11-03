@@ -2,7 +2,8 @@
 
 Study Companion includes a remote MCP server at `https://<DOMAIN>/mcp`. Once you add it as a
 custom connector on claude.ai, Claude on the web, desktop and phone can read your courses,
-deadlines and course files. The app makes no AI calls itself: Claude does the work on your
+deadlines and course files, and save summaries, practice questions and quiz results back to the
+app, where you find them in the web UI. The app makes no AI calls itself: Claude does the work on your
 subscription, and fetches only what you ask about.
 
 ## Add the connector (once)
@@ -24,10 +25,12 @@ The Settings page of the app shows the exact URL to paste and which clients are 
 ## Use it
 
 The easiest way is the **Prompt** tab of the web UI: choose a course, a period and a goal
-(catch-up summary, study plan, explain a topic, quiz, flashcards, exam prep, assignment) and
-press **Copy**, then paste the prompt into a new Claude chat. The prompt names the exact tool
+(catch-up summary, study plan, explain a topic, quiz, flashcards, exam prep, assignment, review
+saved questions) and press **Copy**, then paste the prompt into a new Claude chat. The prompt names the exact tool
 calls, so Claude reads only that material. Large periods are split into several prompts; paste
-them one after the other.
+them one after the other. With **Save results to the app** on (the default), the prompt also
+tells Claude which write tools to call, so summaries appear in the course page, questions become
+flashcards in the **Study** tab and quiz scores are tracked.
 
 You can also just ask, for example "Use Study Companion: what is due this week?" or
 "Search my Linear Algebra course for eigenvalues and explain them".
@@ -42,8 +45,22 @@ You can also just ask, for example "Use Study Companion: what is due this week?"
 | `get_section(section_id)` | One section in full: summary, activity descriptions, files, deadlines |
 | `read_file(file_id, pages)` | Extracted text of a file for a page range like `"1-5"` (at most 20 pages per call) |
 | `search_materials(query, course_id, page)` | Full-text search across files, section summaries and activities, with file and page references |
+| `get_catch_up_plan(course_id, hours_per_day, days, from_date)` | The app's rule-based plan: sections not yet studied and open deadlines, day by day with time estimates and file ids |
+| `get_questions(course_id, section_id, due_only, page)` | Saved questions with their `question_id`, answer and review state (due first) |
 
-All tools are read-only. Saving summaries and questions back to the app comes in M4.
+Write tools (they only change Claude's own notes in the app, never anything in Moodle):
+
+| Tool | What it does |
+| --- | --- |
+| `save_summary(section_id, markdown, title)` | Saves a section summary in Markdown; it replaces that section's previous summary and shows in the course page |
+| `save_questions(section_id, items)` | Saves up to 50 questions per call: `{question, answer, kind (short, mcq, flashcard), choices, explanation, source}`. Saving the same question again updates it. Returns the ids |
+| `record_quiz_result(score, total, course_id, section_id, topic, items, notes)` | Records a quiz score; `items` (`[{question_id, correct}]`) also reschedules those saved questions |
+| `trigger_sync()` | Starts a Moodle sync in the background |
+
+`get_materials` and `get_section` show what is already saved for each section ("Saved in the
+app: summary, 10 questions"), so Claude can skip work it already did. Claude may ask your permission before it runs a write
+tool; you can allow it for the chat, or change the tool's permission in Claude's connector
+settings.
 
 Dates are `YYYY-MM-DD` in the server's `TIMEZONE` (default `Europe/Zurich`). Moodle does not date
 sections, so a period selects the sections with a file uploaded or a deadline in it; when a course

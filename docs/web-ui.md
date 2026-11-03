@@ -23,6 +23,8 @@ never stored on the phone (only the app's own code is cached, so it starts quick
 - **Mark done** hides an item from *Overdue* when Moodle doesn't track it (for example you
   handed it in on paper). **Undo** reverts it. Items Moodle already marks complete show
   *done in Moodle*. Your marks survive every resync.
+- **Study today**: today's part of the catch-up plan (below) and how many flashcards are due.
+  **Full plan** opens the whole plan.
 - **Sync now** fetches from Moodle; the page refreshes when the sync ends.
 - **Catch-up progress**: per course, the share of activities you completed, out of those
   Moodle tracks completion for (Moodle's own course progress when it reports one).
@@ -41,6 +43,54 @@ to filter by name or short name (accents and case don't matter, so `algebre` fin
   the site itself, for safety.
 - Files Moodle marks as too large (videos, over `MOODLE_MAX_FILE_MB`) aren't kept on the
   server: use the *open in Moodle* link.
+
+Each course also has a **Study** box (its summaries, questions and quiz results) and, in every
+section:
+
+- **Claude's notes**: the summary Claude saved with `save_summary`, rendered from Markdown
+  (headings, lists, tables). Long notes fold; **Delete** removes one. Notes of a section that
+  disappeared from Moodle are kept at the bottom of the page.
+- **Review N cards** opens the section's flashcards; **Mark as studied** takes the section off
+  the catch-up plan (tap again to undo).
+- **Quiz results**: the scores Claude recorded with `record_quiz_result` and your flashcard
+  sessions, newest first.
+
+## Study (flashcards)
+
+The **Study** tab lists your courses with saved questions and how many are due.
+**Review** shows one card at a time: think of the answer, tap **Show answer** (for multiple
+choice, tap your choice), then grade yourself:
+
+| Button | Next review |
+| --- | --- |
+| **Again** | in 10 minutes (the card comes back at the end of the session) |
+| **Hard** | about 1.2 × the last interval, at least a day |
+| **Good** | 1 day, then 3 days, then the interval × 2.5 |
+| **Easy** | 4 days, then 6, then longer than *Good* |
+
+This is a simple form of spaced repetition (SM-2): cards you know come back less and less often,
+cards you miss come back soon. When a session ends, its score is saved as a quiz result.
+**Practise all** goes through every card of the course or section, due or not. When Claude
+quizzes you and calls `record_quiz_result` with the question ids, those cards are rescheduled
+the same way (right = *Good*, wrong = *Again*).
+
+## Catch-up plan
+
+Open it from **Today › Full plan**. It is built by rules, without AI:
+
+1. **What is left**: every non-empty section of your enrolled courses that Moodle doesn't show as
+   completed and you haven't marked studied, plus open assignments, quizzes and events.
+2. **Time**: reading time from page counts (about 3 minutes per PDF page, 1.5 per slide, 4 per
+   Word/HTML part, at least 15 minutes per section); 2 h per assignment, 45 min per quiz.
+3. **Order**: by the date each item is needed by (a deadline's due date; for a section, the
+   earliest open deadline in it or in a later section of the same course), then by grade
+   weight, then section order, so courses without deadlines take turns.
+4. **Days**: the items are laid out from today within your **hours per day** (saved, and used
+   by Claude's `get_catch_up_plan` too). Long items are split over days. Items that only fit
+   after their deadline are marked *late*; what doesn't fit in the chosen days is listed at the
+   end.
+
+**Mark studied** on a section removes it from the plan.
 
 ## Calendar and ICS export
 
@@ -69,9 +119,12 @@ Builds a ready-to-paste prompt for Claude (with the connector from
 
 - **Course**: one or more. **Period**: last 2 months, last 4 weeks, until the next deadline,
   the whole course, your own dates, or a section range (one course only).
-- **Goal**: catch-up summary, study plan, explain a topic, quiz me, flashcards, exam prep or
-  understand an assignment. **Depth**, **time available** and the **language** of the answers
+- **Goal**: catch-up summary, study plan, explain a topic, quiz me, flashcards, exam prep,
+  understand an assignment, or review saved questions. **Depth**, **time available** and the **language** of the answers
   (by default the course's language).
+- **Save results to the app** (on by default) adds the write tool calls to the prompt, so
+  Claude saves its summaries, questions and quiz scores where the course page and the Study tab
+  show them.
 - The preview counts the sections, files and pages that match. Large periods are split into
   several prompts so Claude stays within its limits; copy and paste them one after the other.
 
