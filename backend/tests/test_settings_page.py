@@ -137,12 +137,30 @@ def test_forget_token(client, app):
     assert creds(app).token == "" and creds(app).url == BASE
 
 
-def test_cross_site_post_is_rejected(client, app):
+@pytest.mark.parametrize("headers", [
+    {"Origin": "https://evil.example.com"},
+    {"Sec-Fetch-Site": "cross-site", "Origin": "null"},
+    {"Sec-Fetch-Site": "same-site"},
+    {"Origin": "null"},  # no Sec-Fetch-Site: could be a sandboxed frame
+])
+def test_cross_site_post_is_rejected(client, app, headers):
     login(client)
-    r = client.post("/settings/moodle", data={"url": BASE, "token": TOKEN},
-                    headers={"Origin": "https://evil.example.com"})
-    assert r.status_code == 303 and r.headers["location"] == "/login"
+    r = client.post("/settings/moodle", data={"url": BASE, "token": TOKEN}, headers=headers)
+    assert r.status_code == 403
     assert creds(app).token == ""
+
+
+@pytest.mark.parametrize("headers", [
+    # What Chrome sends for a same-site form post under Referrer-Policy: no-referrer.
+    {"Origin": "null", "Sec-Fetch-Site": "same-origin"},
+    {"Origin": "http://testserver"},
+    {},
+])
+def test_same_site_form_post_is_accepted(client, app, headers):
+    login(client)
+    r = client.post("/settings/moodle", data={"url": BASE, "token": TOKEN}, headers=headers)
+    assert r.status_code == 303 and r.headers["location"] == "/settings?saved=moodle"
+    assert creds(app).token == TOKEN
 
 
 def test_change_password_signs_out_other_sessions(app):
