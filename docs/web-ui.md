@@ -4,7 +4,9 @@ Open `https://<DOMAIN>` and sign in with your app password. The UI is built for 
 on a narrow screen the tabs (**Today**, **Courses**, **Calendar**, **Settings**) sit at the bottom.
 
 The sun / screen / moon buttons in the top bar pick a light theme, the device's theme
-(default) or a dark theme. The choice is remembered on each device.
+(default) or a dark theme. The choice is remembered on each device and also applies to the
+Settings and sign-in pages. **Settings** is where you change the Moodle token and the app
+password, and sign out. Removing the saved token asks for confirmation first.
 
 ## Add it to your home screen
 
