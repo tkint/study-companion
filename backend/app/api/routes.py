@@ -1,0 +1,176 @@
+"""JSON routes for the React UI, file downloads and the ICS feed.
+
+All routes need the session cookie, except ``/calendar.ics`` which also accepts the secret
+feed token (calendar apps can't sign in). State-changing routes also check that the
+request came from this site.
+"""
+
+from __future__ import annotations
+
+import mimetypes
+import time
+from typing import Callable
+
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
+from sqlalchemy.engine import Engine
+
+from app.api import ics, ui
+from app.config import Settings
+from app.db import session
+from app.models import File
+from app.moodle.names import UnsafePathError, safe_join
+
+# Shown in the browser. Everything else downloads: Moodle HTML or SVG served inline from
+# this origin could run scripts with your session.
+INLINE_TYPES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "text/plain",
+}
+MAX_RANGE_DAYS = 400
+
+
+def _int_param(request: Request, name: str) -> int | None:
+    value = request.query_params.get(name)
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def register(
+    app: FastAPI,
+    settings: Settings,
+    engine: Engine,
+    is_authenticated: Callable[[Request], bool],
+    same_origin: Callable[[Request], bool],
+) -> None:
+    def unauthorized() -> JSONResponse:
+        return JSONResponse({"error": "not signed in"}, status_code=401)
+
+    def not_found() -> JSONResponse:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    @app.get("/api/dashboard")
+    async def dashboard(request: Request) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        sync = app.state.sync
+        run = sync.last_run()
+        data = ui.dashboard(engine)
+        data["sync"] = {
+            "configured": sync.configured(),
+            "running": sync.running,
+            "last_run": run.model_dump() if run else None,
+        }
+        data["version"] = settings.version
+        return JSONResponse(data)
+
+    @app.get("/api/courses/{course_id}")
+    async def course(request: Request, course_id: int) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        data = ui.course_detail(engine, course_id)
+        return JSONResponse(data) if data else not_found()
+
+    @app.get("/api/deadlines")
+    async def deadlines(request: Request) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        start, end = _int_param(request, "from"), _int_param(request, "to")
+        if start is None or end is None or end <= start or end - start > MAX_RANGE_DAYS * 86400:
+            return JSONResponse(
+                {"error": f"from and to (Unix seconds) are required, at most {MAX_RANGE_DAYS} days apart"},
+                status_code=400,
+            )
+        return JSONResponse({"deadlines": ui.deadlines(engine, start, end)})
+
+    @app.post("/api/deadlines/{deadline_id}/done")
+    async def mark_done(request: Request, deadline_id: int) -> JSONResponse:
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict) or not isinstance(body.get("done"), bool):
+            return JSONResponse({"error": 'send {"done": true|false}'}, status_code=400)
+        if not ui.set_done(engine, deadline_id, body["done"]):
+            return not_found()
+        return JSONResponse({"id": deadline_id, "done": body["done"]})
+
+    # ------------------------------------------------------------------ files
+
+    @app.get("/files/{file_id}/{name:path}")
+    @app.get("/files/{file_id}")
+    async def get_file(request: Request, file_id: int, name: str = "") -> Response:
+        if not is_authenticated(request):
+            return unauthorized()
+        with session(engine) as s:
+            f = s.get(File, file_id)
+        if f is None or f.status != "ok" or not f.local_path:
+            return not_found()
+        try:
+            path = safe_join(settings.data_dir, f.local_path)
+        except UnsafePathError:
+            return not_found()
+        if not path.is_file():
+            return not_found()
+        media_type = (f.mimetype or mimetypes.guess_type(f.filename)[0] or "").lower()
+        inline = media_type in INLINE_TYPES and request.query_params.get("download") != "1"
+        headers = {
+            # Defence in depth: even if a browser renders the file, no scripts, no plugins.
+            "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
+        }
+        return FileResponse(
+            path,
+            media_type=media_type if inline else "application/octet-stream",
+            filename=f.filename,
+            content_disposition_type="inline" if inline else "attachment",
+            headers=headers,
+        )
+
+    # ------------------------------------------------------------------ calendar
+
+    def feed_urls(request: Request) -> dict:
+        token = ics.feed_token(engine, settings.secret_key)
+        base = str(request.base_url).rstrip("/")
+        url = f"{base}/calendar.ics?token={token}"
+        return {"url": url, "webcal": "webcal://" + url.split("://", 1)[1]}
+
+    @app.get("/api/calendar/feed")
+    async def calendar_feed(request: Request) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        return JSONResponse(feed_urls(request))
+
+    @app.post("/api/calendar/feed")
+    async def calendar_feed_rotate(request: Request) -> JSONResponse:
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        ics.rotate_feed(engine)
+        return JSONResponse(feed_urls(request))
+
+    @app.get("/calendar.ics")
+    async def calendar_ics(request: Request) -> Response:
+        token = request.query_params.get("token")
+        if not (is_authenticated(request) or ics.check_feed_token(engine, settings.secret_key, token)):
+            return Response("Not found", status_code=404, media_type="text/plain")
+        now = int(time.time())
+        items = ui.deadlines(engine, start=now - ui.OVERDUE_DAYS * 86400, now=now)
+        headers = {"Cache-Control": "private, max-age=900"}
+        if request.query_params.get("download") == "1":
+            headers["Content-Disposition"] = 'attachment; filename="study-deadlines.ics"'
+        return Response(
+            ics.build_ics(items, now=now),
+            media_type="text/calendar; charset=utf-8",
+            headers=headers,
+        )

@@ -74,6 +74,12 @@ def _token(value: str) -> str:
         raise ConfigError(f"MOODLE_TOKEN: {exc}") from None
 
 
+def _repo_frontend() -> Path | None:
+    """``frontend/dist`` next to ``backend/`` when running from a checkout."""
+    dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    return dist if (dist / "index.html").is_file() else None
+
+
 @dataclass(frozen=True)
 class Settings:
     app_password: str = field(repr=False)
@@ -92,6 +98,9 @@ class Settings:
     login_max_attempts: int = 5
     login_window_seconds: int = 15 * 60
     version: str = __version__
+    # Built React app (FRONTEND_DIR, else the checkout's frontend/dist if built). None: the
+    # server-rendered status page is shown at / instead.
+    frontend_dir: Path | None = None
 
     def __post_init__(self) -> None:
         if self.app_password and len(self.app_password) < MIN_PASSWORD_LENGTH:
@@ -138,4 +147,5 @@ class Settings:
                 "LOGIN_WINDOW_SECONDS", env.get("LOGIN_WINDOW_SECONDS"), 15 * 60
             ),
             version=env.get("APP_VERSION", "") or __version__,
+            frontend_dir=Path(env["FRONTEND_DIR"]) if env.get("FRONTEND_DIR") else _repo_frontend(),
         )

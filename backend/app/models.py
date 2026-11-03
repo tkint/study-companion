@@ -1,7 +1,8 @@
 """SQLModel tables. Moodle ids are kept as primary keys where Moodle provides stable ones.
 
 Timestamps are Unix seconds (UTC) like Moodle's, ``None`` when Moodle has none (e.g. no due
-date). Later milestones add notes, questions and FTS5 tables.
+date). Later milestones add notes, questions and FTS5 tables. New tables (rather than new
+columns) keep existing databases working, since `create_all` only adds missing tables.
 """
 
 from __future__ import annotations
@@ -147,3 +148,20 @@ class SyncRun(SQLModel, table=True):
     bytes_downloaded: int = 0
     deadlines: int = 0
     message: str = ""
+
+
+class DeadlineMark(SQLModel, table=True):
+    """A deadline you marked done in the web UI (Moodle has no completion for it, or you
+    handed it in another way). Kept apart from Deadline so a resync never overwrites it."""
+
+    deadline_id: int = Field(primary_key=True, foreign_key="deadline.id")
+    done_at: int = 0
+
+
+class CalendarFeed(SQLModel, table=True):
+    """Secret ICS feed URL per user. The token is an HMAC of SECRET_KEY and ``epoch``, so it
+    can be shown again at any time and a new link (epoch + 1) revokes the old one."""
+
+    user_id: int = Field(primary_key=True, foreign_key="account.id")
+    epoch: int = 0
+    created_at: int = 0
