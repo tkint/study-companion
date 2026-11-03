@@ -175,4 +175,4 @@ To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run 
 - **Too many failed attempts:** the login locks for 15 minutes after 5 wrong passwords
   (restarting the app clears it).
 
-The claude.ai connector guide arrives in M3.
+Add the Claude connector next: [docs/connector.md](connector.md).

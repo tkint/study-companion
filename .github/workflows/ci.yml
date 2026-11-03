@@ -71,3 +71,7 @@ jobs:
           # The web UI build is in the image and its public files are served.
           curl -fsS -o /dev/null http://127.0.0.1:8000/manifest.webmanifest
           curl -fsS -o /dev/null http://127.0.0.1:8000/pdfjs/standard_fonts/FoxitSerif.pfb
+          # The connector: OAuth discovery, and /mcp asks for a token.
+          curl -fsS http://127.0.0.1:8000/.well-known/oauth-authorization-server | grep -q code_challenge_methods_supported
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/mcp)" = 401
+          docker exec msc python -c "import app.prompts as p; assert len(p.load_templates()) >= 7"

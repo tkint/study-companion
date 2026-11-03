@@ -14,9 +14,9 @@ Infomaniak VPS Lite in Geneva.
 | --- | --- | --- |
 | M0 | Skeleton, password-protected hello page, Docker + Caddy, CI, release pipeline, server guide | ✅ v0.1.0 |
 | M1 | Moodle sync (courses, contents, files, deadlines, course language), settings page, nightly backups | ✅ v0.2.x |
-| M2 | Web UI: dashboard, course view with PDF viewer, calendar + ICS feed, installable on your phone | ✅ this release |
-| M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | next |
-| M4 | Study loop: Claude's notes and questions, flashcards, catch-up plan | |
+| M2 | Web UI: dashboard, course view with PDF viewer, calendar + ICS feed, installable on your phone | ✅ v0.3.0 |
+| M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | ✅ this release |
+| M4 | Study loop: Claude's notes and questions, flashcards, catch-up plan | next |
 
 ## Install on a server
 
@@ -34,7 +34,9 @@ Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 **[docs/moodle-token.md](docs/moodle-token.md)** explains how to get the token with
 university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)**.
 **[docs/web-ui.md](docs/web-ui.md)** covers the dashboard, adding the app to your phone's home
-screen and subscribing to your deadlines from your phone or Outlook calendar.
+screen, subscribing to your deadlines from your phone or Outlook calendar, and the prompt
+builder. **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
+(`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses.
 
 Update with `docker compose pull && docker compose up -d`.
 
@@ -57,6 +59,9 @@ you never edit `.env` to change them.
 | `MOODLE_RATE_LIMIT` | no | Moodle requests per second (default 2). |
 | `SESSION_MAX_AGE` | no | Session length in seconds (default 7 days). |
 | `COOKIE_SECURE` | no | Default `true`; set `false` only for local plain-HTTP development. |
+| `TIMEZONE` | no | Time zone for dates in Claude's tools and prompts (default `Europe/Zurich`). |
+| `OAUTH_REDIRECT_HOSTS` | no | Hosts the connector's OAuth may redirect to (default `claude.ai,claude.com,localhost,127.0.0.1`). |
+| `OAUTH_ACCESS_TTL`, `OAUTH_REFRESH_TTL` | no | Connector token lifetimes in seconds (default 1 hour and 30 days). |
 
 ## Moodle sync
 
@@ -69,7 +74,11 @@ server you can also run:
 ```bash
 docker compose exec app python -m app.cli check   # test the saved token, list courses
 docker compose exec app python -m app.cli sync    # full sync now, prints a summary
+docker compose exec app python -m app.cli extract # redo text extraction (--force: every file)
 ```
+
+After the downloads, the sync extracts text from PDF, PowerPoint, Word, HTML and text files
+(page by page) and indexes it for full-text search, so Claude can read and search it.
 
 ## Development
 
@@ -113,14 +122,15 @@ the deploy files. Details in [docs/releasing.md](docs/releasing.md).
 
 ```
 backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (client, sync,
-                    scheduler), api/ (UI routes, ICS feed; extract, planner, prompts,
-                    mcp in later milestones)
+                    scheduler), extract/ (text + FTS5 search), materials.py, mcp_tools.py +
+                    mcp_server.py (/mcp), auth/oauth*.py (OAuth 2.1), prompts/ (templates),
+                    api/ (UI routes, ICS feed, prompt builder)
 backend/tests/      pytest (Moodle responses always mocked)
 frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)
 deploy/Caddyfile    HTTPS reverse proxy
 docker/Dockerfile   multi-stage image
 docker-compose.yml  app + Caddy
 deploy/backup.sh    nightly restic backup of the data volume
-docs/               server setup, Moodle token, web UI, backups, releasing (connector guide in M3)
+docs/               server setup, Moodle token, web UI, Claude connector, backups, releasing
 .github/workflows/  ci.yml, release.yml
 ```
