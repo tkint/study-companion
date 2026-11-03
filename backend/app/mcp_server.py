@@ -8,12 +8,15 @@ claude.ai discovers the sign-in. The tools themselves live in ``app.mcp_tools``.
 
 from __future__ import annotations
 
+import json
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Callable, Literal
 
 import anyio
-from mcp.server.mcpserver import MCPServer
+from mcp.server.apps import APP_MIME_TYPE, EXTENSION_ID, Apps, client_supports_apps
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
@@ -41,7 +44,41 @@ the task needs: prefer a few targeted read_file calls over reading every file. A
 language the student asks for. Save your work back to the app so the student finds it in the
 web UI: save_summary for a section summary, save_questions for practice questions and
 flashcards, record_quiz_result after a quiz (get_questions lists saved questions and their
-ids)."""
+ids). When quizzing, ask each multiple-choice question with ask_question(question, choices):
+the student answers by clicking a choice."""
+
+QUESTION_UI = "ui://study-companion/ask-question.html"
+QUESTION_HTML = (Path(__file__).parent / "mcp_ui" / "ask_question.html").read_text("utf-8")
+# Request state key set by MCPEndpoint: the OAuth client id of the caller.
+CLIENT_KEY = "study_companion_client"
+
+
+class AppsClients:
+    """Remembers which connector clients show MCP Apps.
+
+    The server is stateless, so a tool call carries no record of the client's
+    ``initialize`` capabilities; the endpoint notes them here per OAuth client instead.
+    """
+
+    def __init__(self) -> None:
+        self._by_client: dict[str, bool] = {}
+
+    def note_initialize(self, client_id: str, body: bytes) -> None:
+        try:
+            message = json.loads(body)
+        except ValueError:
+            return
+        if not isinstance(message, dict) or message.get("method") != "initialize":
+            return
+        params = message.get("params")
+        caps = params.get("capabilities") if isinstance(params, dict) else None
+        ext = caps.get("extensions") if isinstance(caps, dict) else None
+        ui = ext.get(EXTENSION_ID) if isinstance(ext, dict) else None
+        mimes = ui.get("mimeTypes") if isinstance(ui, dict) else None
+        self._by_client[client_id] = isinstance(mimes, list) and APP_MIME_TYPE in mimes
+
+    def supports(self, client_id: str | None) -> bool:
+        return bool(client_id) and self._by_client.get(client_id, False)
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True,
                             openWorldHint=False)
@@ -67,12 +104,45 @@ class QuizItem(BaseModel):
     correct: bool = Field(description="Whether the student answered it correctly")
 
 
-def build_server(tools: StudyTools, version: str) -> MCPServer:
+def build_server(tools: StudyTools, version: str,
+                 apps_clients: AppsClients | None = None) -> MCPServer:
+    apps = Apps()
+    apps_clients = apps_clients or AppsClients()
+
+    def shows_apps(ctx: Context) -> bool:
+        try:
+            if client_supports_apps(ctx):
+                return True
+            request = ctx.request_context.request
+        except (ValueError, AttributeError):
+            return False
+        state = getattr(request, "scope", {}).get("state") or {}
+        return apps_clients.supports(state.get(CLIENT_KEY))
+
+    @apps.tool(resource_uri=QUESTION_UI, name="ask_question", annotations=READ_ONLY,
+               structured_output=False)
+    async def ask_question(
+        question: Annotated[str, Field(description="The question, without the choices (plain text; **bold** and `code` allowed)")],
+        choices: Annotated[list[str], Field(description="2 to 8 answer options, without letters (A, B, ... are added)", min_length=2, max_length=8)],
+        ctx: Context,
+    ) -> str:
+        """Ask the student one multiple-choice question as clickable choices, instead of
+        writing the choices in your reply. Their pick comes back as their next message
+        ("B) ..."). Do not reveal the answer before they pick."""
+        try:
+            return tools.ask_question(question, choices, shows_apps(ctx))
+        except ToolInputError as exc:
+            raise ToolError(str(exc)) from None
+
+    apps.add_html_resource(QUESTION_UI, QUESTION_HTML, name="ask-question",
+                           title="Multiple-choice question", prefers_border=True)
+
     mcp = MCPServer(
         name="study-companion",
         title="Study Companion",
         version=version,
         instructions=INSTRUCTIONS,
+        extensions=[apps],
     )
 
     async def run(fn: Callable[..., str], *args, **kwargs) -> str:
@@ -209,8 +279,10 @@ def build_server(tools: StudyTools, version: str) -> MCPServer:
 class MCPEndpoint:
     """ASGI app for ``/mcp``: checks the bearer token, then hands over to the SDK."""
 
-    def __init__(self, server: MCPServer, engine, base_url: Callable[[Request], str]) -> None:
+    def __init__(self, server: MCPServer, engine, base_url: Callable[[Request], str],
+                 apps_clients: AppsClients | None = None) -> None:
         self.engine = engine
+        self.apps_clients = apps_clients
         self.base_url = base_url
         # Builds the SDK's session manager; we route to it ourselves after the token check.
         self.server = server
@@ -239,7 +311,8 @@ class MCPEndpoint:
         request = Request(scope)
         header = request.headers.get("authorization", "")
         token = header[7:].strip() if header.lower().startswith("bearer ") else None
-        if oauth.verify_access(self.engine, token) is None:
+        access = oauth.verify_access(self.engine, token)
+        if access is None:
             base = self.base_url(request)
             error = ', error="invalid_token"' if token else ""
             response = JSONResponse(
@@ -255,4 +328,33 @@ class MCPEndpoint:
         if self.manager is None:
             await JSONResponse({"error": "starting up"}, status_code=503)(scope, receive, send)
             return
+        scope.setdefault("state", {})[CLIENT_KEY] = access.client_id
+        if self.apps_clients is not None and scope.get("method") == "POST":
+            receive = await self._peek_body(scope, receive, access.client_id)
         await self.manager.handle_request(scope, receive, send)
+
+    async def _peek_body(self, scope: Scope, receive: Receive, client_id: str) -> Receive:
+        """Read the request body to note an ``initialize``, then replay it to the SDK."""
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                break
+            chunks.append(message.get("body", b""))
+            size += len(chunks[-1])
+            if not message.get("more_body", False) or size > 4_000_000:
+                break
+        body = b"".join(chunks)
+        if size <= 4_000_000:
+            self.apps_clients.note_initialize(client_id, body)
+        sent = False
+
+        async def replay():
+            nonlocal sent
+            if not sent:
+                sent = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        return replay

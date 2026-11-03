@@ -47,6 +47,7 @@ You can also just ask, for example "Use Study Companion: what is due this week?"
 | `search_materials(query, course_id, page)` | Full-text search across files, section summaries and activities, with file and page references |
 | `get_catch_up_plan(course_id, hours_per_day, days, from_date)` | The app's rule-based plan: sections not yet studied and open deadlines, day by day with time estimates and file ids |
 | `get_questions(course_id, section_id, due_only, page)` | Saved questions with their `question_id`, answer and review state (due first) |
+| `ask_question(question, choices)` | Shows you one multiple-choice question as a card with clickable choices (see below) |
 
 Write tools (they only change Claude's own notes in the app, never anything in Moodle):
 
@@ -66,6 +67,27 @@ Dates are `YYYY-MM-DD` in the server's `TIMEZONE` (default `Europe/Zurich`). Moo
 sections, so a period selects the sections with a file uploaded or a deadline in it; when a course
 was copied from an earlier year and nothing is dated in the period, the tool says so and lists the
 whole course (or the section range).
+
+### Clickable quiz questions
+
+In a quiz ("Quiz me", "Review saved questions"), Claude asks each multiple-choice question with
+`ask_question`. The app shows it as a small card under Claude's message, with one button per
+choice. Tap a choice and it is sent as your answer (for example "B) The mitochondrion"), so
+you don't have to type the letter and press send. Claude then corrects it as usual.
+
+The card is an [MCP App](https://modelcontextprotocol.io/extensions/apps/overview): a sandboxed
+page served by the connector, with no access to anything outside the chat. Support depends on
+the chat app:
+
+| Client | Clickable choices |
+| --- | --- |
+| Claude (web and desktop) | Yes |
+| ChatGPT (developer mode connectors) | Yes, where its apps support MCP Apps |
+| Gemini, and clients without MCP Apps | No: `ask_question` tells the assistant to present the question its own way, using the app's own quiz or clickable-choice format if it has one, or else lettered choices you answer by letter |
+
+The connector learns whether the client shows MCP Apps when it connects. If you see no card,
+or tapping a choice does nothing, the card says so and you can still type the letter. You can
+also just say "write the choices in the chat" if you prefer.
 
 ### Text extraction
 

@@ -62,7 +62,10 @@ TOOL_NAMES = (
     "save_questions",
     "record_quiz_result",
     "trigger_sync",
+    "ask_question",
 )
+MAX_CHOICES = 8
+LETTERS = "ABCDEFGH"
 QUESTIONS_PER_PAGE = 20
 PLAN_DAYS_SHOWN = 14
 
@@ -637,6 +640,35 @@ class StudyTools:
         if reviewed:
             out += f" Updated the review schedule of {reviewed} saved question(s)."
         return out + self._ui(f"#/course/{result.course_id}")
+
+    def ask_question(self, question: str, choices: list[str], interactive: bool) -> str:
+        """Check a multiple-choice question and tell Claude how it reaches the student.
+
+        ``interactive``: the client shows MCP Apps, so the student sees the question as a
+        card with clickable choices (``app/mcp_ui/ask_question.html``) and their click comes
+        back as their next chat message.
+        """
+        question = (question or "").strip()
+        cleaned = [c.strip() for c in choices or [] if c and c.strip()]
+        if not question:
+            raise ToolInputError("question is empty")
+        if not 2 <= len(cleaned) <= MAX_CHOICES:
+            raise ToolInputError(f"give 2 to {MAX_CHOICES} choices")
+        if len({c.casefold() for c in cleaned}) != len(cleaned):
+            raise ToolInputError("choices must be different")
+        listed = "\n".join(f"{LETTERS[i]}) {c}" for i, c in enumerate(cleaned))
+        last = LETTERS[len(cleaned) - 1]
+        if interactive:
+            return (f"Shown to the student as a card with clickable choices A to {last}. "
+                    f"Their choice arrives as their next message, like \"B) ...\". Do not "
+                    "repeat the question or the choices and do not reveal the answer: end "
+                    "your turn and wait for it.\n\n" + listed)
+        return ("This app does not show Study Companion's question card, so the student "
+                "cannot see this question yet. Present it your own way: use your app's own "
+                "quiz or clickable-choice format if it has one, otherwise write the question "
+                "with lettered choices in your reply. Then wait for the student's answer "
+                "without revealing it.\n\n"
+                f"{question}\n\n{listed}")
 
     def trigger_sync(self) -> str:
         if self.sync is None or not self.sync.configured():

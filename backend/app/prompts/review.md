@@ -11,6 +11,7 @@ Use the Study Companion tools:
 
 Then, in {{language}}:
 - Ask the due questions one at a time, without showing the answer; wait for my answer
+- For a question with choices (mcq), call ask_question(question, choices) instead of writing the choices, so I can click my answer; if my app cannot show that card, ask it your own way
 - Correct each answer briefly, citing the file and page (read_file) when I got it wrong
 - If fewer than 10 questions are due, add new ones on the weakest topics{{#save}} and save them with save_questions(section_id, items){{/save}}
 - At the end, give my score and call record_quiz_result(course_id, score, total, topic, items, notes) with items [{question_id, correct}] for every saved question, so the app schedules the next reviews
