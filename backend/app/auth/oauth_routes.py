@@ -54,6 +54,19 @@ def _error(exc: oauth.OAuthError) -> JSONResponse:
     return JSONResponse(exc.body(), status_code=exc.status, headers=headers)
 
 
+def _redirect_hosts(data: object) -> str:
+    """The hosts of the redirect URIs a client sent, for the log: hosts only, never full
+    URIs, so the owner can see what to add to OAUTH_REDIRECT_HOSTS."""
+    uris = data.get("redirect_uris") if isinstance(data, dict) else None
+    hosts: set[str] = set()
+    for uri in uris if isinstance(uris, list) else []:
+        try:
+            hosts.add((urlsplit(uri).hostname or "?")[:100] if isinstance(uri, str) else "?")
+        except ValueError:
+            hosts.add("?")
+    return ", ".join(sorted(hosts)[:10]) or "none"
+
+
 def _with_query(uri: str, params: dict[str, str]) -> str:
     parts = urlsplit(uri)
     query = parse_qsl(parts.query, keep_blank_values=True) + list(params.items())
@@ -122,7 +135,8 @@ def register(
         try:
             out = oauth.register_client(engine, data, settings.oauth_redirect_hosts)
         except oauth.OAuthError as exc:
-            logger.warning("Client registration refused: %s", exc.description)
+            logger.warning("Client registration refused: %s (redirect hosts: %s)",
+                           exc.description, _redirect_hosts(data))
             return _error(exc)
         registrations.record_failure(key)  # counts registrations per client IP
         logger.info("OAuth client registered: %r", out["client_name"])

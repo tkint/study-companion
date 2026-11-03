@@ -78,19 +78,37 @@ docker compose exec app python -m app.cli extract          # new and changed fil
 docker compose exec app python -m app.cli extract --force  # every file again
 ```
 
+## Gemini and ChatGPT (optional)
+
+The same URL also works as a custom MCP connector in Gemini. In Gemini, add a custom connector
+with the URL `https://<DOMAIN>/mcp` and leave the client ID and secret empty: Gemini registers
+itself, and its callback on `oauth-redirect.googleusercontent.com` is allowed by default. Approve
+it on the Study Companion page with your password, as for Claude. The prompts in the web UI are
+written for Claude but name the same tools, so they work in Gemini too. If you set
+`OAUTH_REDIRECT_HOSTS` in `.env`, add `oauth-redirect.googleusercontent.com` to it. If you don't
+use Gemini, you can leave it out.
+
+ChatGPT works the same way where your plan offers custom connectors (developer mode): add a
+connector with the URL `https://<DOMAIN>/mcp`, choose OAuth, leave the client fields empty
+(dynamic registration), and approve it with your password. Its callback is
+`https://chatgpt.com/connector_platform_oauth_redirect`, allowed by default (`chatgpt.com`).
+
 ## Security
 
 - The connector uses OAuth 2.1: discovery (`/.well-known/oauth-protected-resource` and
   `/.well-known/oauth-authorization-server`), dynamic client registration, the authorization code
   flow with PKCE (S256 only), refresh token rotation and revocation.
 - You approve each new connection on the app's own page with your password. Redirects are only
-  allowed to the hosts in `OAUTH_REDIRECT_HOSTS` (default `claude.ai, claude.com, localhost,
-  127.0.0.1`), so a code can't be sent elsewhere.
+  allowed to the hosts in `OAUTH_REDIRECT_HOSTS` (default `claude.ai, claude.com,
+  oauth-redirect.googleusercontent.com` (Gemini), `chatgpt.com` (ChatGPT), `localhost,
+  127.0.0.1`), so a code can't be
+  sent elsewhere. Anyone can register a client, but nobody gets a token without your password.
 - Access tokens last one hour (`OAUTH_ACCESS_TTL`), refresh tokens 30 days of inactivity
   (`OAUTH_REFRESH_TTL`). Tokens and codes are stored only as SHA-256 hashes.
 - **Settings › Claude connector › Disconnect all** signs every client out. Changing the web UI
   password does too. Reconnect from Claude's connector settings afterwards.
-- Course text you ask about is sent to Anthropic by Claude, like anything else you paste in a chat.
+- Course text you ask about is sent to Anthropic by Claude (or to Google by Gemini, OpenAI by ChatGPT), like anything
+  else you paste in a chat.
 
 ## Troubleshooting
 
@@ -99,8 +117,10 @@ docker compose exec app python -m app.cli extract --force  # every file again
   `DOMAIN` in `.env` and restart (`docker compose up -d`).
 - **"Can't connect: unknown client" on the approval page:** the registration was lost (database
   reset). Remove the connector in Claude and add it again.
-- **"redirect URI not allowed":** a client other than Claude tried to register. Add its host to
-  `OAUTH_REDIRECT_HOSTS` only if you trust it.
+- **"redirect URI not allowed"** (Gemini: "The Google redirect URL was rejected by the server"):
+  the client's callback host is not in `OAUTH_REDIRECT_HOSTS`. The app log
+  (`docker compose logs app | grep "registration refused"`) names the host it sent. Add it
+  only if you trust it, then `docker compose up -d`.
 - **Claude says a file has no text:** it is scanned, a video, or not extracted yet (next sync, or
   run `python -m app.cli extract`).
 - **Testing without Claude:** the [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
