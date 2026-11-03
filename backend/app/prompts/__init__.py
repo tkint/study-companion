@@ -10,7 +10,7 @@ optional or none) and a body with placeholders:
 ``{{today}}``    today's date
 
 ``{{#name}}...{{/name}}`` keeps its content only when ``name`` is set (``time``, ``topic``,
-``deadlines``, ``completion``); ``{{^name}}...{{/name}}`` only when it is not. Tool names in
+``deadlines``, ``completion``, ``save``: save results back to the app with the write tools); ``{{^name}}...{{/name}}`` only when it is not. Tool names in
 templates and in ``{{steps}}`` must be real MCP tools (``app.mcp_tools.TOOL_NAMES``).
 """
 
@@ -132,6 +132,7 @@ class Request:
     days: int | None = None
     include_deadlines: bool = True
     include_completion: bool = True
+    save_results: bool = True
 
     @classmethod
     def from_json(cls, data: object) -> "Request":
@@ -192,6 +193,7 @@ class Request:
             days=num("days", int, 0, 365),
             include_deadlines=bool(data.get("include_deadlines", True)),
             include_completion=bool(data.get("include_completion", True)),
+            save_results=bool(data.get("save_results", True)),
         )
         if (req.section_from is not None and req.section_to is not None
                 and req.section_to < req.section_from):
@@ -401,6 +403,16 @@ class Builder:
                          f" of {c.fullname}")
         steps.append("read_file(file_id, pages) for the files that matter, a few pages at a "
                      "time; use get_section(section_id) when a section's activities need detail")
+        if req.goal == "study_plan":
+            hours = f", hours_per_day={req.hours_per_day:g}" if req.hours_per_day else ""
+            days = f", days={req.days}" if req.days else ""
+            for u in chunk:
+                steps.append(f"get_catch_up_plan(course_id={u.cm.course.id}{hours}{days}) for the "
+                             "app's rule-based plan (what is left and its deadlines) as a starting point")
+        if req.goal == "review" or (req.save_results and req.goal == "quiz"):
+            for u in chunk:
+                steps.append(f"get_questions(course_id={u.cm.course.id}, due_only=true) for the "
+                             "saved questions due for review (with their question_id)")
         if req.topic:
             for u in chunk:
                 steps.append(f"search_materials(query={_q(req.topic)}, course_id={u.cm.course.id}) "
@@ -450,5 +462,6 @@ class Builder:
             "today": self.today.isoformat(),
             "deadlines": "yes" if req.include_deadlines else "",
             "completion": "yes" if req.include_completion else "",
+            "save": "yes" if req.save_results else "",
         }
         return render(template.body, values)

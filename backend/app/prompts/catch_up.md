@@ -15,6 +15,7 @@ Then, in {{language}}:
 {{#time}}- Give me a catch-up plan for {{time}}, ordered by upcoming deadlines
 {{/time}}{{#deadlines}}- Point out which upcoming deadlines depend on which sections
 {{/deadlines}}{{#completion}}- Skip what I already completed (marked ✓ done) unless it is needed for the rest
-{{/completion}}
+{{/completion}}{{#save}}- Save your work to the app as you go: save_summary(section_id, markdown) with each section's summary, and save_questions(section_id, items) with 5 practice questions per section (question, answer, source file and page)
+{{/save}}
 {{depth}}
 Work section by section, and ask me before starting a quiz.

@@ -1,9 +1,12 @@
-"""The MCP read tools as plain functions that return compact text.
+"""The MCP tools as plain functions that return compact text.
 
 Kept free of the MCP SDK so they are easy to test and reuse; ``app.mcp_server`` registers
 them as tools. Output is short Markdown with ids (course_id, section_id, file_id) and page
 numbers, and long results are paginated with the exact call for the next page, so Claude
 can stay within its context window. Dates are in the configured TIMEZONE.
+
+Write tools (M4) store Claude's summaries, questions and quiz results through
+``app.study``; they show up in the web UI's course and study pages.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timedelta
+from typing import Protocol
 
 from sqlalchemy.engine import Engine
 from sqlmodel import col, select
@@ -31,7 +35,9 @@ from app.materials import (
     load_course,
     parse_date,
 )
+from app import study
 from app.models import Course, Deadline, File, FilePage, FileText, Module, Section
+from app.planner import Planner, fmt_minutes
 
 SECTIONS_PER_PAGE = 8
 DEADLINES_PER_PAGE = 30
@@ -50,7 +56,23 @@ TOOL_NAMES = (
     "get_section",
     "read_file",
     "search_materials",
+    "get_catch_up_plan",
+    "get_questions",
+    "save_summary",
+    "save_questions",
+    "record_quiz_result",
+    "trigger_sync",
 )
+QUESTIONS_PER_PAGE = 20
+PLAN_DAYS_SHOWN = 14
+
+
+class SyncControl(Protocol):
+    """What trigger_sync needs from the sync service (``app.main`` provides it)."""
+
+    def configured(self) -> bool: ...
+
+    def start(self) -> bool: ...
 
 
 class ToolInputError(ValueError):
@@ -118,12 +140,13 @@ def _ranges(pages: list[int]) -> str:
 
 class StudyTools:
     def __init__(self, settings: Settings, engine: Engine, base_url: str = "",
-                 clock=time.time) -> None:
+                 clock=time.time, sync: SyncControl | None = None) -> None:
         self.settings = settings
         self.engine = engine
         self.base_url = base_url.rstrip("/")
         self.clock = clock
         self.tz = settings.tz
+        self.sync = sync
 
     # ---------------------------------------------------------------- helpers
 
@@ -159,9 +182,22 @@ class StudyTools:
             bits.append(f"updated {fmt_date(f.row.timemodified, self.tz)}")
         return " · ".join(bits)
 
-    def _section_text(self, sec: SectionInfo, full: bool) -> list[str]:
+    def _saved_line(self, saved: dict | None) -> str | None:
+        if not saved:
+            return None
+        bits = []
+        if saved.get("summary_at"):
+            bits.append(f"summary ({fmt_date(saved['summary_at'], self.tz)})")
+        if saved.get("questions"):
+            bits.append(f"{saved['questions']} question(s)")
+        return "Saved in the app: " + ", ".join(bits) if bits else None
+
+    def _section_text(self, sec: SectionInfo, full: bool, saved: dict | None = None) -> list[str]:
         r = sec.row
         lines = [f"## Section {r.number}: {r.name} (section_id {r.id})"]
+        saved_line = self._saved_line(saved)
+        if saved_line:
+            lines.append(saved_line)
         if r.summary:
             summary = _block(r.summary, 4000) if full else _short(r.summary, SUMMARY_CHARS)
             lines.append(f"Summary: {summary}")
@@ -320,9 +356,11 @@ class StudyTools:
         ]
         if note:
             lines.append(f"Note: {note}")
-        for sec in sections[(page - 1) * SECTIONS_PER_PAGE: page * SECTIONS_PER_PAGE]:
+        shown = sections[(page - 1) * SECTIONS_PER_PAGE: page * SECTIONS_PER_PAGE]
+        saved = study.section_counts(self.engine, [sec.row.id for sec in shown])
+        for sec in shown:
             lines.append("")
-            lines += self._section_text(sec, full=False)
+            lines += self._section_text(sec, full=False, saved=saved.get(sec.row.id))
         if page < pages:
             lines.append("")
             lines.append(f"Page {page} of {pages}. Next: " + _call(
@@ -342,7 +380,8 @@ class StudyTools:
         sec = cm.section(row.id)
         assert sec is not None
         lines = [f"# {cm.course.fullname} (course_id {cm.course.id})"]
-        lines += self._section_text(sec, full=True)
+        saved = study.section_counts(self.engine, [sec.row.id])
+        lines += self._section_text(sec, full=True, saved=saved.get(sec.row.id))
         if not sec.modules:
             lines.append("(no activities in this section)")
         return "\n".join(lines)
@@ -450,3 +489,160 @@ class StudyTools:
             lines.append("Next: " + _call("search_materials", query=query,
                                           course_id=course_id, page=page + 1))
         return "\n".join(lines)
+
+    # ---------------------------------------------------------------- study loop (M4)
+
+    def _ui(self, path: str) -> str:
+        return f" The student sees it at {self.base_url}/{path}." if self.base_url else ""
+
+    def get_catch_up_plan(self, course_id: int | None = None, hours_per_day: float | None = None,
+                          days: int = 14, from_date: str | None = None) -> str:
+        if course_id is not None:
+            self._course(course_id)
+        if hours_per_day is not None and not (0.25 <= hours_per_day <= 16):
+            raise ToolInputError("hours_per_day must be between 0.25 and 16")
+        if not 1 <= days <= 90:
+            raise ToolInputError("days must be between 1 and 90")
+        try:
+            start = parse_date(from_date, "from_date")
+        except ValueError as exc:
+            raise ToolInputError(str(exc)) from None
+        plan = Planner(self.settings, self.engine, now=self.clock()).plan(
+            course_id, hours_per_day, days, start)
+        scope = f" for course {course_id}" if course_id is not None else ""
+        lines = [
+            f"Catch-up plan{scope} from {plan.today} at {plan.hours_per_day:g} h/day "
+            f"(rule-based: ordered by the deadline each item is needed for, then grade "
+            f"weight, then section order; times are estimates from page counts).",
+            f"{plan.sections_left} section(s) left, {plan.sections_done} done or marked "
+            f"studied; {fmt_minutes(plan.total_minutes)} of work in total.",
+        ]
+        lines += [f"Note: {n}" for n in plan.notes]
+        kinds = {"assign": "Assignment", "quiz": "Quiz", "event": "Event"}
+        for d, slots in plan.days[:PLAN_DAYS_SHOWN]:
+            lines.append("")
+            lines.append(f"## {d.strftime('%a')} {d} ({fmt_minutes(sum(s.minutes for s in slots))})")
+            for slot in slots:
+                it = slot.item
+                part = f" (part {slot.part}/{slot.parts})" if slot.parts > 1 else ""
+                if it.kind == "section":
+                    head = (f"- {fmt_minutes(slot.minutes)} · {it.course_short or it.course_name}: "
+                            f"study section {it.section_number} \"{it.title}\"{part} "
+                            f"(section_id {it.section_id}, {it.pages} pages)")
+                else:
+                    head = (f"- {fmt_minutes(slot.minutes)} · {it.course_short or it.course_name}: "
+                            f"{kinds.get(it.kind, 'Deadline')} \"{it.title}\"{part}")
+                if it.needed_by:
+                    word = "OVERDUE since" if it.overdue else "needed by"
+                    head += f" · {word} {fmt_datetime(it.needed_by, self.tz)}"
+                    if it.kind == "section" and it.needed_for:
+                        head += f" for \"{it.needed_for}\""
+                if slot.late:
+                    head += " · LATE: only fits after its deadline"
+                if it.has_summary or it.questions:
+                    head += " · " + ", ".join(x for x in [
+                        "summary saved" if it.has_summary else "",
+                        f"{it.questions} questions saved" if it.questions else ""] if x)
+                lines.append(head)
+                if it.kind == "section" and it.files and slot.part == 1:
+                    lines.append("  Files: " + "; ".join(
+                        f"\"{name}\" file_id {fid} ({pages} p.)" for fid, name, pages in it.files))
+        if len(plan.days) > PLAN_DAYS_SHOWN:
+            lines.append(f"(+ {len(plan.days) - PLAN_DAYS_SHOWN} more day(s))")
+        if plan.unscheduled:
+            mins = sum(i.minutes for i in plan.unscheduled)
+            lines.append("")
+            lines.append(f"Does not fit in {days} day(s): {len(plan.unscheduled)} item(s), "
+                         f"{fmt_minutes(mins)}: " + "; ".join(
+                             f"{i.course_short or i.course_name} {i.title}"
+                             for i in plan.unscheduled[:15]))
+        if not plan.days and not plan.unscheduled:
+            lines.append("Nothing left to catch up on.")
+        return "\n".join(lines)
+
+    def get_questions(self, course_id: int | None = None, section_id: int | None = None,
+                      due_only: bool = False, page: int = 1) -> str:
+        if course_id is None and section_id is None:
+            raise ToolInputError("give course_id or section_id")
+        if course_id is not None:
+            self._course(course_id)
+        now = int(self.clock())
+        rows = study.questions(self.engine, course_id, section_id, due_only, now)
+        pages = _page_count(len(rows), QUESTIONS_PER_PAGE)
+        _check_page(page, pages)
+        due = sum(1 for q in rows if study.is_due(q, now))
+        scope = f"section {section_id}" if section_id is not None else f"course {course_id}"
+        head = (f"{len(rows)} saved question(s) for {scope}, {due} due for review. "
+                "Use the question_id values with record_quiz_result.")
+        if not rows:
+            return head + " Save some with save_questions(section_id, items)."
+        lines = [head]
+        for q in rows[(page - 1) * QUESTIONS_PER_PAGE: page * QUESTIONS_PER_PAGE]:
+            state = "new" if q.last_reviewed_at is None else (
+                "due" if study.is_due(q, now) else f"next review {fmt_date(q.due_at, self.tz)}")
+            lines.append(f"- question_id {q.id} · section_id {q.section_id} · {q.kind} · {state}"
+                         + (f" · {q.lapses} miss(es)" if q.lapses else ""))
+            lines.append(f"  Q: {_short(q.question, 400)}")
+            d = study.question_dict(q, now)
+            if d["choices"]:
+                lines.append("  Choices: " + " | ".join(_short(c, 120) for c in d["choices"]))
+            lines.append(f"  A: {_short(q.answer, 400)}")
+            if q.source:
+                lines.append(f"  Source: {q.source}")
+        if page < pages:
+            lines.append(f"Page {page} of {pages}. Next: " + _call(
+                "get_questions", course_id=course_id, section_id=section_id,
+                due_only=True if due_only else None, page=page + 1))
+        return "\n".join(lines)
+
+    def save_summary(self, section_id: int, markdown: str, title: str | None = None) -> str:
+        try:
+            note, replaced = study.save_summary(self.engine, section_id, markdown, title or "",
+                                                now=self.clock())
+        except study.StudyError as exc:
+            raise ToolInputError(str(exc)) from None
+        verb = "Replaced the" if replaced else "Saved a"
+        return (f"{verb} summary of section {note.section_id} \"{note.title}\" "
+                f"({len(note.markdown)} characters)."
+                + self._ui(f"#/course/{note.course_id}?section={note.section_id}"))
+
+    def save_questions(self, section_id: int, items: list) -> str:
+        try:
+            saved = study.save_questions(self.engine, section_id, items, now=self.clock())
+        except study.StudyError as exc:
+            raise ToolInputError(str(exc)) from None
+        parts = []
+        if saved.created:
+            parts.append(f"saved {len(saved.created)} new question(s)")
+        if saved.updated:
+            parts.append(f"updated {len(saved.updated)} already saved")
+        ids = ", ".join(str(q.id) for q in saved.created + saved.updated)
+        return (f"Section {saved.section.id} \"{saved.section.name}\": {' and '.join(parts)}. "
+                f"question_id: {ids}. They are flashcards in the app's study mode."
+                + self._ui(f"#/study?section={saved.section.id}"))
+
+    def record_quiz_result(self, score: float, total: float, course_id: int | None = None,
+                           section_id: int | None = None, topic: str | None = None,
+                           items: list | None = None, notes: str | None = None) -> str:
+        try:
+            result, reviewed = study.record_result(
+                self.engine, score, total, course_id, section_id, topic or "", notes or "",
+                items, source="claude", now=self.clock())
+        except study.StudyError as exc:
+            raise ToolInputError(str(exc)) from None
+        pct = round(100 * result.score / result.total)
+        out = (f"Recorded {result.score:g}/{result.total:g} ({pct}%) for course "
+               f"{result.course_id}" + (f", section {result.section_id}" if result.section_id else "")
+               + (f" on \"{result.topic}\"" if result.topic else "") + ".")
+        if reviewed:
+            out += f" Updated the review schedule of {reviewed} saved question(s)."
+        return out + self._ui(f"#/course/{result.course_id}")
+
+    def trigger_sync(self) -> str:
+        if self.sync is None or not self.sync.configured():
+            return ("Moodle is not connected yet: the student must add it on the app's "
+                    "settings page." + (f" {self.base_url}/settings" if self.base_url else ""))
+        if not self.sync.start():
+            return "A sync is already running. Try the read tools again in a few minutes."
+        return ("Started a sync with Moodle. It takes a few minutes; new files and deadlines "
+                "appear in the other tools when it finishes.")

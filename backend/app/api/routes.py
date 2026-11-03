@@ -15,11 +15,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.engine import Engine
 
+from app import study
 from app.api import ics, ui
 from app.config import Settings
 from app.db import session
 from app.models import File
 from app.moodle.names import UnsafePathError, safe_join
+from app.planner import Planner
 
 # Shown in the browser. Everything else downloads: Moodle HTML or SVG served inline from
 # this origin could run scripts with your session.
@@ -70,6 +72,11 @@ def register(
             "last_run": run.model_dump() if run else None,
         }
         data["version"] = settings.version
+        data["study"] = study.overview(engine)
+        plan = Planner(settings, engine).plan(days=7).to_dict()
+        data["plan"] = {k: plan[k] for k in ("hours_per_day", "total_minutes", "sections_left",
+                                             "sections_done", "late")}
+        data["plan"]["today"] = plan["days"][0] if plan["days"] and plan["days"][0]["date"] == plan["today"] else None
         return JSONResponse(data)
 
     @app.get("/api/courses/{course_id}")

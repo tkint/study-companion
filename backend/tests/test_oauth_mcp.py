@@ -306,9 +306,13 @@ def test_mcp_session(c):
 
     listed = rpc(c, token, "tools/list", id_=2).json()["result"]["tools"]
     by_name = {t["name"]: t for t in listed}
-    assert set(by_name) == {"list_courses", "get_deadlines", "get_materials", "get_section",
-                            "read_file", "search_materials"}
+    from app.mcp_tools import TOOL_NAMES
+
+    assert set(by_name) == set(TOOL_NAMES)
     assert by_name["read_file"]["annotations"]["readOnlyHint"] is True
+    assert by_name["save_summary"]["annotations"]["readOnlyHint"] is False
+    item_schema = by_name["save_questions"]["inputSchema"]
+    assert "items" in item_schema["properties"] and "QuestionItem" in str(item_schema)
     assert "pages" in by_name["read_file"]["inputSchema"]["properties"]
 
     r = rpc(c, token, "tools/call", {"name": "read_file",
@@ -320,3 +324,38 @@ def test_mcp_session(c):
     r = rpc(c, token, "tools/call", {"name": "get_section", "arguments": {"section_id": 1}}, id_=4)
     result = r.json()["result"]
     assert result["isError"] is True and "no section with id 1" in result["content"][0]["text"]
+
+
+def test_mcp_write_tools_show_up_in_the_web_ui(c):
+    token = tokens(c)["access_token"]
+
+    def call(name, args, id_=1):
+        r = rpc(c, token, "tools/call", {"name": name, "arguments": args}, id_=id_)
+        return r.json()["result"]
+
+    r = call("save_summary", {"section_id": 102, "markdown": "# Matrices\n- **inverse** (td.docx p. 1)"})
+    assert r["isError"] is False and "Saved a summary of section 102" in r["content"][0]["text"]
+    r = call("save_questions", {"section_id": 102, "items": [
+        {"question": "Inverse of I?", "answer": "I", "source": "td.docx p. 1"},
+        {"question": "det(AB)?", "answer": "det(A)det(B)", "kind": "mcq",
+         "choices": ["det(A)+det(B)", "det(A)det(B)"]},
+    ]})
+    text = r["content"][0]["text"]
+    assert r["isError"] is False and "saved 2 new question(s)" in text
+    ids = [int(x) for x in text.split("question_id: ")[1].split(".")[0].split(", ")]
+    r = call("record_quiz_result", {"score": 1, "total": 2, "section_id": 102, "topic": "Matrices",
+                                    "items": [{"question_id": ids[0], "correct": True},
+                                              {"question_id": ids[1], "correct": False}]})
+    assert r["isError"] is False and "Recorded 1/2 (50%)" in r["content"][0]["text"]
+    r = call("save_questions", {"section_id": 102, "items": [{"question": "only a question"}]})
+    assert r["isError"] is True
+    r = call("trigger_sync", {})
+    assert "not connected" in r["content"][0]["text"]
+    r = call("get_catch_up_plan", {"hours_per_day": 1, "days": 3})
+    assert r["isError"] is False and "Catch-up plan" in r["content"][0]["text"]
+
+    c.post("/login", data={"password": PASSWORD})
+    page = c.get("/api/courses/10/study").json()
+    assert page["notes"][0]["markdown"].startswith("# Matrices")
+    assert page["questions"]["102"]["questions"] == 2
+    assert page["results"][0]["percent"] == 50 and page["results"][0]["source"] == "claude"

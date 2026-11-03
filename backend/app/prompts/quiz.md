@@ -14,4 +14,8 @@ Then, in {{language}}:
 - Wait for my answer, then correct it, explain briefly and cite the file and page
 - Adapt: harder after a right answer, revisit the idea after a wrong one
 - After 10 questions, give my score and the topics I should review
+{{#save}}- Start with the saved questions that are due (from get_questions), then add new ones
+- Save each new question with save_questions(section_id, items) for its section, before or after asking it
+- At the end, call record_quiz_result(course_id, score, total, topic, items, notes) with my score, a short note on what to review, and items [{question_id, correct}] for every saved question I answered
+{{/save}}
 {{depth}}

@@ -60,6 +60,126 @@ export interface Dashboard {
   courses: CourseSummary[];
   sync: SyncState;
   version: string;
+  study: StudyOverview;
+  plan: {
+    hours_per_day: number;
+    total_minutes: number;
+    sections_left: number;
+    sections_done: number;
+    late: number;
+    today: PlanDay | null;
+  };
+}
+
+// ---- study loop (backend: app/study.py, app/planner, app/api/study.py)
+
+export interface StudyNote {
+  id: number;
+  course_id: number;
+  section_id: number;
+  kind: string;
+  title: string;
+  markdown: string;
+  source: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Question {
+  id: number;
+  course_id: number;
+  section_id: number | null;
+  kind: "short" | "mcq" | "flashcard" | string;
+  question: string;
+  answer: string;
+  choices: string[];
+  explanation: string;
+  source: string;
+  reps: number;
+  lapses: number;
+  interval: number;
+  due_at: number | null;
+  due: boolean;
+  new: boolean;
+  last_grade: number | null;
+  created_at: number;
+}
+
+export interface QuizResult {
+  id: number;
+  course_id: number;
+  section_id: number | null;
+  source: "claude" | "web" | string;
+  topic: string;
+  score: number;
+  total: number;
+  percent: number | null;
+  notes: string;
+  taken_at: number;
+  course_name?: string;
+}
+
+export interface CourseStudy {
+  notes: StudyNote[];
+  questions: Record<string, { questions: number; due: number }>;
+  questions_total: number;
+  questions_due: number;
+  results: QuizResult[];
+  studied: number[];
+}
+
+export interface StudyOverview {
+  due: number;
+  questions: number;
+  courses: { id: number; fullname: string; shortname: string; enrolled: boolean; questions: number; due: number; new: number; notes: number }[];
+  recent_results: QuizResult[];
+}
+
+export interface PlanItem {
+  kind: "section" | "assign" | "quiz" | "event" | string;
+  course_id: number | null;
+  course_name: string;
+  course_short: string;
+  title: string;
+  minutes: number;
+  needed_by: number | null;
+  needed_for: string;
+  section_id: number | null;
+  section_number: number | null;
+  deadline_id: number | null;
+  url: string;
+  grade: number | null;
+  pages: number;
+  files: { id: number; name: string; pages: number }[];
+  has_summary: boolean;
+  questions: number;
+  overdue: boolean;
+}
+
+export interface PlanSlot extends PlanItem {
+  minutes_today: number;
+  part: number;
+  parts: number;
+  late: boolean;
+}
+
+export interface PlanDay {
+  date: string;
+  minutes: number;
+  items: PlanSlot[];
+}
+
+export interface Plan {
+  today: string;
+  hours_per_day: number;
+  total_minutes: number;
+  sections_left: number;
+  sections_done: number;
+  late: number;
+  notes: string[];
+  days: PlanDay[];
+  unscheduled: PlanItem[];
+  unscheduled_minutes: number;
 }
 
 export interface FileInfo {
@@ -152,6 +272,29 @@ export const api = {
   startSync: () => request<{ status: string }>("/api/sync", { method: "POST" }),
   feed: () => request<Feed>("/api/calendar/feed"),
   newFeed: () => request<Feed>("/api/calendar/feed", { method: "POST" }),
+  courseStudy: (id: number) => request<CourseStudy>(`/api/courses/${id}/study`),
+  cards: (opts: { course?: number; section?: number; all?: boolean }) => {
+    const q = new URLSearchParams();
+    if (opts.course) q.set("course", String(opts.course));
+    if (opts.section) q.set("section", String(opts.section));
+    if (opts.all) q.set("all", "1");
+    return request<{ now: number; questions: Question[]; overview: StudyOverview }>(`/api/study?${q}`);
+  },
+  review: (id: number, grade: number) =>
+    request<Question>(`/api/study/questions/${id}/review`, { method: "POST", body: JSON.stringify({ grade }) }),
+  deleteQuestion: (id: number) => request<{ deleted: number }>(`/api/study/questions/${id}`, { method: "DELETE" }),
+  deleteNote: (id: number) => request<{ deleted: number }>(`/api/study/notes/${id}`, { method: "DELETE" }),
+  saveResult: (r: { course_id: number; section_id?: number | null; score: number; total: number; topic?: string }) =>
+    request<QuizResult>("/api/study/results", { method: "POST", body: JSON.stringify(r) }),
+  deleteResult: (id: number) => request<{ deleted: number }>(`/api/study/results/${id}`, { method: "DELETE" }),
+  setStudied: (sectionId: number, studied: boolean) =>
+    request<{ id: number; studied: boolean }>(`/api/sections/${sectionId}/studied`, {
+      method: "POST",
+      body: JSON.stringify({ studied }),
+    }),
+  plan: (days = 14, course?: number) => request<Plan>(`/api/plan?days=${days}${course ? `&course=${course}` : ""}`),
+  setHours: (hours_per_day: number) =>
+    request<{ hours_per_day: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ hours_per_day }) }),
 };
 
 export function fileUrl(f: Pick<FileInfo, "id" | "filename">, download = false): string {

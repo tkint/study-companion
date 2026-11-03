@@ -15,8 +15,9 @@ Infomaniak VPS Lite in Geneva.
 | M0 | Skeleton, password-protected hello page, Docker + Caddy, CI, release pipeline, server guide | ✅ v0.1.0 |
 | M1 | Moodle sync (courses, contents, files, deadlines, course language), settings page, nightly backups | ✅ v0.2.x |
 | M2 | Web UI: dashboard, course view with PDF viewer, calendar + ICS feed, installable on your phone | ✅ v0.3.0 |
-| M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | ✅ this release |
-| M4 | Study loop: Claude's notes and questions, flashcards, catch-up plan | next |
+| M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | ✅ v0.4.0 |
+| M4 | Study loop: Claude saves notes, questions and quiz results; flashcards with spaced repetition; rule-based catch-up plan | ✅ this release |
+| M5 | Polish (optional): notifications, study-time tracking, more templates | later |
 
 ## Install on a server
 
@@ -35,8 +36,10 @@ Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)**.
 **[docs/web-ui.md](docs/web-ui.md)** covers the dashboard, adding the app to your phone's home
 screen, subscribing to your deadlines from your phone or Outlook calendar, and the prompt
-builder. **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
-(`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses.
+builder, Claude's notes, study mode (flashcards) and the catch-up plan.
+**[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
+(`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
+its summaries, questions and quiz results back to the app.
 
 Update with `docker compose pull && docker compose up -d`.
 
