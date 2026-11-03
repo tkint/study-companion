@@ -6,53 +6,185 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html import escape
 
-_STYLE = """
-:root { color-scheme: light dark; --accent: #2563eb; }
-* { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  padding: 16px; background: Canvas; color: CanvasText; }
-main { width: 100%; max-width: 380px; }
-main.wide { max-width: 720px; align-self: flex-start; }
-h1 { font-size: 1.4rem; margin: 0 0 4px; }
-p { margin: 0 0 16px; opacity: .8; }
-label { display: block; font-weight: 600; margin-bottom: 6px; }
-input, button { width: 100%; font-size: 16px; padding: 12px; border-radius: 10px; }
-input { border: 1px solid #8886; background: transparent; color: inherit; margin-bottom: 12px; }
-button { border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
-.error { color: #dc2626; opacity: 1; }
-.helper { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 12px; }
-.helper ol { margin: 4px 0 8px; padding-left: 20px; font-size: .9rem; }
-.helper p { margin: 0 0 4px; opacity: 1; }
-a[aria-disabled="true"] { opacity: .5; pointer-events: none; }
-.alert { border: 1px solid #dc2626; border-radius: 10px; padding: 10px 12px; }
-a { color: var(--accent); }
-details { margin: 0 0 12px; } summary { cursor: pointer; margin-bottom: 8px; }
-.muted { font-size: .85rem; opacity: .6; margin-top: 16px; }
-.card { border: 1px solid #8884; border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; }
-.card h2 { font-size: 1rem; margin: 0 0 4px; overflow-wrap: anywhere; }
-.card p { margin: 0; font-size: .9rem; }
-.row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 16px; }
-.row form { flex: 1 1 140px; }
-.tag { display: inline-block; font-size: .75rem; padding: 1px 8px; border-radius: 99px;
-  border: 1px solid #8886; margin-left: 4px; vertical-align: middle; }
-.ok { color: #16a34a; opacity: 1; } .warn { color: #d97706; opacity: 1; }
-button.secondary { background: transparent; color: inherit; border: 1px solid #8886; }
+# Same design tokens as the React UI (frontend/src/styles.css), so these pages match it.
+_TOKENS_DARK = """
+  --bg: #0b0f17; --surface: #151b26; --text: #e5e7eb; --muted: #9ca3af; --border: #273042;
+  --accent: #60a5fa; --accent-text: #0b0f17; --bad: #f87171; --bad-bg: #2a1215;
+  --warn: #fbbf24; --warn-bg: #2a2110; --ok: #4ade80;
 """
 
+_STYLE = (
+    """
+:root { color-scheme: light; --bg: #f6f7f9; --surface: #ffffff; --text: #111827;
+  --muted: #6b7280; --border: #e5e7eb; --accent: #2563eb; --accent-text: #ffffff;
+  --bad: #dc2626; --bad-bg: #fef2f2; --warn: #b45309; --warn-bg: #fffbeb; --ok: #15803d;
+  --radius: 12px; --topbar: 56px; --tabbar: 60px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; """
+    + _TOKENS_DARK
+    + """ } }
+:root[data-theme="dark"] { color-scheme: dark; """
+    + _TOKENS_DARK
+    + """ }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.45; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+body.center { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+body.center main { width: 100%; max-width: 400px; padding: 16px; }
+h1 { font-size: 1.5rem; margin: 0 0 16px; }
+p { margin: 0 0 12px; }
+label { display: block; font-weight: 600; margin: 0 0 6px; }
+input { display: block; width: 100%; font: inherit; font-size: 16px; padding: 11px 12px;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  margin: 0 0 14px; min-height: 44px; }
+input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+button { display: inline-flex; align-items: center; justify-content: center; width: 100%;
+  min-height: 44px; padding: 10px 16px; border-radius: 10px; border: 1px solid transparent;
+  background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600;
+  cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+button.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+.error { color: var(--bad); }
+.alert { border: 1px solid var(--bad); background: var(--bad-bg); border-radius: 10px; padding: 10px 12px; }
+.ok { color: var(--ok); } .warn { color: var(--warn); }
+.notice { border-radius: var(--radius); padding: 12px 14px; margin: 0 0 16px; border: 1px solid var(--border);
+  background: var(--surface); }
+.notice.ok { border-color: var(--ok); } .notice.error { border-color: var(--bad); background: var(--bad-bg); }
+.muted { color: var(--muted); font-size: .88rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px; margin: 0 0 16px; }
+.card h2 { font-size: 1.05rem; margin: 0 0 10px; overflow-wrap: anywhere; }
+.card p { font-size: .92rem; }
+.helper { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 14px; }
+.helper ol { margin: 4px 0 8px; padding-left: 20px; font-size: .9rem; color: var(--muted); }
+.helper p { margin: 0 0 4px; }
+a[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+details { margin: 0 0 14px; } summary { cursor: pointer; margin-bottom: 10px; color: var(--muted); }
+code { font-size: .85em; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+.row form { flex: 1 1 160px; margin: 0; }
+.tag { display: inline-block; font-size: .72rem; padding: 1px 8px; border-radius: 99px;
+  border: 1px solid var(--border); color: var(--muted); margin-left: 6px; vertical-align: middle; }
+.footnote { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 24px; }
+/* top bar and tabs, as in the React UI */
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px;
+  min-height: var(--topbar); padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top));
+  background: var(--surface); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--text); font-weight: 700; }
+.brand:hover { text-decoration: none; }
+.tabs { display: flex; gap: 4px; margin-left: auto; }
+.tabs a { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px;
+  color: var(--muted); font-weight: 600; }
+.tabs a:hover { text-decoration: none; background: var(--bg); }
+.tabs a[aria-current="page"] { color: var(--accent); background: var(--bg); }
+.tabs svg, .theme-switch svg { width: 20px; height: 20px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.theme-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.theme-switch button { width: auto; min-height: 36px; padding: 6px 9px; background: transparent;
+  color: var(--muted); border: 0; border-radius: 0; }
+.theme-switch button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent); }
+.theme-switch svg { width: 18px; height: 18px; }
+@media (max-width: 640px) {
+  .theme-switch { margin-left: auto; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; gap: 0; background: var(--surface);
+    border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+  .tabs a { flex: 1; flex-direction: column; gap: 2px; padding: 8px 0; font-size: .7rem;
+    border-radius: 0; min-height: var(--tabbar); justify-content: center; }
+  .tabs a[aria-current="page"] { background: transparent; }
+  body.app main { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
+}
+"""
+)
 
-def _page(title: str, body: str, wide: bool = False) -> str:
+# Applied before paint: the theme picked in the web UI (stored per device), and the colour
+# of the phone's status bar.
+_THEME_JS = """<script>
+(function () {
+  function get() { try { var t = localStorage.getItem("theme"); return t === "light" || t === "dark" ? t : "system"; } catch (e) { return "system"; } }
+  function apply(t) {
+    var root = document.documentElement;
+    if (t === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
+    var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+      m.setAttribute("content", dark ? "#151b26" : "#ffffff");
+    });
+    document.querySelectorAll(".theme-switch button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.theme === t));
+    });
+  }
+  apply(get());
+  document.addEventListener("DOMContentLoaded", function () {
+    apply(get());
+    document.querySelectorAll(".theme-switch button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        try { if (b.dataset.theme === "system") localStorage.removeItem("theme"); else localStorage.setItem("theme", b.dataset.theme); } catch (e) {}
+        apply(b.dataset.theme);
+      });
+    });
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { apply(get()); });
+})();
+</script>"""
+
+_ICONS = {
+    "today": '<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',
+    "courses": '<path d="M4 5h7a3 3 0 013 3v12a2 2 0 00-2-2H4zM20 5h-5a3 3 0 00-3 3"/>',
+    "calendar": '<path d="M4 6h16v14H4zM4 10h16M9 3v5M15 3v5"/>',
+    "settings": '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+    "light": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    "system": '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+    "dark": '<path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/>',
+}
+
+
+def _svg(name: str) -> str:
+    return f'<svg viewBox="0 0 24 24" aria-hidden="true">{_ICONS[name]}</svg>'
+
+
+def _topbar(active: str) -> str:
+    tabs = [("today", "Today", "/#/"), ("courses", "Courses", "/#/courses"),
+            ("calendar", "Calendar", "/#/calendar"), ("settings", "Settings", "/settings")]
+    links = "".join(
+        f'<a href="{href}"{" aria-current=\"page\"" if key == active else ""}>{_svg(key)}<span>{label}</span></a>'
+        for key, label, href in tabs
+    )
+    themes = "".join(
+        f'<button type="button" data-theme="{t}" aria-pressed="false" aria-label="{label}" title="{label}">{_svg(t)}</button>'
+        for t, label in (("light", "Light theme"), ("system", "Use the device theme"), ("dark", "Dark theme"))
+    )
+    return f"""<header class="topbar">
+<a class="brand" href="/#/"><img src="/favicon.svg" alt="" width="28" height="28"><span>Study Companion</span></a>
+<nav class="tabs" aria-label="Main">{links}</nav>
+<div class="theme-switch" role="group" aria-label="Theme">{themes}</div>
+</header>"""
+
+
+def _page(title: str, body: str, wide: bool = False, nav: str | None = None) -> str:
+    """``nav`` (the active tab) adds the web UI's top bar; without it the page is a centred
+    card (sign-in)."""
+    header = _topbar(nav) if nav else ""
+    body_class = "app" if nav else ("" if wide else "center")
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151b26" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>{escape(title)}</title>
 <style>{_STYLE}</style>
-<script>try{{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.style.colorScheme=t}}catch(e){{}}</script>
+{_THEME_JS}
 </head>
-<body><main{' class="wide"' if wide else ""}>{body}</main></body>
+<body class="{body_class}">{header}<main>{body}</main></body>
 </html>"""
 
 
@@ -61,15 +193,17 @@ def login_page(error: str | None = None) -> str:
     return _page(
         "Sign in · Study Companion",
         f"""
-<h1>Study Companion</h1>
-<p>Sign in to continue.</p>
+<div class="card">
+<h1><img src="/favicon.svg" alt="" width="32" height="32" style="vertical-align:-7px;margin-right:8px">Study Companion</h1>
+<p class="muted">Sign in to continue.</p>
 {error_html}
 <form method="post" action="/login">
   <label for="password">Password</label>
   <input id="password" name="password" type="password" autocomplete="current-password"
          required autofocus>
   <button type="submit">Sign in</button>
-</form>""",
+</form>
+</div>""",
     )
 
 
@@ -137,17 +271,17 @@ synced {_when(c["synced_at"])}</p></div>"""
         )
     courses_html = "".join(cards) or '<p class="muted">No courses synced yet.</p>'
     return _page(
-        "Study Companion",
+        "Sync details · Study Companion",
         f"""
-<h1>Study Companion</h1>
-{status}
+<h1>Sync details</h1>
+<div class="card">{status}
 <div class="row">{sync_button}
-<form method="get" action="/settings"><button type="submit" class="secondary">Settings</button></form>
 <form method="post" action="/logout"><button type="submit" class="secondary">Sign out</button></form>
-</div>
+</div></div>
 {courses_html}
-<p class="muted">Version {escape(version)}. The full web UI arrives in the next release.</p>""",
+<p class="footnote">Version {escape(version)}</p>""",
         wide=True,
+        nav="today",
     )
 
 
@@ -195,13 +329,13 @@ def settings_page(
 ) -> str:
     url_value = creds.url if url_value is None else url_value
     moodle_notice = (
-        f'<p class="error alert" role="alert">{escape(moodle_error)}</p>' if moodle_error else ""
+        f'<p class="alert" role="alert">{escape(moodle_error)}</p>' if moodle_error else ""
     )
     notice = ""
     if message:
-        notice += f'<p class="ok" role="status">{escape(message)}</p>'
+        notice += f'<p class="notice ok" role="status">{escape(message)}</p>'
     if error:
-        notice += f'<p class="error" role="alert">{escape(error)}</p>'
+        notice += f'<p class="notice error" role="alert">{escape(error)}</p>'
 
     if creds.token_unreadable:
         token_state = (
@@ -220,9 +354,11 @@ def settings_page(
     else:
         token_state = '<p class="warn">No token saved yet.</p>'
 
+    # Removing the token stops every sync until a new one is pasted: ask first.
     forget = (
-        '<form method="post" action="/settings/moodle/forget">'
-        '<button type="submit" class="secondary">Remove saved token</button></form>'
+        '<form method="post" action="/settings/moodle/forget" '
+        'onsubmit="return confirm(\'Remove the saved Moodle token? Syncing stops until you paste a new one.\')">'
+        '<button type="submit" class="danger">Remove saved token</button></form>'
         if creds.token or creds.token_unreadable
         else ""
     )
@@ -230,7 +366,6 @@ def settings_page(
         "Settings · Study Companion",
         f"""
 <h1>Settings</h1>
-<p><a href="/">← Back</a></p>
 {notice}
 <div class="card">
 <h2>Moodle connection</h2>
@@ -283,7 +418,13 @@ def settings_page(
   <button type="submit">Change password</button>
 </form>
 </div>
-<p class="muted">Version {escape(version)}</p>
+<div class="card">
+<h2>Session</h2>
+<p class="muted">Sign out on this device. <a href="/status">Sync details</a> lists what is stored per course.</p>
+<form method="post" action="/logout"><button type="submit" class="secondary">Sign out</button></form>
+</div>
+<p class="footnote">Version {escape(version)}</p>
 {_TOKEN_LINK_JS}""",
         wide=True,
+        nav="settings",
     )

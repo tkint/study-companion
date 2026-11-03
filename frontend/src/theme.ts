@@ -19,7 +19,8 @@ function apply(theme: Theme) {
   if (theme === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", theme);
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#151b26" : "#ffffff");
+  // Both media-specific metas get the same colour, so a forced theme wins over the device's.
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#151b26" : "#ffffff"));
 }
 
 export function useTheme(): [Theme, (t: Theme) => void] {
