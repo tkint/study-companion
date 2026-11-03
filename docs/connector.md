@@ -107,12 +107,12 @@ callback host to `OAUTH_REDIRECT_HOSTS` in `.env` (the list replaces the default
 Claude hosts) and run `docker compose up -d`:
 
 ```
-OAUTH_REDIRECT_HOSTS=claude.ai,claude.com,localhost,127.0.0.1,oauth-redirect.googleusercontent.com,chatgpt.com
+OAUTH_REDIRECT_HOSTS=claude.ai,claude.com,localhost,127.0.0.1,oauth-redirect.googleusercontent.com,oauth-redirect-sandbox.googleusercontent.com,oauth-redirect-test.googleusercontent.com,chatgpt.com
 ```
 
 | Client | Host to add | Callback it registers |
 |---|---|---|
-| Gemini | `oauth-redirect.googleusercontent.com` | `https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-...` |
+| Gemini | `oauth-redirect.googleusercontent.com`, `oauth-redirect-sandbox.googleusercontent.com` and `oauth-redirect-test.googleusercontent.com` (all three: Gemini registers one callback on each, and one missing host refuses the whole registration) | `https://oauth-redirect*.googleusercontent.com/r/user_bound_custom-mcp-...` |
 | ChatGPT | `chatgpt.com` | `https://chatgpt.com/connector_platform_oauth_redirect` |
 
 Then add a custom connector in that app with the URL `https://<DOMAIN>/mcp`, leave the client ID

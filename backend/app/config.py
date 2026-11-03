@@ -20,8 +20,8 @@ from app.moodle.token import TokenFormatError, parse_pasted_token
 MIN_SECRET_KEY_LENGTH = 32
 MIN_PASSWORD_LENGTH = 12
 # OAuth redirect hosts for the MCP connector when OAUTH_REDIRECT_HOSTS is unset: Claude and
-# local tools only. Other clients are opt-in through the env var, e.g. Gemini's relay
-# oauth-redirect.googleusercontent.com or ChatGPT's chatgpt.com (docs/connector.md).
+# local tools only. Other clients are opt-in through the env var, e.g. Gemini's relays
+# oauth-redirect{,-sandbox,-test}.googleusercontent.com or ChatGPT's chatgpt.com (docs/connector.md).
 DEFAULT_REDIRECT_HOSTS: tuple[str, ...] = ("claude.ai", "claude.com", "localhost", "127.0.0.1")
 
 

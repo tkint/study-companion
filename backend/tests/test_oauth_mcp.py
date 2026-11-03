@@ -253,6 +253,9 @@ GEMINI_CALLBACK = ("https://oauth-redirect.googleusercontent.com/r/"
                    "user_bound_custom-mcp-1234567890-study_companion_ch")
 
 
+GEMINI_HOSTS = ("oauth-redirect.googleusercontent.com",
+                "oauth-redirect-sandbox.googleusercontent.com",
+                "oauth-redirect-test.googleusercontent.com")
 CHATGPT_CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
 
 
@@ -265,7 +268,7 @@ def test_gemini_and_chatgpt_are_refused_by_default(c):
 @pytest.fixture
 def c_more(settings):
     """OAUTH_REDIRECT_HOSTS with Gemini and ChatGPT added by the owner."""
-    hosts = (*settings.oauth_redirect_hosts, "oauth-redirect.googleusercontent.com", "chatgpt.com")
+    hosts = (*settings.oauth_redirect_hosts, *GEMINI_HOSTS, "chatgpt.com")
     app = create_app(dataclasses.replace(settings, oauth_redirect_hosts=hosts))
     with TestClient(app, follow_redirects=False) as client:
         yield client
@@ -302,6 +305,23 @@ def test_gemini_connector_flow(c_more):
 
     r = c_more.post("/oauth/register", json={"redirect_uris": ["https://evil.googleusercontent.com/r/x"]})
     assert r.status_code == 400
+
+
+def test_gemini_registers_on_all_three_relays(c_more, settings):
+    """Gemini sends one callback per Google relay; every host must be allowed."""
+    uris = [f"https://{h}/r/user_bound_custom-mcp-1234567890-study_companion_ch"
+            for h in GEMINI_HOSTS]
+    r = c_more.post("/oauth/register", json={"redirect_uris": uris,
+                                             "token_endpoint_auth_method": "client_secret_basic"})
+    assert r.status_code == 201, r.text
+    # With only the main relay allowed, the error names the missing hosts.
+    hosts = (*settings.oauth_redirect_hosts, GEMINI_HOSTS[0])
+    app = create_app(dataclasses.replace(settings, oauth_redirect_hosts=hosts))
+    with TestClient(app) as client:
+        r = client.post("/oauth/register", json={"redirect_uris": uris})
+    assert r.status_code == 400
+    desc = r.json()["error_description"]
+    assert GEMINI_HOSTS[1] in desc and GEMINI_HOSTS[2] in desc
 
 
 def test_refused_registration_logs_hosts_not_uris(c, caplog):
