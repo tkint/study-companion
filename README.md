@@ -41,7 +41,8 @@ builder, Claude's notes, study mode (flashcards) and the catch-up plan.
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
 
-Update with `docker compose pull && docker compose up -d`.
+Updates: run the **Deploy** workflow from GitHub Actions (see
+[docs/releasing.md](docs/releasing.md)). Manually: `docker compose pull && docker compose up -d`.
 
 ## Configuration
 

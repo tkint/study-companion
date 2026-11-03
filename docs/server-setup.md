@@ -132,6 +132,11 @@ Follow [docs/backups.md](backups.md) to back up the data volume with restic ever
 
 ## Update
 
+**From GitHub:** run the **Deploy** workflow in GitHub Actions; it SSHes into this server and
+updates it, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual).
+
+**Manual:**
+
 `docker compose pull` fetches the image named by `IMAGE_TAG` in `.env`. With
 `IMAGE_TAG=latest` it follows new releases; with a version number (e.g. `0.1.0`) it stays on
 that version.

@@ -25,3 +25,26 @@ GHCR packages are private when first created. Either make it public
 (GitHub > your profile > Packages > study-companion > Package settings > Change visibility)
 so the VPS can pull without credentials, or keep it private and run
 `docker login ghcr.io -u tkint` on the VPS with a personal access token that has `read:packages`.
+
+## Deploy to the VPS from GitHub (manual)
+
+Releasing only publishes the image. To roll it out, open GitHub > Actions > **Deploy** >
+**Run workflow** and pick the tag (`latest` or e.g. `0.5.0`). The workflow SSHes into the
+server and runs `docker compose pull && docker compose up -d` (`.github/workflows/deploy.yml`).
+No cron and no extra service on the server. A version other than `latest` only applies to
+that run; to stay on it permanently, set `IMAGE_TAG` in the server's `.env`.
+
+1. On your computer create a dedicated key (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and add
+   `deploy_key.pub` to `~/.ssh/authorized_keys` of the user that owns `~/study` (a user in the
+   `docker` group, not root).
+2. In GitHub > Settings > Secrets and variables > Actions, add:
+   - secret `DEPLOY_SSH_KEY`: contents of the private key `deploy_key`,
+   - variables `DEPLOY_HOST` (domain or IP), `DEPLOY_USER`, `DEPLOY_HOST_KEY` (output of
+     `ssh-keyscan -t ed25519 <host>`),
+   - optional variables `DEPLOY_PORT` (default 22) and `DEPLOY_DIR` (default `~/study`).
+3. The job uses an environment named `production`; add required reviewers to it
+   (Settings > Environments) if you want an approval step.
+
+Changes to the Caddyfile or compose file still need the deploy bundle, see
+[server-setup.md](server-setup.md#update). If the VPS firewall restricts SSH, allow GitHub-hosted
+runners or use a self-hosted runner on the VPS.
