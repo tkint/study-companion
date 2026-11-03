@@ -63,7 +63,7 @@ you never edit `.env` to change them.
 | `SESSION_MAX_AGE` | no | Session length in seconds (default 7 days). |
 | `COOKIE_SECURE` | no | Default `true`; set `false` only for local plain-HTTP development. |
 | `TIMEZONE` | no | Time zone for dates in Claude's tools and prompts (default `Europe/Zurich`). |
-| `OAUTH_REDIRECT_HOSTS` | no | Hosts the connector's OAuth may redirect to (default `claude.ai,claude.com,localhost,127.0.0.1`). Add `oauth-redirect.googleusercontent.com` for Gemini or `chatgpt.com` for ChatGPT ([docs/connector.md](docs/connector.md)). |
+| `OAUTH_REDIRECT_HOSTS` | no | Hosts the connector's OAuth may redirect to (default `claude.ai,claude.com,localhost,127.0.0.1`). Add Gemini's three `oauth-redirect*.googleusercontent.com` hosts or `chatgpt.com` for ChatGPT ([docs/connector.md](docs/connector.md)). |
 | `OAUTH_ACCESS_TTL`, `OAUTH_REFRESH_TTL` | no | Connector token lifetimes in seconds (default 1 hour and 30 days). |
 
 ## Moodle sync
