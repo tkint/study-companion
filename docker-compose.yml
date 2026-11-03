@@ -13,6 +13,8 @@ services:
     # No published ports: the app is only reachable through Caddy.
     expose:
       - "8000"
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
@@ -32,6 +34,25 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Pulls new app images from GHCR and restarts only the labelled `app` container.
+  # Follows the tag in IMAGE_TAG (latest = every release). Needs the Docker socket, which
+  # is root-equivalent on the host: remove this service if you prefer manual updates.
+  watchtower:
+    image: nickfedor/watchtower:latest
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_SCHEDULE: ${WATCHTOWER_SCHEDULE:-0 0 4 * * *}
+      TZ: ${TIMEZONE:-Europe/Zurich}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }

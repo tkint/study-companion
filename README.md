@@ -38,7 +38,8 @@ screen, subscribing to your deadlines from your phone or Outlook calendar, and t
 builder. **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses.
 
-Update with `docker compose pull && docker compose up -d`.
+Updates: Watchtower (part of the compose file) pulls new releases from GHCR every night at 04:00
+and restarts the app. Manually: `docker compose pull && docker compose up -d`.
 
 ## Configuration
 
