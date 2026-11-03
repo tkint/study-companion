@@ -50,11 +50,26 @@ async def _form(request: Request) -> dict[str, str] | None:
 
 
 def _same_origin(request: Request) -> bool:
-    """Reject cross-site form posts (defence in depth on top of SameSite=Lax cookies)."""
+    """Reject cross-site form posts (defence in depth on top of SameSite=Lax cookies).
+
+    Browsers send ``Origin: null`` on same-site form posts when the page's Referrer-Policy
+    is ``no-referrer`` (as our Caddyfile sets), so ``null`` cannot be treated as foreign.
+    ``Sec-Fetch-Site`` is the reliable signal in current browsers; Origin is the fallback.
+    """
+    site = request.headers.get("sec-fetch-site")
+    if site:
+        return site in {"same-origin", "none"}
     origin = request.headers.get("origin")
     if not origin or origin == "null":
-        return origin is None
+        return True
     return urlsplit(origin).netloc == request.headers.get("host", "")
+
+
+def _forbidden() -> HTMLResponse:
+    return HTMLResponse(
+        "Blocked a request that did not come from this site. Reload the page and try again.",
+        status_code=403,
+    )
 
 
 def create_app(
@@ -190,8 +205,10 @@ def create_app(
 
     @app.post("/sync")
     async def sync_form(request: Request) -> Response:
-        if not is_authenticated(request) or not _same_origin(request):
+        if not is_authenticated(request):
             return RedirectResponse("/login", status_code=303)
+        if not _same_origin(request):
+            return _forbidden()
         if sync.configured():
             start_sync()
         return RedirectResponse("/", status_code=303)
@@ -230,8 +247,10 @@ def create_app(
 
     @app.post("/settings/moodle", response_class=HTMLResponse)
     async def save_moodle(request: Request) -> Response:
-        if not is_authenticated(request) or not _same_origin(request):
+        if not is_authenticated(request):
             return RedirectResponse("/login", status_code=303)
+        if not _same_origin(request):
+            return _forbidden()
         form = await _form(request)
         if form is None:
             return render_settings(error="Request too large.", status=413)
@@ -280,15 +299,19 @@ def create_app(
 
     @app.post("/settings/moodle/forget")
     async def forget_moodle(request: Request) -> Response:
-        if not is_authenticated(request) or not _same_origin(request):
+        if not is_authenticated(request):
             return RedirectResponse("/login", status_code=303)
+        if not _same_origin(request):
+            return _forbidden()
         accounts.forget_token(engine)
         return RedirectResponse("/settings?saved=forgot", status_code=303)
 
     @app.post("/settings/password", response_class=HTMLResponse)
     async def save_password(request: Request) -> Response:
-        if not is_authenticated(request) or not _same_origin(request):
+        if not is_authenticated(request):
             return RedirectResponse("/login", status_code=303)
+        if not _same_origin(request):
+            return _forbidden()
         key = _client_key(request)
         if throttle.is_blocked(key):
             return render_settings(error="Too many failed attempts. Try again later.", status=429)
