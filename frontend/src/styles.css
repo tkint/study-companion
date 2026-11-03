@@ -209,3 +209,38 @@ details.past > summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
 .viewer-pages .loading, .viewer-pages .alert { color: #fff; text-align: center; }
 .pdf-page { margin: 0 auto 8px; background: #fff; box-shadow: 0 1px 4px #0006; max-width: none; }
 .pdf-page canvas { display: block; width: 100%; height: 100%; }
+
+/* ---- prompt builder ---- */
+.builder { display: grid; gap: 16px; }
+@media (min-width: 900px) {
+  .builder { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .builder-result { position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow: auto; }
+}
+.field { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  padding: 10px 14px 12px; margin: 0 0 12px; min-width: 0; }
+.field legend { font-weight: 600; padding: 0 4px; }
+.field label { font-size: .9rem; }
+.field input[type="date"], .field input[type="number"], .field input[type="text"], .field select {
+  font: inherit; font-size: 16px; min-height: 44px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.field .full { width: 100%; }
+.field .block { display: grid; gap: 4px; margin-top: 8px; }
+.inline { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.inline label { display: grid; gap: 4px; flex: 1 1 140px; }
+.inline input, .inline select { width: 100%; }
+.choices { display: grid; gap: 2px; max-height: 240px; overflow: auto; }
+.choice { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; }
+.choice input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+.choice .tag { margin-left: 6px; }
+.segmented { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 12px; }
+.segmented.wrap { flex-wrap: wrap; }
+.segmented button { flex: 1 1 auto; min-height: 40px; border: 0; border-radius: 9px; padding: 6px 10px;
+  background: transparent; color: var(--text); font: inherit; font-size: .9rem; cursor: pointer; }
+.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--accent); font-weight: 600;
+  box-shadow: 0 1px 2px #0002; }
+.prompt-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; margin-bottom: 12px; }
+.prompt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prompt-head strong { overflow-wrap: anywhere; }
+.prompt-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; margin: 8px 0 0;
+  padding: 10px; border-radius: 8px; background: var(--bg); max-height: 50vh; overflow: auto; }

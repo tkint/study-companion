@@ -7,6 +7,7 @@ import Course from "./pages/Course";
 // Heavy parts (FullCalendar, pdf.js) load only when opened.
 const Calendar = lazy(() => import("./pages/Calendar"));
 const FileViewer = lazy(() => import("./pages/FileViewer"));
+const Prompt = lazy(() => import("./pages/Prompt"));
 
 function Page({ route }: { route: Route }) {
   switch (route.name) {
@@ -16,6 +17,8 @@ function Page({ route }: { route: Route }) {
       return <Course id={route.id} />;
     case "calendar":
       return <Calendar />;
+    case "prompt":
+      return <Prompt course={route.course} />;
     case "file":
       return <FileViewer id={route.id} course={route.course} />;
     default:
@@ -27,6 +30,7 @@ const TABS = [
   { route: "dashboard", label: "Today", href: href.dashboard, icon: "M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10" },
   { route: "courses", label: "Courses", href: href.courses, icon: "M4 5h7a3 3 0 013 3v12a2 2 0 00-2-2H4zM20 5h-5a3 3 0 00-3 3" },
   { route: "calendar", label: "Calendar", href: href.calendar, icon: "M4 6h16v14H4zM4 10h16M9 3v5M15 3v5" },
+  { route: "prompt", label: "Prompt", href: href.prompt(), icon: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5" },
 ] as const;
 
 export default function App() {
