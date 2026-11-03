@@ -50,6 +50,7 @@ def _page(title: str, body: str, wide: bool = False) -> str:
 <meta name="robots" content="noindex, nofollow">
 <title>{escape(title)}</title>
 <style>{_STYLE}</style>
+<script>try{{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.style.colorScheme=t}}catch(e){{}}</script>
 </head>
 <body><main{' class="wide"' if wide else ""}>{body}</main></body>
 </html>"""
