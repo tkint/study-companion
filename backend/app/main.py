@@ -52,17 +52,19 @@ async def _form(request: Request) -> dict[str, str] | None:
 def _same_origin(request: Request) -> bool:
     """Reject cross-site form posts (defence in depth on top of SameSite=Lax cookies).
 
-    Browsers send ``Origin: null`` on same-site form posts when the page's Referrer-Policy
-    is ``no-referrer`` (as our Caddyfile sets), so ``null`` cannot be treated as foreign.
-    ``Sec-Fetch-Site`` is the reliable signal in current browsers; Origin is the fallback.
+    ``Sec-Fetch-Site`` is set by the browser and can't be forged by a page, so it decides
+    when present (all current browsers). Under ``Referrer-Policy: no-referrer`` browsers
+    send ``Origin: null`` even on same-site posts, which is why Origin alone isn't enough;
+    the Caddyfile now uses ``same-origin``. Without Sec-Fetch-Site, Origin must be absent
+    or match the host; ``null`` is rejected, since sandboxed frames can send it too.
     """
     site = request.headers.get("sec-fetch-site")
     if site:
         return site in {"same-origin", "none"}
     origin = request.headers.get("origin")
-    if not origin or origin == "null":
+    if origin is None:
         return True
-    return urlsplit(origin).netloc == request.headers.get("host", "")
+    return origin != "null" and urlsplit(origin).netloc == request.headers.get("host", "")
 
 
 def _forbidden() -> HTMLResponse:

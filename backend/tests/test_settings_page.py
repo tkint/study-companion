@@ -141,6 +141,7 @@ def test_forget_token(client, app):
     {"Origin": "https://evil.example.com"},
     {"Sec-Fetch-Site": "cross-site", "Origin": "null"},
     {"Sec-Fetch-Site": "same-site"},
+    {"Origin": "null"},  # no Sec-Fetch-Site: could be a sandboxed frame
 ])
 def test_cross_site_post_is_rejected(client, app, headers):
     login(client)
@@ -152,8 +153,8 @@ def test_cross_site_post_is_rejected(client, app, headers):
 @pytest.mark.parametrize("headers", [
     # What Chrome sends for a same-site form post under Referrer-Policy: no-referrer.
     {"Origin": "null", "Sec-Fetch-Site": "same-origin"},
-    {"Origin": "null"},
     {"Origin": "http://testserver"},
+    {},
 ])
 def test_same_site_form_post_is_accepted(client, app, headers):
     login(client)
