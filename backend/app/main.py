@@ -2,7 +2,7 @@
 
 Serves the React web UI (``frontend/dist``) behind the password login, its JSON API, file
 downloads and the ICS feed, the server-rendered login/settings/status pages, the sync API
-and a health check. M3 adds the MCP endpoint to this app.
+and a health check, and the MCP endpoint for Claude's connector.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from starlette.routing import Route
 from app import accounts
 from app.api import prompts as prompt_routes
 from app.api import routes
+from app.api import study as study_routes
 from app.api.status import course_overview, run_to_dict
 from app.auth import oauth, oauth_routes
 from app.auth.pages import home_page, login_page, settings_page
@@ -134,8 +135,18 @@ def create_app(
     def public_base(request) -> str:
         return settings.public_url(str(request.base_url))
 
+    class SyncControl:
+        """trigger_sync's view of the sync service (start_sync is defined below)."""
+
+        def configured(self) -> bool:
+            return sync.configured()
+
+        def start(self) -> bool:
+            return start_sync()
+
     mcp_endpoint = MCPEndpoint(
-        build_server(StudyTools(settings, engine, settings.public_url()), settings.version),
+        build_server(StudyTools(settings, engine, settings.public_url(), sync=SyncControl()),
+                     settings.version),
         engine,
         public_base,
     )
@@ -460,6 +471,7 @@ def create_app(
 
     routes.register(app, settings, engine, is_authenticated, _same_origin)
     prompt_routes.register(app, settings, engine, is_authenticated, _same_origin)
+    study_routes.register(app, settings, engine, is_authenticated, _same_origin)
     oauth_routes.register(app, settings, engine, is_authenticated, _same_origin, throttle,
                           _client_key)
     # Claude's connector: OAuth bearer token required (checked in MCPEndpoint).
