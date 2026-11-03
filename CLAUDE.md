@@ -34,6 +34,11 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `backend/app/models.py`, `db.py` SQLModel tables, SQLite engine, DB snapshot for backups
 - `backend/app/moodle/` `client.py` (rate limit, backoff, redaction), `api.py` (one wrapper per
   web service function), `sync.py`, `scheduler.py`, `names.py` (safe paths), `text.py` (multilang, language)
+- `backend/app/api/` `routes.py` (UI JSON API, `/files/{id}`, `/calendar.ics`), `ui.py` (read
+  models: dashboard, course detail, deadlines), `ics.py` (ICS + feed token), `status.py`
+- `frontend/` React + Vite + TS PWA (hash routes in `src/router.ts`, API types in `src/api.ts`);
+  `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
+  Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
 - `backend/app/cli.py` `python -m app.cli check|sync|snapshot-db`
 - `deploy/backup.sh` restic backup of the data volume (docs/backups.md)
 - `backend/tests/` pytest; `conftest.py` builds an app with test settings
@@ -43,6 +48,7 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 
 ## Workflow
 
-- `cd backend && pip install -e ".[dev]" && pytest` before every push.
+- `cd backend && pip install -e ".[dev]" && pytest` and `cd frontend && npm ci && npm run build`
+  before every push.
 - Small commits with clear messages.
 - Version lives in `backend/app/__init__.py`; the release tag must match it.

@@ -1,4 +1,5 @@
-"""Minimal server-rendered pages (login, sync status). The React UI replaces these in M2."""
+"""Server-rendered pages: login, settings and the basic sync status page (also the home page
+when no web UI build is present). The React UI in frontend/ covers everything else."""
 
 from __future__ import annotations
 
