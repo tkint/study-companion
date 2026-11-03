@@ -423,3 +423,34 @@ def test_mcp_write_tools_show_up_in_the_web_ui(c):
     assert page["notes"][0]["markdown"].startswith("# Matrices")
     assert page["questions"]["102"]["questions"] == 2
     assert page["results"][0]["percent"] == 50 and page["results"][0]["source"] == "claude"
+
+
+APPS_CAPS = {"extensions": {"io.modelcontextprotocol/ui": {"mimeTypes": ["text/html;profile=mcp-app"]}}}
+
+
+def test_ask_question_is_an_mcp_app(c):
+    token = tokens(c)["access_token"]
+    init = {"protocolVersion": "2025-06-18", "clientInfo": {"name": "test", "version": "1"}}
+    call = {"name": "ask_question",
+            "arguments": {"question": "2 + 2?", "choices": ["3", "4", "5"]}}
+
+    # A client without MCP Apps gets the question to write in its reply.
+    assert rpc(c, token, "initialize", {**init, "capabilities": {}}).status_code == 200
+    text = rpc(c, token, "tools/call", call, id_=2).json()["result"]["content"][0]["text"]
+    assert "cannot show clickable choices" in text and "2 + 2?\n\nA) 3\nB) 4\nC) 5" in text
+
+    # The client's capabilities at initialize are remembered for its OAuth client.
+    assert rpc(c, token, "initialize", {**init, "capabilities": APPS_CAPS}, id_=3).status_code == 200
+    tool = {t["name"]: t for t in rpc(c, token, "tools/list", id_=4).json()["result"]["tools"]}["ask_question"]
+    uri = tool["_meta"]["ui"]["resourceUri"]
+    assert uri.startswith("ui://")
+    resource = rpc(c, token, "resources/read", {"uri": uri}, id_=5).json()["result"]["contents"][0]
+    assert resource["mimeType"] == "text/html;profile=mcp-app"
+    html = resource["text"]
+    assert "ui/initialize" in html and '"ui/message"' in html and ".innerHTML" not in html
+    text = rpc(c, token, "tools/call", call, id_=6).json()["result"]["content"][0]["text"]
+    assert text.startswith("Shown to the student as a card with clickable choices A to C")
+
+    bad = rpc(c, token, "tools/call", {"name": "ask_question",
+                                       "arguments": {"question": "Q", "choices": ["a", "a"]}}, id_=7)
+    assert bad.json()["result"]["isError"] is True

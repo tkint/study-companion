@@ -33,7 +33,7 @@ from app.auth.session import (
 )
 from app.config import Settings, validate_moodle_url
 from app.db import make_engine
-from app.mcp_server import MCPEndpoint, build_server
+from app.mcp_server import AppsClients, MCPEndpoint, build_server
 from app.mcp_tools import StudyTools
 from app.moodle import api as moodle_api
 from app.moodle.client import MoodleAuthError, MoodleError, redact_text
@@ -144,11 +144,13 @@ def create_app(
         def start(self) -> bool:
             return start_sync()
 
+    apps_clients = AppsClients()
     mcp_endpoint = MCPEndpoint(
         build_server(StudyTools(settings, engine, settings.public_url(), sync=SyncControl()),
-                     settings.version),
+                     settings.version, apps_clients),
         engine,
         public_base,
+        apps_clients,
     )
 
     @asynccontextmanager

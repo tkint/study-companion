@@ -32,7 +32,7 @@ version = { attr = "app.__version__" }
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["prompts/*.md"]
+app = ["prompts/*.md", "mcp_ui/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
