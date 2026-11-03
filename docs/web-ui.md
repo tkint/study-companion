@@ -3,6 +3,11 @@
 Open `https://<DOMAIN>` and sign in with your app password. The UI is built for phones first:
 on a narrow screen the tabs (**Today**, **Courses**, **Calendar**, **Prompt**, **Settings**) sit at the bottom.
 
+The sun / screen / moon buttons in the top bar pick a light theme, the device's theme
+(default) or a dark theme. The choice is remembered on each device and also applies to the
+Settings and sign-in pages. **Settings** is where you change the Moodle token and the app
+password, and sign out. Removing the saved token asks for confirmation first.
+
 ## Add it to your home screen
 
 - **iPhone (Safari):** Share → *Add to Home Screen*.
@@ -26,7 +31,9 @@ All times are shown in your device's time zone.
 
 ## Courses
 
-Each course lists its open deadlines, then its sections with activities and files.
+The **Courses** tab lists every enrolled course with its progress. Type in the search field
+to filter by name or short name (accents and case don't matter, so `algebre` finds
+*Algèbre linéaire*). Each course lists its open deadlines, then its sections with activities and files.
 
 - **PDFs** open in the built-in viewer (pinch or −/+ to zoom, ⤓ to download).
 - **Images and text files** open in a new tab; **everything else** (Word, PowerPoint, HTML…)

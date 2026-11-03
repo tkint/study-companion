@@ -3,6 +3,7 @@ import { href, useRoute, type Route } from "./router";
 import Dashboard from "./pages/Dashboard";
 import Courses from "./pages/Courses";
 import Course from "./pages/Course";
+import ThemeSwitch from "./components/ThemeSwitch";
 
 // Heavy parts (FullCalendar, pdf.js) load only when opened.
 const Calendar = lazy(() => import("./pages/Calendar"));
@@ -65,6 +66,7 @@ export default function App() {
             <span>Settings</span>
           </a>
         </nav>
+        <ThemeSwitch />
       </header>
       <main className="content">
         <Suspense fallback={<p className="loading">Loading…</p>}>

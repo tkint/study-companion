@@ -238,3 +238,22 @@ def test_token_link_is_built_from_the_address(client):
     r = client.post("/settings/moodle", data={"url": "https://icampus.uni.ch/my/", "token": "b" * 32})
     assert ('href="https://icampus.uni.ch/admin/tool/mobile/launch.php?service=moodle_mobile_app'
             '&amp;passport=12345&amp;urlscheme=moodlemobile"') in r.text
+
+
+def test_remove_token_asks_for_confirmation(app, client):
+    login(client)
+    accounts.save_moodle(app.state.engine, app.state.settings.secret_key, BASE, TOKEN)
+    html = client.get("/settings").text
+    form = html[html.index('action="/settings/moodle/forget"') - 40:]
+    form = form[: form.index("</form>")]
+    assert "onsubmit=\"return confirm(" in form
+    assert "Remove saved token" in form
+
+
+def test_settings_page_uses_the_app_layout(client):
+    login(client)
+    html = client.get("/settings").text
+    assert 'class="topbar"' in html and 'href="/#/calendar"' in html
+    assert '<a href="/settings" aria-current="page">' in html
+    assert 'name="theme-color"' in html and "localStorage.getItem(\"theme\")" in html
+    assert 'action="/logout"' in html  # signing out lives here now
