@@ -13,9 +13,9 @@ Infomaniak VPS Lite in Geneva.
 | Milestone | Scope | State |
 | --- | --- | --- |
 | M0 | Skeleton, password-protected hello page, Docker + Caddy, CI, release pipeline, server guide | ✅ v0.1.0 |
-| M1 | Moodle sync (courses, contents, files, deadlines, course language), settings page, nightly backups | ✅ this release |
-| M2 | Web UI: dashboard, course view, calendar + ICS, phone layout | next |
-| M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | |
+| M1 | Moodle sync (courses, contents, files, deadlines, course language), settings page, nightly backups | ✅ v0.2.x |
+| M2 | Web UI: dashboard, course view with PDF viewer, calendar + ICS feed, installable on your phone | ✅ this release |
+| M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | next |
 | M4 | Study loop: Claude's notes and questions, flashcards, catch-up plan | |
 
 ## Install on a server
@@ -33,6 +33,8 @@ docker compose up -d
 Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 **[docs/moodle-token.md](docs/moodle-token.md)** explains how to get the token with
 university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)**.
+**[docs/web-ui.md](docs/web-ui.md)** covers the dashboard, adding the app to your phone's home
+screen and subscribing to your deadlines from your phone or Outlook calendar.
 
 Update with `docker compose pull && docker compose up -d`.
 
@@ -82,6 +84,17 @@ APP_PASSWORD=dev-password-123 SECRET_KEY=$(openssl rand -hex 32) COOKIE_SECURE=f
   uvicorn app.main:get_app --factory --reload
 ```
 
+Web UI (React + Vite + TypeScript, Node 22): with the backend running on port 8000,
+
+```bash
+cd frontend
+npm ci
+npm run dev     # http://localhost:5173, proxies the API to :8000; sign in at /login
+npm run build   # type-check + bundle into frontend/dist, which the backend then serves at /
+```
+
+Without a build, `/` shows the basic server-rendered status page (`/status` always does).
+
 Full stack locally (Caddy issues a local certificate for `localhost`):
 
 ```bash
@@ -100,12 +113,14 @@ the deploy files. Details in [docs/releasing.md](docs/releasing.md).
 
 ```
 backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (client, sync,
-                    scheduler), api/ (extract, planner, prompts, mcp in later milestones)
+                    scheduler), api/ (UI routes, ICS feed; extract, planner, prompts,
+                    mcp in later milestones)
 backend/tests/      pytest (Moodle responses always mocked)
+frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)
 deploy/Caddyfile    HTTPS reverse proxy
 docker/Dockerfile   multi-stage image
 docker-compose.yml  app + Caddy
 deploy/backup.sh    nightly restic backup of the data volume
-docs/               server setup, Moodle token, backups, releasing (connector guide in M3)
+docs/               server setup, Moodle token, web UI, backups, releasing (connector guide in M3)
 .github/workflows/  ci.yml, release.yml
 ```

@@ -10,7 +10,13 @@ COPY backend/pyproject.toml ./
 COPY backend/app ./app
 RUN pip install .
 
-# (M2 adds a Node stage here that builds frontend/ and copies dist/ into the runtime image.)
+# ---- Web UI stage: build the React app (platform-independent output) ----
+FROM --platform=$BUILDPLATFORM node:22-slim AS frontend
+WORKDIR /src
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
 
 # ---- Runtime stage ----
 FROM python:3.12-slim
@@ -19,13 +25,15 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION} \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    FRONTEND_DIR=/opt/frontend
 
 RUN groupadd --system --gid 1000 app \
  && useradd --system --uid 1000 --gid app --home-dir /home/app --create-home app \
  && mkdir -p /data && chown app:app /data
 
 COPY --from=build /opt/venv /opt/venv
+COPY --from=frontend /src/dist /opt/frontend
 
 LABEL org.opencontainers.image.title="study-companion" \
       org.opencontainers.image.description="Self-hosted study companion (syncs from Moodle) with a remote MCP connector for Claude" \

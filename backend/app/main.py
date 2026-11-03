@@ -1,20 +1,24 @@
 """FastAPI entry point.
 
-Serves the password-protected status and settings pages, the sync API and a health check.
-Later milestones add the React build and the MCP endpoint to this app.
+Serves the React web UI (``frontend/dist``) behind the password login, its JSON API, file
+downloads and the ICS feed, the server-rendered login/settings/status pages, the sync API
+and a health check. M3 adds the MCP endpoint to this app.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app import accounts
+from app.api import routes
 from app.api.status import course_overview, run_to_dict
 from app.auth.pages import home_page, login_page, settings_page
 from app.auth.session import (
@@ -26,7 +30,7 @@ from app.auth.session import (
 from app.config import Settings, validate_moodle_url
 from app.db import make_engine
 from app.moodle import api as moodle_api
-from app.moodle.client import MoodleAuthError, MoodleError
+from app.moodle.client import MoodleAuthError, MoodleError, redact_text
 from app.moodle.scheduler import start_scheduler
 from app.moodle.sync import ClientFactory, SyncAlreadyRunning, SyncService, default_client_factory
 from app.moodle.token import TokenFormatError, parse_pasted_token
@@ -34,6 +38,35 @@ from app.moodle.token import TokenFormatError, parse_pasted_token
 logger = logging.getLogger("app")
 
 MAX_FORM_BODY = 8192
+# Files from frontend/public served at the site root without signing in: browsers fetch
+# the manifest and icons without cookies, and the service worker must live at /.
+PUBLIC_FILES = {
+    "manifest.webmanifest",
+    "sw.js",
+    "favicon.svg",
+    "icon-192.png",
+    "icon-512.png",
+    "icon-maskable-512.png",
+    "apple-touch-icon.png",
+}
+
+
+# Slim images have no /etc/mime.types: the pdf.js worker must be served as JavaScript.
+for _ext, _type in ((".mjs", "text/javascript"), (".wasm", "application/wasm"),
+                    (".webmanifest", "application/manifest+json")):
+    mimetypes.add_type(_type, _ext)
+
+
+class RedactTokens(logging.Filter):
+    """Hide ``token=`` values (the ICS feed URL) in uvicorn's access log."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Keep the args tuple: uvicorn's access formatter unpacks it.
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                redact_text(a, []) if isinstance(a, str) else a for a in record.args
+            )
+        return True
 
 
 def _client_key(request: Request) -> str:
@@ -84,6 +117,14 @@ def create_app(
     client_factory = client_factory or default_client_factory(settings)
     sync = SyncService(settings, engine, client_factory)
     tasks: set[asyncio.Task] = set()
+    access_log = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, RedactTokens) for f in access_log.filters):
+        access_log.addFilter(RedactTokens())
+    frontend = settings.frontend_dir
+    index_html = frontend / "index.html" if frontend else None
+    if index_html is not None and not index_html.is_file():
+        logger.warning("No web UI build in %s: serving the basic status page", frontend)
+        index_html = None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -145,6 +186,8 @@ def create_app(
     @app.middleware("http")
     async def no_store(request: Request, call_next):
         response = await call_next(request)
+        if request.url.path.startswith(("/assets/", "/pdfjs/")) and response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         response.headers.setdefault("Cache-Control", "no-store")
         return response
 
@@ -195,6 +238,17 @@ def create_app(
     async def home(request: Request) -> Response:
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=303)
+        if index_html is not None:
+            return FileResponse(index_html, media_type="text/html")
+        return status_html()
+
+    @app.get("/status", response_class=HTMLResponse)
+    async def status_page(request: Request) -> Response:
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=303)
+        return status_html()
+
+    def status_html() -> HTMLResponse:
         return HTMLResponse(
             home_page(
                 settings.version,
@@ -213,7 +267,7 @@ def create_app(
             return _forbidden()
         if sync.configured():
             start_sync()
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/status" if index_html else "/", status_code=303)
 
     def render_settings(
         message: str = "",
@@ -369,7 +423,36 @@ def create_app(
             return unauthorized()
         return JSONResponse({"courses": course_overview(engine)})
 
+    routes.register(app, settings, engine, is_authenticated, _same_origin)
+
+    # ------------------------------------------------------------------ web UI build
+
+    if index_html is not None and frontend is not None:
+        assets = frontend / "assets"
+        if assets.is_dir():
+            # Hashed file names: safe to cache for a year.
+            app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        pdfjs = frontend / "pdfjs"
+        if pdfjs.is_dir():
+            # pdf.js fonts, character maps and decoders (public library files).
+            app.mount("/pdfjs", StaticFiles(directory=pdfjs), name="pdfjs")
+
+        for name in PUBLIC_FILES:
+            path = frontend / name
+            if path.is_file():
+                app.add_api_route(f"/{name}", _static_file(path), methods=["GET"],
+                                  include_in_schema=False)
+
     return app
+
+
+def _static_file(path):
+    async def serve() -> FileResponse:
+        headers = {"Cache-Control": "no-cache"} if path.name == "sw.js" else {
+            "Cache-Control": "public, max-age=86400"}
+        return FileResponse(path, headers=headers)
+
+    return serve
 
 
 def get_app() -> FastAPI:
