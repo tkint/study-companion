@@ -34,6 +34,10 @@ def make_engine(data_dir: Path) -> Engine:
         cur.close()
 
     SQLModel.metadata.create_all(engine)
+    from app.extract.index import FTS_DDL
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql(FTS_DDL)
     return engine
 
 
