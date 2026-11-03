@@ -183,6 +183,28 @@ def _launch_url(site: str) -> str:
     return base + LAUNCH_PATH if base.startswith("https://") else "#"
 
 
+def _connector_card(mcp_url: str, connections: list[dict]) -> str:
+    if connections:
+        items = "".join(
+            f"<li>{escape(c['name'])} ({escape(', '.join(c['hosts']))}), last used "
+            f"{_when(c['last_used_at'])}</li>"
+            for c in connections
+        )
+        state = f"<p>Connected:</p><ul class=\"muted\">{items}</ul>"
+        button = ('<form method="post" action="/settings/connector/disconnect">'
+                  '<button type="submit" class="secondary">Disconnect all</button></form>')
+    else:
+        state, button = '<p class="muted">Not connected yet.</p>', ""
+    return f"""<div class="card">
+<h2>Claude connector</h2>
+<p>On claude.ai open <em>Settings › Connectors › Add custom connector</em> and enter:</p>
+<p><code>{escape(mcp_url)}</code></p>
+{state}
+<div class="row">{button}</div>
+<p class="muted">Changing the password below also disconnects Claude. Guide: docs/connector.md.</p>
+</div>"""
+
+
 def settings_page(
     creds,
     *,
@@ -191,6 +213,8 @@ def settings_page(
     moodle_error: str = "",
     url_value: str | None = None,
     version: str = "",
+    mcp_url: str = "",
+    connections: list[dict] | None = None,
 ) -> str:
     url_value = creds.url if url_value is None else url_value
     moodle_notice = (
@@ -270,6 +294,7 @@ def settings_page(
 </form>
 <div class="row">{forget}</div>
 </div>
+{_connector_card(mcp_url, connections or [])}
 <div class="card">
 <h2>Web UI password</h2>
 <form method="post" action="/settings/password">
@@ -285,4 +310,50 @@ def settings_page(
 <p class="muted">Version {escape(version)}</p>
 {_TOKEN_LINK_JS}""",
         wide=True,
+    )
+
+
+def consent_page(
+    *,
+    client_name: str,
+    redirect_host: str,
+    hidden: dict[str, str],
+    signed_in: bool,
+    error: str = "",
+) -> str:
+    """OAuth consent page for the MCP connector (claude.ai sends you here once)."""
+    fields = "".join(
+        f'<input type="hidden" name="{escape(k)}" value="{escape(v)}">' for k, v in hidden.items()
+    )
+    error_html = f'<p class="error" role="alert">{escape(error)}</p>' if error else ""
+    password = "" if signed_in else """
+  <label for="password">Study Companion password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password"
+         required autofocus>"""
+    name = escape(client_name or "An app")
+    return _page(
+        "Connect · Study Companion",
+        f"""
+<h1>Connect to Study Companion</h1>
+<p><strong>{name}</strong> wants to read your courses, deadlines and course files.
+After you allow it, you will be sent back to <strong>{escape(redirect_host)}</strong>.</p>
+<p class="muted">Only allow this if you just added the connector yourself. You can disconnect
+it at any time in Settings.</p>
+{error_html}
+<form method="post" action="/oauth/authorize">
+  {fields}{password}
+  <button type="submit" name="decision" value="allow">Allow</button>
+  <div class="row"><button type="submit" name="decision" value="deny" class="secondary"
+     formnovalidate>Cancel</button></div>
+</form>""",
+    )
+
+
+def oauth_error_page(message: str) -> str:
+    return _page(
+        "Connection error · Study Companion",
+        f"""
+<h1>Can't connect</h1>
+<p class="error" role="alert">{escape(message)}</p>
+<p>Remove the connector in Claude and add it again. See docs/connector.md in the repository.</p>""",
     )

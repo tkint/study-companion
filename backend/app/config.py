@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app import __version__
 from app.moodle.token import TokenFormatError, parse_pasted_token
@@ -98,6 +99,13 @@ class Settings:
     login_max_attempts: int = 5
     login_window_seconds: int = 15 * 60
     version: str = __version__
+    # Dates in MCP tool output and prompt periods (deadlines are shown in this time zone).
+    timezone: str = "Europe/Zurich"
+    # Hosts allowed as OAuth redirect targets for the MCP connector (claude.ai and local
+    # tools such as Claude Code or the MCP Inspector on localhost).
+    oauth_redirect_hosts: tuple[str, ...] = ("claude.ai", "claude.com", "localhost", "127.0.0.1")
+    oauth_access_ttl: int = 3600
+    oauth_refresh_ttl: int = 30 * 86400
     # Built React app (FRONTEND_DIR, else the checkout's frontend/dist if built). None: the
     # server-rendered status page is shown at / instead.
     frontend_dir: Path | None = None
@@ -121,6 +129,23 @@ class Settings:
             raise ConfigError("MOODLE_RATE_LIMIT must be positive")
         if self.sync_interval_hours < 0:
             raise ConfigError("SYNC_INTERVAL_HOURS must be 0 (off) or positive")
+        try:
+            ZoneInfo(self.timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ConfigError(f"TIMEZONE: unknown time zone {self.timezone!r}") from None
+        if self.oauth_access_ttl <= 0 or self.oauth_refresh_ttl <= 0:
+            raise ConfigError("OAUTH_ACCESS_TTL and OAUTH_REFRESH_TTL must be positive")
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone)
+
+    def public_url(self, fallback: str = "") -> str:
+        """The site's public base URL (https://DOMAIN), or ``fallback`` (the request's
+        base URL) when DOMAIN is not set, e.g. in tests or local runs."""
+        if self.domain and self.domain != "localhost":
+            return f"https://{self.domain}"
+        return fallback.rstrip("/")
 
 
     @classmethod
@@ -147,5 +172,13 @@ class Settings:
                 "LOGIN_WINDOW_SECONDS", env.get("LOGIN_WINDOW_SECONDS"), 15 * 60
             ),
             version=env.get("APP_VERSION", "") or __version__,
+            timezone=env.get("TIMEZONE", "") or "Europe/Zurich",
+            oauth_redirect_hosts=tuple(
+                h.strip().lower() for h in (env.get("OAUTH_REDIRECT_HOSTS") or
+                                            "claude.ai,claude.com,localhost,127.0.0.1").split(",")
+                if h.strip()
+            ),
+            oauth_access_ttl=_int("OAUTH_ACCESS_TTL", env.get("OAUTH_ACCESS_TTL"), 3600),
+            oauth_refresh_ttl=_int("OAUTH_REFRESH_TTL", env.get("OAUTH_REFRESH_TTL"), 30 * 86400),
             frontend_dir=Path(env["FRONTEND_DIR"]) if env.get("FRONTEND_DIR") else _repo_frontend(),
         )
