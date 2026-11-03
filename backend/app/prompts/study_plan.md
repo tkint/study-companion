@@ -15,6 +15,7 @@ Then, in {{language}}, build a day-by-day study plan{{#time}} for {{time}}{{/tim
 - For each day: what to read (file and pages), what to practise, and a 3-question self-check
 {{#deadlines}}- Leave time before each deadline to finish and hand in the work
 {{/deadlines}}{{#completion}}- Leave out activities I already completed (marked ✓ done)
-{{/completion}}
+{{/completion}}{{#save}}- For each section in the plan, save 3 self-check questions with save_questions(section_id, items) so I can review them as flashcards in the app
+{{/save}}
 {{depth}}
 Keep the plan realistic; tell me if the time is not enough and what to drop.

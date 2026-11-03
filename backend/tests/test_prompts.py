@@ -38,7 +38,8 @@ def build(builder, **data):
 def test_templates_load_and_reference_real_tools():
     templates = prompts.load_templates()
     assert list(templates)[:3] == ["catch_up", "study_plan", "explain"]
-    assert len(templates) == 7
+    assert "review" in templates
+    assert len(templates) == 8
     for t in templates.values():
         assert t.title and t.description
         assert "{{steps}}" in t.body
@@ -46,7 +47,7 @@ def test_templates_load_and_reference_real_tools():
             assert name in TOOL_NAMES, f"{t.id} mentions unknown tool {name}"
         leftover = prompts.render(t.body, {k: "x" for k in (
             "courses", "period", "steps", "language", "depth", "time", "topic", "part", "today",
-            "deadlines", "completion")})
+            "deadlines", "completion", "save")})
         assert "{{" not in leftover, t.id
 
 
@@ -134,3 +135,24 @@ def test_api(settings, engine):
         assert r.status_code == 200 and "Quiz me" in r.json()["prompts"][0]["title"]
         r = c.post("/api/prompt/build", json={"course_ids": [10]}, headers=SAME_ORIGIN)
         assert r.status_code == 400 and r.json()["error"] == "choose a goal"
+
+
+def test_save_results_uses_the_write_tools(builder):
+    text = build(builder)["prompts"][0]["text"]
+    assert "save_summary(section_id, markdown)" in text and "save_questions(section_id, items)" in text
+    off = build(builder, save_results=False)["prompts"][0]["text"]
+    assert "save_summary" not in off and "save_questions" not in off
+
+    quiz = build(builder, goal="quiz")["prompts"][0]["text"]
+    assert "get_questions(course_id=10, due_only=true)" in quiz and "record_quiz_result(" in quiz
+    assert "get_questions" not in build(builder, goal="quiz", save_results=False)["prompts"][0]["text"]
+
+    plan = build(builder, goal="study_plan", hours_per_day=2, days=7)["prompts"][0]["text"]
+    assert "get_catch_up_plan(course_id=10, hours_per_day=2, days=7)" in plan
+
+    review = build(builder, goal="review")["prompts"][0]["text"]
+    assert "get_questions(course_id=10, due_only=true)" in review
+    for goal in ("catch_up", "study_plan", "explain", "quiz", "flashcards", "exam_prep", "review"):
+        data = {"goal": goal, "topic": "matrices"}
+        for name in CALL.findall(build(builder, **data)["prompts"][0]["text"]):
+            assert name in TOOL_NAMES, (goal, name)

@@ -15,5 +15,6 @@ Then, in {{language}}:
 - Write a mock exam of 6 to 8 questions in the style of the course exercises; give the solutions only when I ask
 {{#time}}- Give me a revision schedule for {{time}}
 {{/time}}{{#deadlines}}- Take the upcoming deadlines into account
-{{/deadlines}}
+{{/deadlines}}{{#save}}- Save the mock exam questions with save_questions(section_id, items), with the solution as answer; after I take the mock exam, record my score with record_quiz_result(course_id, score, total, topic, notes)
+{{/save}}
 {{depth}}
