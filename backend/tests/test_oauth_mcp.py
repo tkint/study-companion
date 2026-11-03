@@ -1,5 +1,6 @@
 """OAuth 2.1 for the connector (discovery, registration, PKCE, refresh) and /mcp."""
 
+import dataclasses
 import secrets
 from urllib.parse import parse_qs, urlsplit
 
@@ -252,11 +253,29 @@ GEMINI_CALLBACK = ("https://oauth-redirect.googleusercontent.com/r/"
                    "user_bound_custom-mcp-1234567890-study_companion_ch")
 
 
-def test_gemini_connector_flow(c):
+CHATGPT_CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
+
+
+def test_gemini_and_chatgpt_are_refused_by_default(c):
+    for uri in (GEMINI_CALLBACK, CHATGPT_CALLBACK):
+        r = c.post("/oauth/register", json={"redirect_uris": [uri]})
+        assert r.status_code == 400 and r.json()["error"] == "invalid_redirect_uri"
+
+
+@pytest.fixture
+def c_more(settings):
+    """OAUTH_REDIRECT_HOSTS with Gemini and ChatGPT added by the owner."""
+    hosts = (*settings.oauth_redirect_hosts, "oauth-redirect.googleusercontent.com", "chatgpt.com")
+    app = create_app(dataclasses.replace(settings, oauth_redirect_hosts=hosts))
+    with TestClient(app, follow_redirects=False) as client:
+        yield client
+
+
+def test_gemini_connector_flow(c_more):
     """What Gemini's custom MCP connector sends: no client_name, client_secret_basic, a
     callback on Google's OAuth relay, scope offline_access, client_id only in the Basic
     header at the token endpoint."""
-    r = c.post("/oauth/register", json={"redirect_uris": [GEMINI_CALLBACK],
+    r = c_more.post("/oauth/register", json={"redirect_uris": [GEMINI_CALLBACK],
                                         "token_endpoint_auth_method": "client_secret_basic",
                                         "grant_types": ["authorization_code", "refresh_token"],
                                         "response_types": ["code"]})
@@ -265,23 +284,23 @@ def test_gemini_connector_flow(c):
     verifier = secrets.token_urlsafe(48)
     params = {**auth_params(client["client_id"], verifier), "redirect_uri": GEMINI_CALLBACK,
               "scope": "offline_access"}
-    page = c.get("/oauth/authorize", params=params)
+    page = c_more.get("/oauth/authorize", params=params)
     assert page.status_code == 200 and "oauth-redirect.googleusercontent.com" in page.text
-    r = c.post("/oauth/authorize", headers=SAME_ORIGIN,
+    r = c_more.post("/oauth/authorize", headers=SAME_ORIGIN,
                data={**params, "password": PASSWORD, "decision": "allow"})
     assert r.status_code == 303 and r.headers["location"].startswith(GEMINI_CALLBACK)
     code = parse_qs(urlsplit(r.headers["location"]).query)["code"][0]
-    r = c.post("/oauth/token", data={"grant_type": "authorization_code", "code": code,
+    r = c_more.post("/oauth/token", data={"grant_type": "authorization_code", "code": code,
                                      "redirect_uri": GEMINI_CALLBACK, "code_verifier": verifier},
                auth=(client["client_id"], client["client_secret"]))
     assert r.status_code == 200, r.text
     token = r.json()
     assert token["refresh_token"]
-    assert rpc(c, token["access_token"], "tools/list").status_code == 200
+    assert rpc(c_more, token["access_token"], "tools/list").status_code == 200
     # ChatGPT's stable callback registers too; other Google hosts stay refused.
-    assert register(c, redirect_uris=["https://chatgpt.com/connector_platform_oauth_redirect"])
+    assert register(c_more, redirect_uris=[CHATGPT_CALLBACK])
 
-    r = c.post("/oauth/register", json={"redirect_uris": ["https://evil.googleusercontent.com/r/x"]})
+    r = c_more.post("/oauth/register", json={"redirect_uris": ["https://evil.googleusercontent.com/r/x"]})
     assert r.status_code == 400
 
 
