@@ -165,3 +165,69 @@ class CalendarFeed(SQLModel, table=True):
     user_id: int = Field(primary_key=True, foreign_key="account.id")
     epoch: int = 0
     created_at: int = 0
+
+
+# ------------------------------------------------------------------ M3: text and search
+
+
+class FileText(SQLModel, table=True):
+    """Extraction state of a downloaded file. Re-extracted when the file changes."""
+
+    file_id: int = Field(primary_key=True, foreign_key="file.id")
+    status: str = "pending"  # ok, empty (no text, e.g. scanned), unsupported, too_large, error
+    unit: str = "page"  # page (PDF), slide (PPTX) or part (DOCX, HTML, text: ~3000 chars)
+    pages: int = 0
+    chars: int = 0
+    source_timemodified: Optional[int] = None
+    source_size: Optional[int] = None
+    extracted_at: int = 0
+    error: str = ""
+
+
+class FilePage(SQLModel, table=True):
+    """Extracted text of one page (or slide, or part) of a file, numbered from 1."""
+
+    __table_args__ = (UniqueConstraint("file_id", "page"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    file_id: int = Field(index=True, foreign_key="file.id")
+    page: int
+    text: str = ""
+
+
+class OAuthClient(SQLModel, table=True):
+    """A client registered through OAuth dynamic client registration (RFC 7591)."""
+
+    id: str = Field(primary_key=True)  # client_id
+    secret_hash: str = Field(default="", repr=False)  # empty for public clients (PKCE only)
+    name: str = ""
+    redirect_uris: str = ""  # newline separated
+    auth_method: str = "none"  # none, client_secret_post, client_secret_basic
+    created_at: int = 0
+    last_used_at: Optional[int] = None
+
+
+class OAuthCode(SQLModel, table=True):
+    """A one-time authorization code (stored hashed, valid a few minutes)."""
+
+    code_hash: str = Field(primary_key=True, repr=False)
+    client_id: str = Field(index=True)
+    user_id: int = 1
+    redirect_uri: str = ""
+    code_challenge: str = ""
+    scope: str = ""
+    resource: str = ""
+    expires_at: int = 0
+
+
+class OAuthToken(SQLModel, table=True):
+    """Access and refresh tokens for the MCP connector (stored hashed)."""
+
+    token_hash: str = Field(primary_key=True, repr=False)
+    kind: str = "access"  # access or refresh
+    client_id: str = Field(index=True)
+    user_id: int = 1
+    scope: str = ""
+    resource: str = ""
+    expires_at: int = 0
+    created_at: int = 0

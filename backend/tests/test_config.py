@@ -36,3 +36,20 @@ def test_secrets_not_in_repr():
     assert VALID["APP_PASSWORD"] not in text
     assert VALID["SECRET_KEY"] not in text
     assert "0123456789abcdef" not in text
+
+
+def test_m3_settings_from_env():
+    from app.config import ConfigError, Settings
+    import pytest
+
+    base = {"SECRET_KEY": "s" * 40, "APP_PASSWORD": "x" * 12}
+    s = Settings.from_env({**base, "OAUTH_REDIRECT_HOSTS": " Claude.ai , example.org ,",
+                           "TIMEZONE": "Europe/Paris"})
+    assert s.oauth_redirect_hosts == ("claude.ai", "example.org")
+    assert s.timezone == "Europe/Paris"
+    assert Settings.from_env(base).oauth_redirect_hosts[0] == "claude.ai"
+    with pytest.raises(ConfigError, match="TIMEZONE"):
+        Settings.from_env({**base, "TIMEZONE": "Mars/Olympus"})
+    assert Settings.from_env({**base, "DOMAIN": "study.example.ch"}).public_url("http://x") == \
+        "https://study.example.ch"
+    assert Settings.from_env(base).public_url("http://testserver/") == "http://testserver"

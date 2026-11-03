@@ -16,10 +16,13 @@ from urllib.parse import parse_qs, urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.routing import Route
 
 from app import accounts
+from app.api import prompts as prompt_routes
 from app.api import routes
 from app.api.status import course_overview, run_to_dict
+from app.auth import oauth, oauth_routes
 from app.auth.pages import home_page, login_page, settings_page
 from app.auth.session import (
     SESSION_COOKIE,
@@ -29,6 +32,8 @@ from app.auth.session import (
 )
 from app.config import Settings, validate_moodle_url
 from app.db import make_engine
+from app.mcp_server import MCPEndpoint, build_server
+from app.mcp_tools import StudyTools
 from app.moodle import api as moodle_api
 from app.moodle.client import MoodleAuthError, MoodleError, redact_text
 from app.moodle.scheduler import start_scheduler
@@ -126,12 +131,22 @@ def create_app(
         logger.warning("No web UI build in %s: serving the basic status page", frontend)
         index_html = None
 
+    def public_base(request) -> str:
+        return settings.public_url(str(request.base_url))
+
+    mcp_endpoint = MCPEndpoint(
+        build_server(StudyTools(settings, engine, settings.public_url()), settings.version),
+        engine,
+        public_base,
+    )
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         scheduler = start_scheduler(sync, settings.sync_interval_hours)
         if not sync.configured():
             logger.warning("Moodle is not connected yet: add it on the settings page")
-        yield
+        async with mcp_endpoint.running():
+            yield
         if scheduler:
             scheduler.shutdown(wait=False)
         for task in tasks:
@@ -185,7 +200,12 @@ def create_app(
 
     @app.middleware("http")
     async def no_store(request: Request, call_next):
+        cors = oauth_routes.wants_cors(request.url.path)
+        if cors and request.method == "OPTIONS":
+            return Response(status_code=204, headers=oauth_routes.cors_headers())
         response = await call_next(request)
+        if cors:
+            response.headers.update(oauth_routes.cors_headers())
         if request.url.path.startswith(("/assets/", "/pdfjs/")) and response.status_code == 200:
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         response.headers.setdefault("Cache-Control", "no-store")
@@ -270,6 +290,7 @@ def create_app(
         return RedirectResponse("/status" if index_html else "/", status_code=303)
 
     def render_settings(
+        request: Request,
         message: str = "",
         error: str = "",
         status: int = 200,
@@ -285,6 +306,8 @@ def create_app(
                 moodle_error=moodle_error,
                 url_value=url_value,
                 version=settings.version,
+                mcp_url=f"{public_base(request)}/mcp",
+                connections=oauth.connections(engine),
             ),
             status_code=status,
         )
@@ -298,8 +321,9 @@ def create_app(
             "moodle": "Moodle connection saved. A sync has started.",
             "password": "Password changed. Other devices have been signed out.",
             "forgot": "Token removed.",
+            "connector": "Claude was disconnected. Add the connector again to reconnect.",
         }.get(saved or "", "")
-        return render_settings(message=message)
+        return render_settings(request, message=message)
 
     @app.post("/settings/moodle", response_class=HTMLResponse)
     async def save_moodle(request: Request) -> Response:
@@ -309,7 +333,7 @@ def create_app(
             return _forbidden()
         form = await _form(request)
         if form is None:
-            return render_settings(error="Request too large.", status=413)
+            return render_settings(request, error="Request too large.", status=413)
         current = accounts.get_moodle(engine, settings.secret_key)
         entered_url = form.get("url", "").strip()
 
@@ -317,6 +341,7 @@ def create_app(
             # Keep what was typed (except secrets) and say plainly that nothing was saved.
             logger.warning("Moodle settings not saved: %s", reason)
             return render_settings(
+                request,
                 moodle_error=f"Not saved: {reason}", url_value=entered_url, status=400
             )
 
@@ -362,6 +387,15 @@ def create_app(
         accounts.forget_token(engine)
         return RedirectResponse("/settings?saved=forgot", status_code=303)
 
+    @app.post("/settings/connector/disconnect")
+    async def disconnect_connector(request: Request) -> Response:
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=303)
+        if not _same_origin(request):
+            return _forbidden()
+        oauth.revoke_all(engine, forget_clients=True)
+        return RedirectResponse("/settings?saved=connector", status_code=303)
+
     @app.post("/settings/password", response_class=HTMLResponse)
     async def save_password(request: Request) -> Response:
         if not is_authenticated(request):
@@ -370,20 +404,21 @@ def create_app(
             return _forbidden()
         key = _client_key(request)
         if throttle.is_blocked(key):
-            return render_settings(error="Too many failed attempts. Try again later.", status=429)
+            return render_settings(request, error="Too many failed attempts. Try again later.", status=429)
         form = await _form(request)
         if form is None:
-            return render_settings(error="Request too large.", status=413)
+            return render_settings(request, error="Request too large.", status=413)
         if not accounts.verify_password(engine, form.get("current", "")):
             throttle.record_failure(key)
-            return render_settings(error="The current password is wrong.", status=400)
+            return render_settings(request, error="The current password is wrong.", status=400)
         new, confirm = form.get("new", ""), form.get("confirm", "")
         if new != confirm:
-            return render_settings(error="The new passwords do not match.", status=400)
+            return render_settings(request, error="The new passwords do not match.", status=400)
         try:
             accounts.change_password(engine, new)
         except ValueError as exc:
-            return render_settings(error=str(exc), status=400)
+            return render_settings(request, error=str(exc), status=400)
+        oauth.revoke_all(engine)  # connectors must sign in again with the new password
         throttle.reset(key)
         response = RedirectResponse("/settings?saved=password", status_code=303)
         set_session_cookie(response)  # keep this device signed in
@@ -424,6 +459,11 @@ def create_app(
         return JSONResponse({"courses": course_overview(engine)})
 
     routes.register(app, settings, engine, is_authenticated, _same_origin)
+    prompt_routes.register(app, settings, engine, is_authenticated, _same_origin)
+    oauth_routes.register(app, settings, engine, is_authenticated, _same_origin, throttle,
+                          _client_key)
+    # Claude's connector: OAuth bearer token required (checked in MCPEndpoint).
+    app.router.routes.append(Route("/mcp", mcp_endpoint, methods=["GET", "POST", "DELETE"]))
 
     # ------------------------------------------------------------------ web UI build
 

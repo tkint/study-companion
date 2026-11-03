@@ -297,3 +297,20 @@ def test_snapshot_db(service, settings):
     dest = snapshot(settings.data_dir, settings.data_dir / "backup" / "app.db")
     with session(make_engine(dest.parent)) as s:
         assert len(s.exec(select(Course)).all()) == 3
+
+
+def test_sync_extracts_text_and_indexes(service, settings):
+    from app.extract.index import search
+    from app.models import FileText
+
+    run = sync(service)
+    assert run.status in {"ok", "partial"}
+    states = {f.filename: t for f in rows(service, File)
+              for t in rows(service, FileText) if t.file_id == f.id}
+    # The fake PDFs are not real PDFs: recorded as errors, never fatal.
+    assert states["plan_du_cours.pdf"].status == "error"
+    assert states["index.html"].status in {"ok", "empty"}
+    assert "vidéo.mp4" not in states
+    # Section and activity names are searchable right after the sync.
+    hits, total = search(service.engine, "vecteurs")
+    assert total >= 1

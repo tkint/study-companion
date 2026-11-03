@@ -1,7 +1,7 @@
 # Using the web UI
 
 Open `https://<DOMAIN>` and sign in with your app password. The UI is built for phones first:
-on a narrow screen the tabs (**Today**, **Courses**, **Calendar**, **Settings**) sit at the bottom.
+on a narrow screen the tabs (**Today**, **Courses**, **Calendar**, **Prompt**, **Settings**) sit at the bottom.
 
 The sun / screen / moon buttons in the top bar pick a light theme, the device's theme
 (default) or a dark theme. The choice is remembered on each device and also applies to the
@@ -61,3 +61,19 @@ The link contains a private token, so anyone with it can read your deadline titl
 else). If it leaks, tap **New link**: the old one stops working at once and you subscribe
 again with the new one. The token is stripped from Caddy's and the app's logs.
 **Download .ics** gives a one-off file instead, if you'd rather import than subscribe.
+
+## Prompt
+
+Builds a ready-to-paste prompt for Claude (with the connector from
+[connector.md](connector.md) turned on):
+
+- **Course**: one or more. **Period**: last 2 months, last 4 weeks, until the next deadline,
+  the whole course, your own dates, or a section range (one course only).
+- **Goal**: catch-up summary, study plan, explain a topic, quiz me, flashcards, exam prep or
+  understand an assignment. **Depth**, **time available** and the **language** of the answers
+  (by default the course's language).
+- The preview counts the sections, files and pages that match. Large periods are split into
+  several prompts so Claude stays within its limits; copy and paste them one after the other.
+
+The templates are Markdown files in `backend/app/prompts/` (placeholders are documented in
+`backend/app/prompts/__init__.py`); edit them to change the wording.

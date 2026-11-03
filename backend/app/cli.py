@@ -4,6 +4,7 @@
     docker compose exec app python -m app.cli sync         # run a full sync now
     docker compose exec app python -m app.cli snapshot-db  # consistent DB copy for backups
     docker compose exec app python -m app.cli reset-password  # forgot the UI password
+    docker compose exec app python -m app.cli extract      # (re)extract text for search
 
 No command prints the token.
 """
@@ -71,9 +72,20 @@ def _reset_password(settings: Settings) -> int:
     return 0
 
 
+def _extract(settings: Settings, force: bool) -> int:
+    from app.extract.index import extract_files, index_structure
+
+    engine = make_engine(settings.data_dir)
+    stats = extract_files(engine, settings.data_dir, force=force)
+    index_structure(engine)
+    print(f"Text extraction: {stats}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
-    parser.add_argument("command", choices=["check", "sync", "snapshot-db", "reset-password"])
+    parser.add_argument("command", choices=["check", "sync", "snapshot-db", "reset-password", "extract"])
+    parser.add_argument("--force", action="store_true", help="extract: redo every file")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     try:
@@ -86,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
             return asyncio.run(_check(settings))
         if args.command == "sync":
             return asyncio.run(_sync(settings))
+        if args.command == "extract":
+            return _extract(settings, args.force)
         if args.command == "reset-password":
             return _reset_password(settings)
         make_engine(settings.data_dir)  # make sure the database exists

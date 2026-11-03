@@ -21,6 +21,7 @@ from sqlmodel import select
 from app import accounts
 from app.config import Settings
 from app.db import session as db_session
+from app.extract.index import extract_files, index_structure
 from app.models import Course, Deadline, File, Module, Section, Site, SyncRun
 from app.moodle import api
 from app.moodle.client import MoodleAuthError, MoodleClient, MoodleError, strip_secrets
@@ -126,6 +127,7 @@ class SyncService:
                     client, [c["id"] for c in courses], site, problems
                 )
                 await self._download_files(client, run, problems)
+            await self._extract(problems)
             run.status = "partial" if problems else "ok"
             run.message = "; ".join(problems[:20])
         except MoodleAuthError as exc:
@@ -475,6 +477,22 @@ class SyncService:
             run.bytes_downloaded += size
         if failures:
             problems.append(f"{failures} file(s) failed to download")
+
+    # ---------------------------------------------------------------- text and search
+
+    async def _extract(self, problems: list[str]) -> None:
+        """Extract text from new or changed files and refresh the search index (in a
+        thread: PDF parsing is CPU bound and must not block the web server)."""
+        try:
+            stats = await asyncio.to_thread(
+                extract_files, self.engine, self.settings.data_dir, self.clock
+            )
+            await asyncio.to_thread(index_structure, self.engine)
+        except Exception as exc:
+            problems.append(f"text extraction failed ({type(exc).__name__})")
+            logger.exception("Text extraction failed")
+            return
+        logger.info("Text extraction: %s", stats)
 
     def _save(self, row) -> None:
         with db_session(self.engine) as s:

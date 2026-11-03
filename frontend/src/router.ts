@@ -6,6 +6,7 @@ export type Route =
   | { name: "courses" }
   | { name: "course"; id: number }
   | { name: "calendar" }
+  | { name: "prompt"; course?: number }
   | { name: "file"; id: number; course?: number };
 
 export function parse(hash: string): Route {
@@ -15,6 +16,10 @@ export function parse(hash: string): Route {
   if (parts[0] === "courses") return { name: "courses" };
   if (parts[0] === "course" && /^\d+$/.test(parts[1] ?? "")) return { name: "course", id: Number(parts[1]) };
   if (parts[0] === "calendar") return { name: "calendar" };
+  if (parts[0] === "prompt") {
+    const course = params.get("course");
+    return { name: "prompt", course: course && /^\d+$/.test(course) ? Number(course) : undefined };
+  }
   if (parts[0] === "file" && /^\d+$/.test(parts[1] ?? "")) {
     const course = params.get("course");
     return { name: "file", id: Number(parts[1]), course: course ? Number(course) : undefined };
@@ -39,6 +44,7 @@ export const href = {
   dashboard: "#/",
   courses: "#/courses",
   calendar: "#/calendar",
+  prompt: (course?: number) => `#/prompt${course ? `?course=${course}` : ""}`,
   course: (id: number) => `#/course/${id}`,
   file: (id: number, course?: number) => `#/file/${id}${course ? `?course=${course}` : ""}`,
 };

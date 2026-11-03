@@ -29,11 +29,18 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 
 - `backend/app/main.py` app factory (`create_app(settings)`; uvicorn uses `get_app --factory`)
 - `backend/app/config.py` `Settings.from_env()`; validates required secrets at startup
-- `backend/app/auth/` UI password login (signed cookie, login throttle), crypto helpers; OAuth for MCP in M3
+- `backend/app/auth/` UI password login (signed cookie, login throttle), crypto helpers;
+  `oauth.py` + `oauth_routes.py` OAuth 2.1 server for the connector (DCR, PKCE, refresh rotation)
 - `backend/app/accounts.py` account + Moodle credentials (single user id 1, schema ready for more)
 - `backend/app/models.py`, `db.py` SQLModel tables, SQLite engine, DB snapshot for backups
 - `backend/app/moodle/` `client.py` (rate limit, backoff, redaction), `api.py` (one wrapper per
   web service function), `sync.py`, `scheduler.py`, `names.py` (safe paths), `text.py` (multilang, language)
+- `backend/app/extract/` `formats.py` (PDF/DOCX/PPTX/HTML/text to pages), `index.py` (FileText/FilePage,
+  FTS5 `search_index`, run after each sync)
+- `backend/app/materials.py` course read model (period -> sections) shared by MCP tools and prompts
+- `backend/app/mcp_tools.py` read tools as plain text functions (`TOOL_NAMES`); `mcp_server.py` registers
+  them with the official MCP SDK (stateless streamable HTTP, JSON) at `/mcp` behind the bearer check
+- `backend/app/prompts/` Markdown templates + builder (`__init__.py`); `api/prompts.py` its JSON API
 - `backend/app/api/` `routes.py` (UI JSON API, `/files/{id}`, `/calendar.ics`), `ui.py` (read
   models: dashboard, course detail, deadlines), `ics.py` (ICS + feed token), `status.py`
 - `frontend/` React + Vite + TS PWA (hash routes in `src/router.ts`, API types in `src/api.ts`);
