@@ -82,3 +82,27 @@ jobs:
             dist/docker-compose.yml
             dist/env.example
             dist/server-setup.md
+
+  deploy:
+    needs: image
+    # Only when the repository variable DEPLOY_HOST is set (see docs/releasing.md).
+    if: ${{ vars.DEPLOY_HOST != '' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Update the VPS
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '~/study' }}
+          HOST_KEY: ${{ vars.DEPLOY_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          install -m 600 /dev/null ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          # Pin the server's host key (output of `ssh-keyscan -t ed25519 HOST`).
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$HOST" "cd $DEPLOY_DIR && docker compose pull && docker compose up -d && docker image prune -f"

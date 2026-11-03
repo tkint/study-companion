@@ -132,15 +132,8 @@ Follow [docs/backups.md](backups.md) to back up the data volume with restic ever
 
 ## Update
 
-**Automatic:** the `watchtower` service in `docker-compose.yml` checks GHCR every night at
-04:00 (`WATCHTOWER_SCHEDULE` in `.env`, 6-field cron) and restarts only the `app` container
-when the tag in `IMAGE_TAG` has a new image. With `IMAGE_TAG=latest` that means every release;
-a pinned version never changes. It mounts the Docker socket (root-equivalent on the host);
-delete the service to disable. The GHCR package must be public (or run `docker login ghcr.io`
-on the VPS and mount its `config.json` into Watchtower). Check now with
-`docker compose exec watchtower /watchtower --run-once --label-enable`; the first time, refresh
-the deploy files (bundle below) and run `docker compose up -d` to start it. Data lives in a volume and survives restarts; deploy files
-(Caddyfile, compose) are not updated by Watchtower, use the bundle below for those.
+**Automatic:** the release workflow can SSH into this server and run the update right after
+the image is published, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#automatic-deploy-to-the-vps).
 
 **Manual:**
 
