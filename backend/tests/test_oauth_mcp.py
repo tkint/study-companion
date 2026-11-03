@@ -248,6 +248,49 @@ def test_confidential_client_must_authenticate(c):
     assert r.status_code == 200 and r.json()["token_type"] == "Bearer"
 
 
+GEMINI_CALLBACK = ("https://oauth-redirect.googleusercontent.com/r/"
+                   "user_bound_custom-mcp-1234567890-study_companion_ch")
+
+
+def test_gemini_connector_flow(c):
+    """What Gemini's custom MCP connector sends: no client_name, client_secret_basic, a
+    callback on Google's OAuth relay, scope offline_access, client_id only in the Basic
+    header at the token endpoint."""
+    r = c.post("/oauth/register", json={"redirect_uris": [GEMINI_CALLBACK],
+                                        "token_endpoint_auth_method": "client_secret_basic",
+                                        "grant_types": ["authorization_code", "refresh_token"],
+                                        "response_types": ["code"]})
+    assert r.status_code == 201, r.text
+    client = r.json()
+    verifier = secrets.token_urlsafe(48)
+    params = {**auth_params(client["client_id"], verifier), "redirect_uri": GEMINI_CALLBACK,
+              "scope": "offline_access"}
+    page = c.get("/oauth/authorize", params=params)
+    assert page.status_code == 200 and "oauth-redirect.googleusercontent.com" in page.text
+    r = c.post("/oauth/authorize", headers=SAME_ORIGIN,
+               data={**params, "password": PASSWORD, "decision": "allow"})
+    assert r.status_code == 303 and r.headers["location"].startswith(GEMINI_CALLBACK)
+    code = parse_qs(urlsplit(r.headers["location"]).query)["code"][0]
+    r = c.post("/oauth/token", data={"grant_type": "authorization_code", "code": code,
+                                     "redirect_uri": GEMINI_CALLBACK, "code_verifier": verifier},
+               auth=(client["client_id"], client["client_secret"]))
+    assert r.status_code == 200, r.text
+    token = r.json()
+    assert token["refresh_token"]
+    assert rpc(c, token["access_token"], "tools/list").status_code == 200
+    # Other Google hosts stay refused.
+    r = c.post("/oauth/register", json={"redirect_uris": ["https://evil.googleusercontent.com/r/x"]})
+    assert r.status_code == 400
+
+
+def test_refused_registration_logs_hosts_not_uris(c, caplog):
+    with caplog.at_level("WARNING"):
+        r = c.post("/oauth/register",
+                   json={"redirect_uris": ["https://new-client.example/cb?token=s3cret"]})
+    assert r.status_code == 400
+    assert "new-client.example" in caplog.text and "s3cret" not in caplog.text
+
+
 def test_refresh_rotation_and_revocation(c):
     t = tokens(c)
     r = c.post("/oauth/token", data={"grant_type": "refresh_token", "client_id": t["client_id"],

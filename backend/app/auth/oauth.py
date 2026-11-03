@@ -6,8 +6,9 @@ code flow with PKCE S256 only, refresh token rotation and revocation (RFC 7009).
 
 Sign-in uses the web UI password (or an existing web UI session). Codes and tokens are
 random, stored only as SHA-256 hashes, and short-lived (access tokens one hour by default).
-Redirect URIs must use a host from OAUTH_REDIRECT_HOSTS (claude.ai, claude.com and
-localhost by default), so nobody can register a client that sends codes elsewhere.
+Redirect URIs must use a host from OAUTH_REDIRECT_HOSTS (claude.ai, claude.com, Gemini's
+oauth-redirect.googleusercontent.com relay and localhost by default), so nobody can register
+a client that sends codes elsewhere.
 """
 
 from __future__ import annotations
