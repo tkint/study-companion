@@ -126,6 +126,7 @@ def test_dashboard_groups_deadlines(client):
     # 2 of 3 tracked activities are complete (the removed one doesn't count)
     assert course["activities_done"] == 2 and course["activities_tracked"] == 3
     assert course["progress"] == pytest.approx(66.7)
+    assert data["stats"]["streak"] == 0 and len(data["stats"]["week"]) == 7
 
 
 def test_mark_done_moves_item_off_overdue(client):
