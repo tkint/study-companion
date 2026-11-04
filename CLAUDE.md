@@ -42,7 +42,8 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan
 - `backend/app/mcp_tools.py` read and write tools as plain text functions (`TOOL_NAMES`); `mcp_server.py`
   registers them with the official MCP SDK (stateless streamable HTTP, JSON) at `/mcp` behind the bearer check
-- `backend/app/prompts/` Markdown templates + builder (`__init__.py`); `api/prompts.py` its JSON API
+- `backend/app/prompts/` Markdown templates (defaults) + builder (`__init__.py`); `store.py` your edits in
+  SQLite (`PromptTemplateEdit`) and their validation; `api/prompts.py` its JSON API (editor: `#/templates`)
 - `backend/app/api/` `routes.py` (UI JSON API, `/files/{id}`, `/calendar.ics`), `ui.py` (read
   models: dashboard, course detail, deadlines), `study.py` (notes, flashcards, results, plan API),
   `ics.py` (ICS + feed token), `status.py`

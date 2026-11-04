@@ -9,6 +9,7 @@ export type Route =
   | { name: "plan" }
   | { name: "calendar" }
   | { name: "prompt"; course?: number }
+  | { name: "templates"; id?: string }
   | { name: "file"; id: number; course?: number };
 
 export function parse(hash: string): Route {
@@ -32,6 +33,10 @@ export function parse(hash: string): Route {
   if (parts[0] === "prompt") {
     const course = params.get("course");
     return { name: "prompt", course: course && /^\d+$/.test(course) ? Number(course) : undefined };
+  }
+  if (parts[0] === "templates") {
+    const id = parts[1] && /^\w{1,64}$/.test(parts[1]) ? parts[1] : undefined;
+    return { name: "templates", id };
   }
   if (parts[0] === "file" && /^\d+$/.test(parts[1] ?? "")) {
     const course = params.get("course");
@@ -58,6 +63,7 @@ export const href = {
   courses: "#/courses",
   calendar: "#/calendar",
   prompt: (course?: number) => `#/prompt${course ? `?course=${course}` : ""}`,
+  templates: (id?: string) => `#/templates${id ? `/${id}` : ""}`,
   course: (id: number, section?: number) => `#/course/${id}${section ? `?section=${section}` : ""}`,
   study: (opts: { course?: number; section?: number; all?: boolean; due?: boolean } = {}) => {
     const q = new URLSearchParams();

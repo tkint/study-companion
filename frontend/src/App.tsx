@@ -11,6 +11,7 @@ const Calendar = lazy(() => import("./pages/Calendar"));
 const FileViewer = lazy(() => import("./pages/FileViewer"));
 const Prompt = lazy(() => import("./pages/Prompt"));
 const Study = lazy(() => import("./pages/Study"));
+const Templates = lazy(() => import("./pages/Templates"));
 
 
 function Page({ route }: { route: Route }) {
@@ -27,6 +28,8 @@ function Page({ route }: { route: Route }) {
       return <Calendar />;
     case "prompt":
       return <Prompt course={route.course} />;
+    case "templates":
+      return <Templates id={route.id} />;
     case "file":
       return <FileViewer id={route.id} course={route.course} />;
     default:
@@ -44,7 +47,8 @@ const TABS = [
 
 export default function App() {
   const route = useRoute();
-  const active = route.name === "course" ? "courses" : route.name === "plan" ? "dashboard" : route.name;
+  const active = route.name === "course" ? "courses" : route.name === "plan" ? "dashboard"
+    : route.name === "templates" ? "prompt" : route.name;
   if (route.name === "file") {
     return (
       <Suspense fallback={<p className="loading">Loading viewer…</p>}>
