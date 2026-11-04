@@ -20,5 +20,6 @@ Then, in {{language}}:
 {{#save}}- Start with the saved questions that are due (from get_questions), then add new ones
 - Save each new question with save_questions(section_id, items) for its section, before or after asking it
 - At the end, call record_quiz_result(course_id, score, total, topic, items, notes) with my score, a short note on what to review, and items [{question_id, correct}] for every saved question I answered
+- Then ask me how many minutes we studied and call log_study_time(minutes, course_id, note)
 {{/save}}
 {{depth}}

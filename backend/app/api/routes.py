@@ -7,6 +7,7 @@ request came from this site.
 
 from __future__ import annotations
 
+import json
 import mimetypes
 import time
 from typing import Callable
@@ -15,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.engine import Engine
 
-from app import stats, study
+from app import reminders, stats, study
 from app.api import ics, ui
 from app.config import Settings
 from app.db import session
@@ -179,6 +180,28 @@ def register(
         ics.rotate_feed(engine)
         return JSONResponse(feed_urls(request))
 
+    @app.get("/api/reminders")
+    async def reminders_today(request: Request) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        return JSONResponse(reminders.today(engine, settings))
+
+    @app.post("/api/reminders/settings")
+    async def reminders_settings(request: Request) -> JSONResponse:
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        raw = await request.body()
+        try:
+            data = json.loads(raw) if len(raw) <= 4096 else None
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            return JSONResponse({"error": "send a JSON object"}, status_code=400)
+        try:
+            return JSONResponse(reminders.set_prefs(engine, data))
+        except reminders.ReminderError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
     @app.get("/calendar.ics")
     async def calendar_ics(request: Request) -> Response:
         token = request.query_params.get("token")
@@ -187,11 +210,13 @@ def register(
         now = int(time.time())
         items = ui.deadlines(engine, start=now - ui.OVERDUE_DAYS * 86400, now=now,
                              include_ignored=False)
+        prefs = reminders.prefs(engine)
+        sessions = reminders.daily_sessions(engine, settings, now)
         headers = {"Cache-Control": "private, max-age=900"}
         if request.query_params.get("download") == "1":
             headers["Content-Disposition"] = 'attachment; filename="study-deadlines.ics"'
         return Response(
-            ics.build_ics(items, now=now),
+            ics.build_ics(items, now=now, alarms=prefs["deadline_alarms"], sessions=sessions),
             media_type="text/calendar; charset=utf-8",
             headers=headers,
         )

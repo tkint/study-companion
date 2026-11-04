@@ -12,6 +12,7 @@ const FileViewer = lazy(() => import("./pages/FileViewer"));
 const Prompt = lazy(() => import("./pages/Prompt"));
 const Study = lazy(() => import("./pages/Study"));
 const Templates = lazy(() => import("./pages/Templates"));
+const Time = lazy(() => import("./pages/Time"));
 
 
 function Page({ route }: { route: Route }) {
@@ -26,6 +27,8 @@ function Page({ route }: { route: Route }) {
       return <Plan />;
     case "calendar":
       return <Calendar />;
+    case "time":
+      return <Time />;
     case "prompt":
       return <Prompt course={route.course} />;
     case "templates":
@@ -48,6 +51,7 @@ const TABS = [
 export default function App() {
   const route = useRoute();
   const active = route.name === "course" ? "courses" : route.name === "plan" ? "dashboard"
+    : route.name === "time" ? "study"
     : route.name === "templates" ? "prompt" : route.name;
   if (route.name === "file") {
     return (

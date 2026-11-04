@@ -67,12 +67,35 @@ def _fold(line: str) -> str:
     return "\r\n".join(out)
 
 
+def _human(minutes: int) -> str:
+    h, m = divmod(int(minutes), 60)
+    return f"{h} h {m:02d}" if h and m else (f"{h} h" if h else f"{m} min")
+
+
 def _dt(ts: int) -> str:
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def build_ics(items: list[dict], now: int | None = None, name: str = "Study deadlines") -> str:
-    """One VEVENT per deadline, at its due time, with a reminder a day before."""
+def _lead(minutes: int) -> str:
+    days, rest = divmod(minutes, 1440)
+    hours, mins = divmod(rest, 60)
+    out = "-P" + (f"{days}D" if days else "")
+    if hours or mins:
+        out += "T" + (f"{hours}H" if hours else "") + (f"{mins}M" if mins else "")
+    return out
+
+
+def _alarm(text: str, trigger: str) -> list[str]:
+    return ["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{_escape(text)}",
+            f"TRIGGER:{trigger}", "END:VALARM"]
+
+
+def build_ics(items: list[dict], now: int | None = None, name: str = "Study deadlines",
+              alarms: tuple[int, ...] | list[int] = (1440,),
+              sessions: list[dict] | None = None) -> str:
+    """One VEVENT per deadline, at its due time, with an alarm per lead time in ``alarms``
+    (minutes before) until it is done; plus one daily study reminder per ``sessions`` entry
+    (``app.reminders.daily_sessions``) with an alarm at its start."""
     stamp = _dt(int(now if now is not None else time.time()))
     lines = [
         "BEGIN:VCALENDAR",
@@ -112,14 +135,31 @@ def build_ics(items: list[dict], now: int | None = None, name: str = "Study dead
             lines.append(f"URL:{d['url']}")
         if d.get("course_name"):
             lines.append(f"CATEGORIES:{_escape(d['course_name'])}")
-        if not d.get("done"):
-            lines += [
-                "BEGIN:VALARM",
-                "ACTION:DISPLAY",
-                f"DESCRIPTION:{_escape(title)}",
-                "TRIGGER:-P1D",
-                "END:VALARM",
-            ]
+        if not d.get("done") and d.get("mandatory", True):
+            for lead in alarms:
+                lines += _alarm(title, _lead(lead))
+        lines.append("END:VEVENT")
+    for sess in sessions or []:
+        bits = []
+        if sess.get("minutes"):
+            bits.append(f"{_human(sess['minutes'])} planned")
+        if sess.get("cards_due"):
+            bits.append(f"{sess['cards_due']} card{'s' if sess['cards_due'] != 1 else ''} to review")
+        title = "Study time" + (f": {', '.join(bits)}" if bits else "")
+        length = max(int(sess.get("minutes") or 0), 15)
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:study-{sess['date']}@study-companion",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART:{_dt(sess['start'])}",
+            f"DTEND:{_dt(sess['start'] + length * 60)}",
+            f"SUMMARY:{_escape(title)}",
+            "TRANSP:TRANSPARENT",
+            "CATEGORIES:Study Companion",
+        ]
+        if sess.get("items"):
+            lines.append(f"DESCRIPTION:{_escape(chr(10).join(sess['items']))}")
+        lines += _alarm(title, "PT0M")
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"

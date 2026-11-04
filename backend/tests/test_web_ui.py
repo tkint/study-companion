@@ -228,7 +228,8 @@ def test_ics_feed(app, client):
     assert r.headers["content-type"].startswith("text/calendar")
     body = r.text
     assert body.startswith("BEGIN:VCALENDAR\r\n") and body.endswith("END:VCALENDAR\r\n")
-    assert body.count("BEGIN:VEVENT") == 4  # ids 1, 2, 3, 4
+    # deadlines 1, 2, 3, 4, plus the daily study reminders (app.reminders)
+    assert body.count("BEGIN:VEVENT") - body.count("UID:study-") == 4
     assert "SUMMARY:LA: Quiz\\, part 1\\; A\\\\B" in body
     assert "SUMMARY:✓ LA: HW 0" in body
     assert "UID:assign-1@study-companion" in body

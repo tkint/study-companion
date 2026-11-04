@@ -15,4 +15,5 @@ Then, in {{language}}:
 - Correct each answer briefly, citing the file and page (read_file) when I got it wrong
 - If fewer than 10 questions are due, add new ones on the weakest topics{{#save}} and save them with save_questions(section_id, items){{/save}}
 - At the end, give my score and call record_quiz_result(course_id, score, total, topic, items, notes) with items [{question_id, correct}] for every saved question, so the app schedules the next reviews
-{{depth}}
+{{#save}}- Then ask me how many minutes we studied and call log_study_time(minutes, course_id, note)
+{{/save}}{{depth}}

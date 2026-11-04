@@ -48,3 +48,10 @@ const PALETTE = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2
 export function courseColor(id: number | null): string {
   return id == null ? "#64748b" : PALETTE[Math.abs(id) % PALETTE.length];
 }
+
+export function minutesLabel(m: number): string {
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (h && r) return `${h} h ${String(r).padStart(2, "0")}`;
+  return h ? `${h} h` : `${r} min`;
+}

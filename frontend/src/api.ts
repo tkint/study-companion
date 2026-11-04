@@ -251,6 +251,52 @@ export interface Plan {
   ignored: number;
 }
 
+// ---- study time (backend: app/study_time.py)
+
+export interface TimeEntry {
+  id: number;
+  course_id: number | null;
+  course_name: string;
+  course_shortname: string;
+  started_at: number;
+  minutes: number;
+  source: "timer" | "manual" | "claude" | string;
+  note: string;
+}
+
+export interface TimeSummary {
+  today: string;
+  today_minutes: number;
+  week_minutes: number;
+  last7_minutes: number;
+  total_minutes: number;
+  goal_minutes_per_day: number;
+  streak_days: number;
+  best_day: { date: string; minutes: number } | null;
+  days: { date: string; minutes: number }[];
+  courses: { course_id: number | null; course_name: string; course_shortname: string; minutes: number }[];
+  recent: TimeEntry[];
+}
+
+// ---- reminders (backend: app/reminders.py)
+
+export interface ReminderPrefs {
+  deadline_alarms: number[];
+  daily_enabled: boolean;
+  daily_time: string;
+}
+
+export interface Reminders {
+  now: number;
+  cards_due: number;
+  deadlines_soon: { id: number; name: string; due_at: number; course_shortname: string; url: string }[];
+  planned_minutes: number;
+  studied_minutes: number;
+  goal_minutes: number;
+  streak_days: number;
+  prefs: ReminderPrefs;
+}
+
 export interface FileInfo {
   id: number;
   filename: string;
@@ -372,6 +418,16 @@ export const api = {
     if (opts.beyond) q.set("beyond", "1");
     return request<Plan>(`/api/plan?${q}`);
   },
+  reminders: () => request<Reminders>("/api/reminders"),
+  setReminders: (p: Partial<ReminderPrefs>) =>
+    request<ReminderPrefs>("/api/reminders/settings", { method: "POST", body: JSON.stringify(p) }),
+  studyTime: () => request<TimeSummary>("/api/study/time"),
+  logTime: (e: { minutes: number; course_id?: number | null; started_at?: number; note?: string; source: "timer" | "manual" }) =>
+    request<{ entry: { id: number; minutes: number }; summary: TimeSummary }>("/api/study/time", {
+      method: "POST",
+      body: JSON.stringify(e),
+    }),
+  deleteTime: (id: number) => request<{ deleted: number }>(`/api/study/time/${id}`, { method: "DELETE" }),
   setHours: (hours_per_day: number) =>
     request<{ hours_per_day: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ hours_per_day }) }),
   setTarget: (target_percent: number) =>

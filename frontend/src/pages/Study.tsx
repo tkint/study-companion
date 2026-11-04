@@ -5,6 +5,7 @@ import { celebrate } from "../components/Confetti";
 import { Icon } from "../components/Icon";
 import { Markdown } from "../components/Markdown";
 import { QuizResults } from "../components/QuizResults";
+import { Reminders } from "../components/Reminders";
 import { href } from "../router";
 
 // Flashcards from the questions Claude saved, with spaced repetition: each answer is graded
@@ -49,12 +50,14 @@ function Overview({ overview, due }: { overview: StudyOverview; due: number }) {
       <p className="muted">
         Flashcards from the questions Claude saved. Cards you know come back less and less often.
       </p>
+      <Reminders />
       <div className="study-bar">
         <span>
           <strong>{due}</strong> card{due === 1 ? "" : "s"} due · {overview.questions} in total
         </span>
         <span className="row tight">
           {due > 0 && <a className="btn small" href={href.study({ due: true })}>Review all due</a>}
+          <a className="btn small ghost" href={href.time}>⏱ Study time</a>
           <a className="btn small ghost" href={href.plan}>Catch-up plan</a>
         </span>
       </div>

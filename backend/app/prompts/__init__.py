@@ -423,7 +423,7 @@ class Builder:
                          f" of {c.fullname}")
         steps.append("read_file(file_id, pages) for the files that matter, a few pages at a "
                      "time; use get_section(section_id) when a section's activities need detail")
-        if req.goal in ("study_plan", "catch_up"):
+        if req.goal in ("study_plan", "catch_up", "study_session"):
             hours = f", hours_per_day={req.hours_per_day:g}" if req.hours_per_day else ""
             days = f", days={req.days}" if req.days else ""
             for u in chunk:
@@ -434,6 +434,10 @@ class Builder:
             for u in chunk:
                 steps.append(f"get_questions(course_id={u.cm.course.id}, due_only=true) for the "
                              "saved questions due for review (with their question_id)")
+        if req.goal == "weak_spots":
+            for u in chunk:
+                steps.append(f"get_questions(course_id={u.cm.course.id}) for all saved questions, "
+                             "with the ones I missed (misses) and the ones due")
         if req.topic:
             for u in chunk:
                 steps.append(f"search_materials(query={_q(req.topic)}, course_id={u.cm.course.id}) "

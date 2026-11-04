@@ -6,6 +6,7 @@ import listPlugin from "@fullcalendar/list";
 import type { EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
 import { api, type Deadline, type Feed } from "../api";
 import { DeadlineItem } from "../components/DeadlineList";
+import { ReminderSettings } from "../components/Reminders";
 import { courseColor } from "../format";
 
 const narrow = () => window.matchMedia("(max-width: 640px)").matches;
@@ -87,6 +88,7 @@ export default function Calendar() {
           </div>
         </div>
       )}
+      <ReminderSettings />
       <Subscribe />
     </>
   );
@@ -125,8 +127,8 @@ function Subscribe() {
     <section className="subscribe">
       <h2>Add to your phone or Outlook calendar</h2>
       <p className="muted">
-        Subscribe once and new deadlines appear in your calendar app after each sync. The link
-        is private: anyone who has it can see your deadlines.
+        Subscribe once and new deadlines, alarms and daily study reminders appear in your
+        calendar app after each sync. The link is private: anyone who has it can see your deadlines.
       </p>
       {!feed ? (
         <div className="row">

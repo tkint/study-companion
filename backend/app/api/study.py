@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
-from app import catchup, study
+from app import catchup, study, study_time
 from app.config import Settings
 from app.db import session
 from app.models import Course
@@ -188,3 +188,37 @@ def register(
     @app.post("/api/sections/{section_id}/prefs")
     async def section_prefs(request: Request, section_id: int) -> JSONResponse:
         return await set_pref(request, "section", section_id)
+
+    # ------------------------------------------------------------------ study time
+
+    @app.get("/api/study/time")
+    async def time_summary(request: Request) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        return JSONResponse(study_time.time_summary(engine, settings.tz))
+
+    @app.post("/api/study/time")
+    async def log_time(request: Request) -> JSONResponse:
+        """A finished timer run or a manual entry: {minutes, course_id?, started_at?, note?}."""
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        data = await body(request)
+        if data is None:
+            return bad("send a JSON object")
+        source = data.get("source") if data.get("source") in ("timer", "manual") else "manual"
+        try:
+            row = study_time.log_time(engine, data.get("minutes"), data.get("course_id"),
+                                      data.get("started_at"), source, data.get("note") or "")
+        except study_time.TimeError as exc:
+            return bad(str(exc))
+        return JSONResponse({"entry": {"id": row.id, "minutes": row.minutes},
+                             "summary": study_time.time_summary(engine, settings.tz)},
+                            status_code=201)
+
+    @app.delete("/api/study/time/{entry_id}")
+    async def delete_time(request: Request, entry_id: int) -> JSONResponse:
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        if not study_time.delete_time(engine, entry_id):
+            return not_found()
+        return JSONResponse({"deleted": entry_id})

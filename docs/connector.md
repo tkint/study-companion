@@ -56,6 +56,7 @@ Write tools (they only change Claude's own notes in the app, never anything in M
 | `save_summary(section_id, markdown, title)` | Saves a section summary in Markdown; it replaces that section's previous summary and shows in the course page |
 | `save_questions(section_id, items)` | Saves up to 50 questions per call: `{question, answer, kind (short, mcq, flashcard), choices, explanation, source}`. Saving the same question again updates it. Returns the ids |
 | `record_quiz_result(score, total, course_id, section_id, topic, items, notes)` | Records a quiz score; `items` (`[{question_id, correct}]`) also reschedules those saved questions |
+| `log_study_time(minutes, course_id, note)` | Logs a study session (up to 12 h); it counts toward today's goal and streak on the **Study time** page |
 | `trigger_sync()` | Starts a Moodle sync in the background |
 
 `get_materials` and `get_section` show what is already saved for each section ("Saved in the

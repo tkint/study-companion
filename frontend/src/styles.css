@@ -577,3 +577,50 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
 .target-progress { position: relative; }
 .target-bar .progress { height: 10px; margin: 0; }
 .target-bar .target-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .5; }
+
+/* ---- study time (pages/Time.tsx) ---- */
+.time-stats { margin-bottom: 10px; }
+.time-timer { margin-top: 16px; text-align: center; }
+.time-timer .block { text-align: left; }
+.time-clock { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1;
+  margin: 8px 0 4px; }
+.time-timer .row { justify-content: center; }
+.small-print { font-size: .8rem; margin: 0; }
+.time-message { margin: 8px 0 0; font-weight: 600; }
+.time-chart { padding: 10px 10px 24px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); }
+.time-plot { position: relative; display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px;
+  align-items: end; height: 110px; }
+.time-bar { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.time-bar span { display: block; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--accent);
+  opacity: .55; transition: height .4s ease; }
+.time-bar span.met { opacity: 1; background: var(--ok); }
+.time-bar small { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center;
+  font-size: .7rem; color: var(--muted); }
+.time-bar small.today { color: var(--text); font-weight: 700; }
+.time-goal { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--ok); opacity: .7;
+  pointer-events: none; }
+.time-facts { font-size: .85rem; }
+.time-courses { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.time-courses li { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.time-courses .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.time-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.time-form { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
+.time-form input, .time-form select { width: 100%; }
+
+/* ---- reminders (components/Reminders.tsx) ---- */
+.reminders { margin: 12px 0 16px; padding: 10px 14px; background: var(--surface);
+  border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius);
+  animation: reminders-in .35s ease-out; }
+.reminders ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.reminders li { display: flex; gap: 10px; align-items: baseline; font-size: .95rem; }
+@keyframes reminders-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .reminders { animation: none; } }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg); cursor: pointer; }
+.chip input { width: 18px; height: 18px; margin: 0; }
+.subscribe .field { margin: 10px 0; }
+.subscribe .field input[type="time"] { font: inherit; font-size: 16px; min-height: 44px; padding: 6px 10px;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }

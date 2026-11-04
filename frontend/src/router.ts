@@ -7,6 +7,7 @@ export type Route =
   | { name: "course"; id: number; section?: number }
   | { name: "study"; course?: number; section?: number; all?: boolean; due?: boolean }
   | { name: "plan" }
+  | { name: "time" }
   | { name: "calendar" }
   | { name: "prompt"; course?: number }
   | { name: "templates"; id?: string }
@@ -29,6 +30,7 @@ export function parse(hash: string): Route {
       due: params.get("due") === "1" };
   }
   if (parts[0] === "plan") return { name: "plan" };
+  if (parts[0] === "time") return { name: "time" };
   if (parts[0] === "calendar") return { name: "calendar" };
   if (parts[0] === "prompt") {
     const course = params.get("course");
@@ -75,5 +77,6 @@ export const href = {
     return `#/study${qs ? `?${qs}` : ""}`;
   },
   plan: "#/plan",
+  time: "#/time",
   file: (id: number, course?: number) => `#/file/${id}${course ? `?course=${course}` : ""}`,
 };

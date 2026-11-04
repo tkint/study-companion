@@ -39,7 +39,7 @@ def test_templates_load_and_reference_real_tools():
     templates = prompts.load_templates()
     assert list(templates)[:3] == ["catch_up", "study_plan", "explain"]
     assert "review" in templates
-    assert len(templates) == 8
+    assert len(templates) == 12
     for t in templates.values():
         assert t.title and t.description
         assert "{{steps}}" in t.body
@@ -270,3 +270,16 @@ def test_template_api(settings, engine):
         r = c.post("/api/prompt/build", json={"course_ids": [10], "goal": "quiz"}, headers=SAME_ORIGIN)
         assert "After 10 questions" in r.json()["prompts"][0]["text"]
         assert c.delete("/api/prompt/templates/zzz", headers=SAME_ORIGIN).status_code == 404
+
+
+def test_m5_templates(builder):
+    plan = build(builder, goal="study_session")["prompts"][0]["text"]
+    assert "get_catch_up_plan(course_id=10" in plan and "log_study_time(" in plan
+    weak = build(builder, goal="weak_spots")["prompts"][0]["text"]
+    assert "get_questions(course_id=10)" in weak and "record_quiz_result(" in weak
+    sheet = build(builder, goal="cheat_sheet")["prompts"][0]["text"]
+    assert "save_summary(" in sheet and "one-page" in sheet
+    no_save = build(builder, goal="exercises", save_results=False)["prompts"][0]["text"]
+    assert "save_questions" not in no_save and "search_materials" in no_save
+    quiz = build(builder, goal="quiz")["prompts"][0]["text"]
+    assert "log_study_time(" in quiz
