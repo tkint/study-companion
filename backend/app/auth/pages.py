@@ -432,6 +432,12 @@ def settings_page(
 </div>
 {_connector_card(mcp_url, connections or [])}
 <div class="card">
+<h2>Prompt templates</h2>
+<p class="muted">Change the wording of the prompts the prompt builder makes (one template per goal),
+or reset one to the built-in version.</p>
+<p><a href="/#/templates">Edit prompt templates</a></p>
+</div>
+<div class="card">
 <h2>Web UI password</h2>
 <form method="post" action="/settings/password">
   <label for="current">Current password</label>

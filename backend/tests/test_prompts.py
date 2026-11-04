@@ -156,3 +156,117 @@ def test_save_results_uses_the_write_tools(builder):
         data = {"goal": goal, "topic": "matrices"}
         for name in CALL.findall(build(builder, **data)["prompts"][0]["text"]):
             assert name in TOOL_NAMES, (goal, name)
+
+
+# ---------------------------------------------------------------------- template editor
+
+
+def test_default_templates_pass_validation():
+    from app.prompts import store
+
+    for tid, text in prompts.default_sources().items():
+        assert store.validate(tid, text) == [], tid
+
+
+@pytest.mark.parametrize("text,problem", [
+    ("---\ntitle: X\n---\nNo steps here.", "{{steps}}"),
+    ("{{steps}} {{unknown}}", "Unknown placeholder {{unknown}}"),
+    ("{{steps}} {{ steps }}", "Unknown placeholder {{ steps }}"),
+    ("{{steps}} {{#nope}}x{{/nope}}", "Unknown section {{#nope}}"),
+    ("{{steps}} {{#save}}x", "never closed"),
+    ("{{steps}} {{#save}}{{#time}}x{{/save}}{{/time}}", "does not close"),
+    ("{{steps}} then call delete_everything(now)", "Not a Study Companion tool: delete_everything()"),
+    ("---\ntitle: X\n{{steps}}", "front matter"),
+    ("{{steps}}" + "x" * 20_001, "too long"),
+])
+def test_validate_rejects_broken_templates(text, problem):
+    from app.prompts import store
+
+    assert any(problem in p for p in store.validate("quiz", text))
+
+
+def test_edited_template_is_used_and_reset(builder, engine, settings):
+    from app.prompts import store
+
+    edited = ("---\ntitle: My quiz\ndescription: Mine\norder: 0\ntopic: none\n---\n"
+              "Quiz me hard on {{courses}}.\n{{steps}}\nUse ask_question(question, choices).\n")
+    store.save(engine, "quiz", edited)
+    fresh = prompts.Builder(settings, engine)
+    goal = next(g for g in fresh.options()["goals"] if g["id"] == "quiz")
+    assert goal["title"] == "My quiz" and goal["topic"] == "none"
+    assert fresh.options()["goals"][0]["id"] == "quiz"  # order from the edited front matter
+    text = build(fresh, goal="quiz")["prompts"][0]["text"]
+    assert text.startswith('Quiz me hard on "Linear Algebra"') and "get_materials(course_id=10" in text
+
+    row = next(t for t in store.listing(engine) if t["id"] == "quiz")
+    assert row["edited"] and row["text"] == edited and not row["default_changed"]
+    assert row["default_text"] == prompts.default_sources()["quiz"]
+
+    with pytest.raises(store.TemplateError, match="steps"):
+        store.save(engine, "quiz", "nothing")
+    with pytest.raises(store.TemplateError, match="unknown template"):
+        store.save(engine, "nope", edited)
+
+    assert store.reset(engine, "quiz") is True
+    assert store.reset(engine, "quiz") is False
+    again = prompts.Builder(settings, engine)
+    assert build(again, goal="quiz")["prompts"][0]["title"].startswith("Quiz me")
+
+
+def test_saving_the_default_text_keeps_no_edit(engine):
+    from app.prompts import store
+
+    default = prompts.default_sources()["review"]
+    store.save(engine, "review", default + "Extra line.\n")
+    assert "review" in store.overrides(engine)
+    store.save(engine, "review", default.replace("\n", "\r\n"))
+    assert store.overrides(engine) == {}
+
+
+def test_default_changed_flag(engine):
+    from app.models import PromptTemplateEdit
+    from app.db import session
+    from app.prompts import store
+    from sqlmodel import select
+
+    store.save(engine, "explain", prompts.default_sources()["explain"] + "Mine.\n")
+    with session(engine) as s:
+        row = s.exec(select(PromptTemplateEdit)).one()
+        row.base_sha = "older"
+        s.add(row)
+        s.commit()
+    assert next(t for t in store.listing(engine) if t["id"] == "explain")["default_changed"]
+
+
+def test_template_api(settings, engine):
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/api/prompt/templates").status_code == 401
+        c.post("/login", data={"password": PASSWORD})
+        data = c.get("/api/prompt/templates").json()
+        assert [t["id"] for t in data["templates"]][:3] == ["catch_up", "study_plan", "explain"]
+        assert "ask_question" in data["tools"] and "steps" in data["variables"]
+        quiz = next(t for t in data["templates"] if t["id"] == "quiz")
+        assert not quiz["edited"] and quiz["text"] == quiz["default_text"]
+
+        text = quiz["text"].replace("After 10 questions", "After 5 questions")
+        assert c.put("/api/prompt/templates/quiz", json={"text": text},
+                     headers={"Sec-Fetch-Site": "cross-site"}).status_code == 401
+        r = c.put("/api/prompt/templates/quiz", json={"text": text}, headers=SAME_ORIGIN)
+        assert r.status_code == 200 and r.json()["edited"] and r.json()["updated_at"]
+        r = c.post("/api/prompt/build", json={"course_ids": [10], "goal": "quiz"}, headers=SAME_ORIGIN)
+        assert "After 5 questions" in r.json()["prompts"][0]["text"]
+
+        r = c.post("/api/prompt/templates/quiz/check", json={"text": "no steps"}, headers=SAME_ORIGIN)
+        assert r.status_code == 200 and r.json()["problems"]
+        r = c.put("/api/prompt/templates/quiz", json={"text": "no steps"}, headers=SAME_ORIGIN)
+        assert r.status_code == 400 and "{{steps}}" in r.json()["error"]
+        assert c.put("/api/prompt/templates/quiz", json={"nope": 1}, headers=SAME_ORIGIN).status_code == 400
+        assert c.put("/api/prompt/templates/zzz", json={"text": text}, headers=SAME_ORIGIN).status_code == 404
+        big = {"text": "x" * 100_000}
+        assert c.put("/api/prompt/templates/quiz", json=big, headers=SAME_ORIGIN).status_code == 413
+
+        r = c.delete("/api/prompt/templates/quiz", headers=SAME_ORIGIN)
+        assert r.status_code == 200 and not r.json()["edited"]
+        r = c.post("/api/prompt/build", json={"course_ids": [10], "goal": "quiz"}, headers=SAME_ORIGIN)
+        assert "After 10 questions" in r.json()["prompts"][0]["text"]
+        assert c.delete("/api/prompt/templates/zzz", headers=SAME_ORIGIN).status_code == 404

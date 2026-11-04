@@ -72,31 +72,48 @@ class Template:
     body: str
 
 
-def load_templates(directory: Path = TEMPLATE_DIR) -> dict[str, Template]:
+def parse_template(template_id: str, raw: str) -> Template:
+    """One template from its Markdown text (front matter + body)."""
+    raw = raw.replace("\r\n", "\n")
+    meta: dict[str, str] = {}
+    m = _FRONT.match(raw)
+    if m:
+        for line in m.group(1).splitlines():
+            key, _, value = line.partition(":")
+            meta[key.strip()] = value.strip()
+        raw = raw[m.end():]
+    try:
+        order = int(meta.get("order", "99"))
+    except ValueError:
+        order = 99
+    return Template(
+        id=template_id,
+        title=meta.get("title") or template_id.replace("_", " ").capitalize(),
+        description=meta.get("description", ""),
+        order=order,
+        topic=meta.get("topic", "optional") if meta.get("topic") in {"required", "optional", "none"} else "optional",
+        body=raw.strip() + "\n",
+    )
+
+
+def default_sources(directory: Path = TEMPLATE_DIR) -> dict[str, str]:
+    """The built-in templates' Markdown text, by id (file stem)."""
     out = {}
     for path in sorted(directory.glob("*.md")):
         if path.name.startswith(("_", ".")) or path.name.lower() == "readme.md":
             continue
-        raw = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-        meta: dict[str, str] = {}
-        m = _FRONT.match(raw)
-        if m:
-            for line in m.group(1).splitlines():
-                key, _, value = line.partition(":")
-                meta[key.strip()] = value.strip()
-            raw = raw[m.end():]
-        try:
-            order = int(meta.get("order", "99"))
-        except ValueError:
-            order = 99
-        out[path.stem] = Template(
-            id=path.stem,
-            title=meta.get("title") or path.stem.replace("_", " ").capitalize(),
-            description=meta.get("description", ""),
-            order=order,
-            topic=meta.get("topic", "optional") if meta.get("topic") in {"required", "optional", "none"} else "optional",
-            body=raw.strip() + "\n",
-        )
+        out[path.stem] = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return out
+
+
+def load_templates(directory: Path = TEMPLATE_DIR,
+                   overrides: dict[str, str] | None = None) -> dict[str, Template]:
+    """Built-in templates, with your edits (``overrides``: id -> Markdown) in their place."""
+    sources = default_sources(directory)
+    for tid, raw in (overrides or {}).items():
+        if tid in sources:  # an edit of a template that no longer exists is ignored
+            sources[tid] = raw
+    out = {tid: parse_template(tid, raw) for tid, raw in sources.items()}
     return dict(sorted(out.items(), key=lambda kv: (kv[1].order, kv[0])))
 
 
@@ -246,7 +263,9 @@ class Builder:
         self.tz = settings.tz
         self.now = int(now if now is not None else datetime.now().timestamp())
         self.today = datetime.fromtimestamp(self.now, self.tz).date()
-        self.templates = load_templates()
+        from app.prompts.store import overrides
+
+        self.templates = load_templates(overrides=overrides(engine))
 
     def options(self) -> dict:
         upcoming: dict[int, int] = {}
