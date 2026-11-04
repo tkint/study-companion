@@ -53,3 +53,11 @@ def test_m3_settings_from_env():
     assert Settings.from_env({**base, "DOMAIN": "study.example.ch"}).public_url("http://x") == \
         "https://study.example.ch"
     assert Settings.from_env(base).public_url("http://testserver/") == "http://testserver"
+
+
+def test_version_comes_from_app_version_env():
+    assert Settings.from_env({**VALID, "APP_VERSION": "1.2.3"}).version == "1.2.3"
+    # Without the env var (local runs) the version falls back to the module default.
+    import os
+    if not os.environ.get("APP_VERSION"):
+        assert Settings.from_env(VALID).version == "dev"

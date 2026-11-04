@@ -118,7 +118,7 @@ docker compose up -d && curl -k https://localhost/healthz
 
 ## Releases
 
-Push a tag `vX.Y.Z` matching `backend/app/__init__.py`; GitHub Actions tests, builds the
+Push a tag `vX.Y.Z` (the tag is the version, nothing to bump in the code); GitHub Actions tests, builds the
 amd64/arm64 image to `ghcr.io/tkint/study-companion` and publishes a GitHub Release with
 the deploy files. Details in [docs/releasing.md](docs/releasing.md).
 
