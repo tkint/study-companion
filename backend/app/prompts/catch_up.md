@@ -9,10 +9,14 @@ You are my tutor for {{courses}}. I missed {{period}} and need to catch up.
 Use the Study Companion tools:
 {{steps}}
 
+I can't catch up on everything: I aim for about {{target}} of the mandatory work, so focus on
+what is mandatory and matters most for what comes next. Leave out work marked optional or
+ignored, and tell me what you would skip.
+
 Then, in {{language}}:
 - Summarise each section in 5 to 8 bullet points, citing the file and page you took each point from
 - List the 10 concepts most likely to be examined, with a one-line explanation each
-{{#time}}- Give me a catch-up plan for {{time}}, ordered by upcoming deadlines
+{{#time}}- Give me a catch-up plan for {{time}}, ordered by upcoming mandatory deadlines
 {{/time}}{{#deadlines}}- Point out which upcoming deadlines depend on which sections
 {{/deadlines}}{{#completion}}- Skip what I already completed (marked ✓ done) unless it is needed for the rest
 {{/completion}}{{#save}}- Save your work to the app as you go: save_summary(section_id, markdown) with each section's summary, and save_questions(section_id, items) with 5 practice questions per section (question, answer, source file and page)

@@ -40,12 +40,12 @@ You can also just ask, for example "Use Study Companion: what is due this week?"
 | Tool | What it returns |
 | --- | --- |
 | `list_courses(include_past)` | Courses with ids, language, sections/files/pages and deadline counts |
-| `get_deadlines(course_id, from_date, to_date, include_done, page)` | Assignments, quizzes and calendar events in a date range, with done/overdue status |
+| `get_deadlines(course_id, from_date, to_date, include_done, page, mandatory_only, include_ignored)` | Assignments, quizzes and calendar events from today (or `from_date`) on, with done/overdue status and mandatory/optional; points to overdue mandatory work; leaves out what you ignored |
 | `get_materials(course_id, from_date, to_date, section_from, section_to, page)` | Sections, activities and files with section ids, file ids and page counts (8 sections per page) |
 | `get_section(section_id)` | One section in full: summary, activity descriptions, files, deadlines |
 | `read_file(file_id, pages)` | Extracted text of a file for a page range like `"1-5"` (at most 20 pages per call) |
 | `search_materials(query, course_id, page)` | Full-text search across files, section summaries and activities, with file and page references |
-| `get_catch_up_plan(course_id, hours_per_day, days, from_date)` | The app's rule-based plan: sections not yet studied and open deadlines, day by day with time estimates and file ids |
+| `get_catch_up_plan(course_id, hours_per_day, days, from_date, include_optional, beyond_target)` | The app's rule-based plan for mandatory work: what upcoming deadlines need plus enough backlog to reach your catch-up goal, day by day with time estimates and file ids, and what is beyond the goal |
 | `get_questions(course_id, section_id, due_only, page)` | Saved questions with their `question_id`, answer and review state (due first) |
 | `ask_question(question, choices)` | Shows you one multiple-choice question as a card with clickable choices (see below) |
 

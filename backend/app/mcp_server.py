@@ -161,13 +161,17 @@ def build_server(tools: StudyTools, version: str,
     @mcp.tool(annotations=READ_ONLY, structured_output=False)
     async def get_deadlines(
         course_id: Annotated[int | None, Field(description="Course id; omit for all courses")] = None,
-        from_date: Annotated[str | None, Field(description="First day, YYYY-MM-DD (default: 14 days ago)")] = None,
+        from_date: Annotated[str | None, Field(description="First day, YYYY-MM-DD (default: today; give an earlier day for past work)")] = None,
         to_date: Annotated[str | None, Field(description="Last day, YYYY-MM-DD (default: in 60 days)")] = None,
         include_done: Annotated[bool, Field(description="Include deadlines already done")] = True,
         page: Annotated[int, Field(ge=1, description="Result page")] = 1,
+        mandatory_only: Annotated[bool, Field(description="Only mandatory deadlines (leave out optional ones)")] = False,
+        include_ignored: Annotated[bool, Field(description="Also list deadlines the student chose to ignore")] = False,
     ) -> str:
-        """List assignment, quiz and calendar deadlines in a date range, with done/overdue status."""
-        return await run(tools.get_deadlines, course_id, from_date, to_date, include_done, page)
+        """List assignment, quiz and calendar deadlines in a date range, with done/overdue
+        status and whether each is mandatory or optional (focus on mandatory work)."""
+        return await run(tools.get_deadlines, course_id, from_date, to_date, include_done, page,
+                         mandatory_only, include_ignored)
 
     @mcp.tool(annotations=READ_ONLY, structured_output=False)
     async def get_materials(
@@ -214,10 +218,14 @@ def build_server(tools: StudyTools, version: str,
         hours_per_day: Annotated[float | None, Field(description="Study hours per day (default: the student's setting in the app)")] = None,
         days: Annotated[int, Field(ge=1, le=90, description="Days to plan")] = 14,
         from_date: Annotated[str | None, Field(description="Only sections with material dated since this day, YYYY-MM-DD")] = None,
+        include_optional: Annotated[bool, Field(description="Also plan optional work (default: mandatory only)")] = False,
+        beyond_target: Annotated[bool, Field(description="Also plan the backlog beyond the student's catch-up target")] = False,
     ) -> str:
-        """Rule-based catch-up plan: the sections not yet studied and the open deadlines,
-        ordered by urgency and laid out day by day with time estimates and file ids."""
-        return await run(tools.get_catch_up_plan, course_id, hours_per_day, days, from_date)
+        """Rule-based catch-up plan for the mandatory work: what upcoming deadlines need plus
+        enough of the backlog to reach the student's catch-up target (e.g. 60%), ordered by
+        urgency and laid out day by day with time estimates and file ids."""
+        return await run(tools.get_catch_up_plan, course_id, hours_per_day, days, from_date,
+                         include_optional, beyond_target)
 
     @mcp.tool(annotations=READ_ONLY, structured_output=False)
     async def get_questions(

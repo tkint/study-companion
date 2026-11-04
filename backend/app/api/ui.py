@@ -16,8 +16,9 @@ import time
 from sqlalchemy.engine import Engine
 from sqlmodel import col, select
 
+from app.catchup import auto_mandatory, prefs, resolve
 from app.db import session
-from app.models import Course, Deadline, DeadlineMark, File, Module, Section
+from app.models import Course, Deadline, DeadlineMark, File, ItemPref, Module, Section
 
 OVERDUE_DAYS = 120
 WEEK = 7 * 86400
@@ -25,8 +26,9 @@ DONE_STATES = {1, 2}  # Moodle completion: 1 complete, 2 complete with pass
 
 
 def _deadline_dict(d: Deadline, course: Course | None, module: Module | None,
-                   mark: DeadlineMark | None, now: int) -> dict:
+                   mark: DeadlineMark | None, now: int, pref: ItemPref | None = None) -> dict:
     moodle_done = bool(module and module.completion_state in DONE_STATES)
+    auto, reason = auto_mandatory(d.source, d.name, d.grade, module.modname if module else "")
     return {
         "id": d.id,
         "source": d.source,
@@ -44,6 +46,7 @@ def _deadline_dict(d: Deadline, course: Course | None, module: Module | None,
         "module_id": d.module_id,
         "done": moodle_done or mark is not None,
         "done_by": "moodle" if moodle_done else ("you" if mark else None),
+        **resolve(pref, auto, reason),
     }
 
 
@@ -53,9 +56,11 @@ def deadlines(
     end: int | None = None,
     course_id: int | None = None,
     now: int | None = None,
+    include_ignored: bool = True,
 ) -> list[dict]:
     """Deadlines with a due date in ``[start, end)``, oldest first (enrolled courses only,
-    plus site/user calendar events without a course)."""
+    plus site/user calendar events without a course). Each carries ``mandatory`` and
+    ``ignored`` (``app.catchup``); ``include_ignored=False`` leaves ignored ones out."""
     now = int(now if now is not None else time.time())
     with session(engine) as s:
         q = select(Deadline).where(Deadline.removed == False, Deadline.due_at != None)  # noqa: E711,E712
@@ -79,18 +84,23 @@ def deadlines(
             ).all()}
             if ids else {}
         )
+    item_prefs = prefs(engine, "deadline", ids)
     out = []
     for d in rows:
         course = courses.get(d.course_id) if d.course_id else None
         if d.course_id and (course is None or not course.enrolled):
             continue
-        out.append(_deadline_dict(d, course, modules.get(d.module_id or 0), marks.get(d.id), now))
+        row = _deadline_dict(d, course, modules.get(d.module_id or 0), marks.get(d.id), now,
+                             item_prefs.get(d.id))
+        if row["ignored"] and not include_ignored:
+            continue
+        out.append(row)
     return out
 
 
 def dashboard(engine: Engine, now: int | None = None) -> dict:
     now = int(now if now is not None else time.time())
-    items = deadlines(engine, start=now - OVERDUE_DAYS * 86400, now=now)
+    items = deadlines(engine, start=now - OVERDUE_DAYS * 86400, now=now, include_ignored=False)
     overdue = [d for d in items if d["due_at"] < now and not d["done"]]
     this_week = [d for d in items if now <= d["due_at"] < now + WEEK]
     later = [d for d in items if d["due_at"] >= now + WEEK]
@@ -99,7 +109,7 @@ def dashboard(engine: Engine, now: int | None = None) -> dict:
         if d["course_id"] is None:
             continue
         c = per_course.setdefault(d["course_id"], {"overdue": 0, "upcoming": 0})
-        if d["done"]:
+        if d["done"] or not d["mandatory"]:
             continue
         if d["due_at"] < now:
             c["overdue"] += 1
@@ -171,6 +181,7 @@ def course_detail(engine: Engine, course_id: int, now: int | None = None) -> dic
             .where(File.course_id == course_id, File.status != "removed")
             .order_by(File.filepath, File.filename)
         ).all()
+    section_prefs = prefs(engine, "section", [sec.id for sec in sections])
     files_by_module: dict[int, list[dict]] = {}
     for f in files:
         files_by_module.setdefault(f.module_id, []).append(file_dict(f))
@@ -203,6 +214,7 @@ def course_detail(engine: Engine, course_id: int, now: int | None = None) -> dic
                 "summary": sec.summary,
                 "visible": sec.visible,
                 "modules": mods_by_section.get(sec.id, []),
+                **resolve(section_prefs.get(sec.id), True),
             }
             for sec in sections
         ],

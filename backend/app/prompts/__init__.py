@@ -7,7 +7,7 @@ optional or none) and a body with placeholders:
 ``{{steps}}``    numbered MCP tool calls          ``{{language}}``  language of the answers
 ``{{depth}}``    depth instruction                ``{{time}}``      time available ("" if none)
 ``{{topic}}``    the topic typed in the form      ``{{part}}``      "Part 2 of 3 ..." ("" if one)
-``{{today}}``    today's date
+``{{today}}``    today's date                     ``{{target}}``    your catch-up target, e.g. "60%"
 
 ``{{#name}}...{{/name}}`` keeps its content only when ``name`` is set (``time``, ``topic``,
 ``deadlines``, ``completion``, ``save``: save results back to the app with the write tools); ``{{^name}}...{{/name}}`` only when it is not. Tool names in
@@ -23,6 +23,7 @@ from pathlib import Path
 
 from sqlalchemy.engine import Engine
 
+from app.catchup import target_percent
 from app.config import Settings
 from app.materials import (
     CourseMaterials,
@@ -422,12 +423,13 @@ class Builder:
                          f" of {c.fullname}")
         steps.append("read_file(file_id, pages) for the files that matter, a few pages at a "
                      "time; use get_section(section_id) when a section's activities need detail")
-        if req.goal == "study_plan":
+        if req.goal in ("study_plan", "catch_up"):
             hours = f", hours_per_day={req.hours_per_day:g}" if req.hours_per_day else ""
             days = f", days={req.days}" if req.days else ""
             for u in chunk:
                 steps.append(f"get_catch_up_plan(course_id={u.cm.course.id}{hours}{days}) for the "
-                             "app's rule-based plan (what is left and its deadlines) as a starting point")
+                             "app's rule-based plan as a starting point: the mandatory work left, "
+                             "its deadlines, and what is beyond my catch-up target")
         if req.goal == "review" or (req.save_results and req.goal == "quiz"):
             for u in chunk:
                 steps.append(f"get_questions(course_id={u.cm.course.id}, due_only=true) for the "
@@ -479,6 +481,7 @@ class Builder:
             "topic": req.topic,
             "part": part,
             "today": self.today.isoformat(),
+            "target": f"{target_percent(self.engine):g}%",
             "deadlines": "yes" if req.include_deadlines else "",
             "completion": "yes" if req.include_completion else "",
             "save": "yes" if req.save_results else "",

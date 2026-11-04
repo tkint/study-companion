@@ -19,7 +19,8 @@ from app.models import PromptTemplateEdit
 
 USER_ID = 1
 MAX_CHARS = 20_000
-VARIABLES = ("courses", "period", "steps", "language", "depth", "time", "topic", "part", "today")
+VARIABLES = ("courses", "period", "steps", "language", "depth", "time", "topic", "part", "today",
+             "target")
 FLAGS = ("time", "topic", "deadlines", "completion", "save")
 
 _CALL = re.compile(r"\b([a-z]+(?:_[a-z]+)+)\(")

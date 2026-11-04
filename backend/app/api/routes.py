@@ -76,7 +76,9 @@ def register(
         data["stats"] = stats.stats(engine, settings.tz)
         plan = Planner(settings, engine).plan(days=7).to_dict()
         data["plan"] = {k: plan[k] for k in ("hours_per_day", "total_minutes", "sections_left",
-                                             "sections_done", "late")}
+                                             "sections_done", "late", "target_percent",
+                                             "projected_percent", "optional_left_out", "ignored")}
+        data["catch_up"] = plan["progress"]
         data["plan"]["today"] = plan["days"][0] if plan["days"] and plan["days"][0]["date"] == plan["today"] else None
         return JSONResponse(data)
 
@@ -183,7 +185,8 @@ def register(
         if not (is_authenticated(request) or ics.check_feed_token(engine, settings.secret_key, token)):
             return Response("Not found", status_code=404, media_type="text/plain")
         now = int(time.time())
-        items = ui.deadlines(engine, start=now - ui.OVERDUE_DAYS * 86400, now=now)
+        items = ui.deadlines(engine, start=now - ui.OVERDUE_DAYS * 86400, now=now,
+                             include_ignored=False)
         headers = {"Cache-Control": "private, max-age=900"}
         if request.query_params.get("download") == "1":
             headers["Content-Disposition"] = 'attachment; filename="study-deadlines.ics"'

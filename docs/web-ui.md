@@ -52,7 +52,8 @@ All times are shown in your device's time zone.
 
 The **Courses** tab lists every enrolled course with its progress. Type in the search field
 to filter by name or short name (accents and case don't matter, so `algebre` finds
-*Algèbre linéaire*). Each course lists its open deadlines, then its sections with activities and files.
+*Algèbre linéaire*). Each course lists its upcoming deadlines (tick **Show past** for the
+earlier ones, **Show ignored** for what you let go), then its sections with activities and files.
 
 - **PDFs** open in the built-in viewer (pinch or −/+ to zoom, ⤓ to download).
 - **Images and text files** open in a new tab; **everything else** (Word, PowerPoint, HTML…)
@@ -108,6 +109,32 @@ Open it from **Today › Full plan**. It is built by rules, without AI:
    end.
 
 **Mark studied** on a section removes it from the plan.
+
+### Mandatory, optional and ignored work
+
+You won't catch up on everything, so the plan focuses on what is **mandatory**:
+
+- A deadline counts as **optional** when its name says so (*optional, facultatif, bonus,
+  fakultativ, freiwillig, practice, entraînement, self-test…*), when it is an assignment or quiz
+  graded out of 0, or when it is a feedback, choice, forum or survey activity. Everything else,
+  and every section, is mandatory. The ⋯ button on a deadline or section (course page, plan)
+  lets you **Mark as optional** / **Mark as mandatory** when the guess is wrong.
+- **Ignore (let it go)** in the same menu takes past work you decided to skip off the plan,
+  the home page, the calendar feed and your goal. **Stop ignoring** brings it back.
+- Optional work is left out of the plan; tick **Include optional work** to plan it too.
+
+### Your catch-up goal
+
+**Catch-up goal** (40 to 100 %, 60 % by default) is the share of the mandatory work you aim
+to catch up. Progress counts every mandatory section plus the mandatory deadlines of the last
+120 days (minus those closed in Moodle), weighted by their estimated time: sections marked
+studied or complete in Moodle and deadlines done count as caught up. The bar on the plan shows
+where you are and the mark is your goal.
+
+The plan always keeps the work upcoming deadlines need, then adds the backlog (overdue items
+and sections no upcoming deadline needs) in priority order until it reaches your goal. The rest
+is listed under **Beyond your goal** (only if you have time); tick **Plan beyond my goal** to
+schedule it anyway. Claude's `get_catch_up_plan` and the prompts use the same goal.
 
 ## Calendar and ICS export
 
