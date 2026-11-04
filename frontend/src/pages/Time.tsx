@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type TimeSummary } from "../api";
 import { Progress, Status, useLoad } from "../components/common";
-import { courseColor, when } from "../format";
+import { courseColor, minutesLabel, when } from "../format";
 import { href } from "../router";
 
 // Study time: a timer you start and stop (it survives reloads and closing the app), manual
@@ -33,13 +33,6 @@ function saveTimer(t: Timer | null) {
   } catch {
     /* private mode: the timer just won't survive a reload */
   }
-}
-
-export function minutesLabel(m: number): string {
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  if (h && r) return `${h} h ${String(r).padStart(2, "0")}`;
-  return h ? `${h} h` : `${r} min`;
 }
 
 function clock(ms: number): string {

@@ -209,6 +209,25 @@ export interface TimeSummary {
   recent: TimeEntry[];
 }
 
+// ---- reminders (backend: app/reminders.py)
+
+export interface ReminderPrefs {
+  deadline_alarms: number[];
+  daily_enabled: boolean;
+  daily_time: string;
+}
+
+export interface Reminders {
+  now: number;
+  cards_due: number;
+  deadlines_soon: { id: number; name: string; due_at: number; course_shortname: string; url: string }[];
+  planned_minutes: number;
+  studied_minutes: number;
+  goal_minutes: number;
+  streak_days: number;
+  prefs: ReminderPrefs;
+}
+
 export interface FileInfo {
   id: number;
   filename: string;
@@ -320,6 +339,9 @@ export const api = {
       body: JSON.stringify({ studied }),
     }),
   plan: (days = 14, course?: number) => request<Plan>(`/api/plan?days=${days}${course ? `&course=${course}` : ""}`),
+  reminders: () => request<Reminders>("/api/reminders"),
+  setReminders: (p: Partial<ReminderPrefs>) =>
+    request<ReminderPrefs>("/api/reminders/settings", { method: "POST", body: JSON.stringify(p) }),
   studyTime: () => request<TimeSummary>("/api/study/time"),
   logTime: (e: { minutes: number; course_id?: number | null; started_at?: number; note?: string; source: "timer" | "manual" }) =>
     request<{ entry: { id: number; minutes: number }; summary: TimeSummary }>("/api/study/time", {
