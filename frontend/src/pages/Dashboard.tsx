@@ -327,7 +327,7 @@ function SyncNotice({ sync: initial, onDone }: { sync: SyncState; onDone: () => 
   if (!sync.configured) {
     return (
       <p className="banner warn">
-        Moodle is not connected yet. <a href="/settings">Open Settings</a> to add your Moodle address and token.
+        Your source site is not connected yet. <a href="/settings">Open Settings</a> to add its address and token.
       </p>
     );
   }
@@ -338,7 +338,7 @@ function SyncNotice({ sync: initial, onDone }: { sync: SyncState; onDone: () => 
       <span>
         <Icon name="refresh" className={sync.running ? "spin" : undefined} />
         {sync.running
-          ? "Syncing with Moodle…"
+          ? "Syncing with the source…"
           : run
             ? `Synced ${fromNow(run.finished_at ?? run.started_at)}${run.status === "ok" ? "" : ` (${run.status})`}`
             : "Not synced yet"}

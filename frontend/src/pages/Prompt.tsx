@@ -84,7 +84,7 @@ export default function Prompt({ course }: { course?: number }) {
     return (
       <>
         <h1>Prompt builder</h1>
-        <p className="empty">No courses yet. Run a sync after connecting Moodle.</p>
+        <p className="empty">No courses yet. Run a sync after connecting your source site.</p>
       </>
     );
   }

@@ -81,7 +81,7 @@ export function PlanRow({ item, onStudied, onPrefs }: {
           <button className="btn small ok" onClick={studied} disabled={busy}><Icon name="check" /> Studied</button>
         )}
         {!isSection && item.url && (
-          <a className="btn small ghost" href={item.url} target="_blank" rel="noopener noreferrer">Moodle ↗</a>
+          <a className="btn small ghost" href={item.url} target="_blank" rel="noopener noreferrer">Source ↗</a>
         )}
         {onPrefs && (item.section_id || item.deadline_id) && (
           <PrefsMenu state={{ mandatory: item.mandatory, ignored: false }} label={item.title} onChange={onPrefs}

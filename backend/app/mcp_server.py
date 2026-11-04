@@ -35,8 +35,8 @@ for _name in ("mcp.server.streamable_http", "mcp.server.streamable_http_manager"
     logging.getLogger(_name).setLevel(logging.WARNING)
 
 INSTRUCTIONS = """\
-Study Companion holds the student's Moodle courses: sections, activities, deadlines and the
-text of course files (PDF, slides, documents, pages). Start with list_courses for course ids.
+Study Companion holds the student's courses from their school's course site (the source):
+sections, activities, deadlines and the text of course files (PDF, slides, documents, pages). Start with list_courses for course ids.
 get_materials lists what a course covers in a period (with file ids and page counts);
 read_file reads a few pages at a time; search_materials finds a topic across files;
 get_deadlines lists what is due; get_catch_up_plan gives a day-by-day plan. Read only what
@@ -287,7 +287,7 @@ def build_server(tools: StudyTools, version: str,
 
     @mcp.tool(annotations=APPEND, structured_output=False)
     async def trigger_sync() -> str:
-        """Start a sync with Moodle now (new files, deadlines and completion). Takes a few
+        """Start a sync with the source site now (new files, deadlines and completion). Takes a few
         minutes; it runs in the background."""
         # Runs in the event loop (not a thread): starting the sync schedules a task.
         return tools.trigger_sync()

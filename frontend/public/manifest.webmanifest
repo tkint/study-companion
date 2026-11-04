@@ -1,7 +1,7 @@
 {
   "name": "Study Companion",
   "short_name": "Study",
-  "description": "Your Moodle courses, deadlines and files",
+  "description": "Your courses, deadlines and files",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
