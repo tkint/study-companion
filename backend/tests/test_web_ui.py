@@ -126,6 +126,7 @@ def test_dashboard_groups_deadlines(client):
     # 2 of 3 tracked activities are complete (the removed one doesn't count)
     assert course["activities_done"] == 2 and course["activities_tracked"] == 3
     assert course["progress"] == pytest.approx(66.7)
+    assert data["stats"]["streak"] == 0 and len(data["stats"]["week"]) == 7
 
 
 def test_mark_done_moves_item_off_overdue(client):
@@ -303,7 +304,7 @@ def test_manifest_follows_the_theme_cookie(settings, tmp_path):
     (dist / "index.html").write_text("<div id=root></div>")
     (dist / "manifest.webmanifest").write_text(json.dumps({
         "name": "Study", "theme_color": "#ffffff", "background_color": "#ffffff",
-        "user_preferences": {"color_scheme_dark": {"theme_color": "#151b26"}},
+        "user_preferences": {"color_scheme_dark": {"theme_color": "#1c1a27"}},
     }))
     app = create_app(replace(settings, frontend_dir=dist))
     with TestClient(app) as c:
@@ -315,7 +316,7 @@ def test_manifest_follows_the_theme_cookie(settings, tmp_path):
 
         c.cookies.set("theme", "dark")
         m = c.get("/manifest.webmanifest").json()
-        assert m["theme_color"] == "#151b26" and m["background_color"] == "#0b0f17"
+        assert m["theme_color"] == "#1c1a27" and m["background_color"] == "#12111a"
         assert "user_preferences" not in m and m["name"] == "Study"
 
         c.cookies.set("theme", "light")
@@ -333,4 +334,4 @@ def test_real_manifest_has_a_dark_variant():
     if not path.is_file():
         pytest.skip("frontend sources not present")
     m = json.loads(path.read_text())
-    assert m["user_preferences"]["color_scheme_dark"]["theme_color"] == "#151b26"
+    assert m["user_preferences"]["color_scheme_dark"]["theme_color"] == "#1c1a27"

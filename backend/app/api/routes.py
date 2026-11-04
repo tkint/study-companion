@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.engine import Engine
 
-from app import reminders, study
+from app import reminders, stats, study
 from app.api import ics, ui
 from app.config import Settings
 from app.db import session
@@ -74,6 +74,7 @@ def register(
         }
         data["version"] = settings.version
         data["study"] = study.overview(engine)
+        data["stats"] = stats.stats(engine, settings.tz)
         plan = Planner(settings, engine).plan(days=7).to_dict()
         data["plan"] = {k: plan[k] for k in ("hours_per_day", "total_minutes", "sections_left",
                                              "sections_done", "late")}

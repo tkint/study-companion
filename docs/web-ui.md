@@ -23,16 +23,28 @@ the app from the home screen and install it again.
 
 ## Today (dashboard)
 
-- **Overdue**: past due, not done, from courses you're enrolled in, due in the last 120 days.
-- **Due in the next 7 days** and **Later**: everything still ahead.
-- **Mark done** hides an item from *Overdue* when Moodle doesn't track it (for example you
-  handed it in on paper). **Undo** reverts it. Items Moodle already marks complete show
-  *done in Moodle*. Your marks survive every resync.
-- **Study today**: today's part of the catch-up plan (below) and how many flashcards are due.
-  **Full plan** opens the whole plan.
-- **Sync now** fetches from Moodle; the page refreshes when the sync ends.
-- **Catch-up progress**: per course, the share of activities you completed, out of those
-  Moodle tracks completion for (Moodle's own course progress when it reports one).
+The home page leads with what you did, not with what is left:
+
+- **Greeting and week strip**: one dot per day of the last 7, filled on the days you studied.
+  A *study day* is any day you marked a deadline done, marked a section studied, reviewed a
+  flashcard, took a quiz (in Claude or here) or Claude saved a summary for you (days follow
+  `TIMEZONE`). The ring shows your average course progress.
+- **Wins**: your streak (study days in a row; a streak that ended yesterday still counts until
+  the end of today), what you got done this week, cards reviewed and your quiz average.
+- **Today's plan**: today's part of the catch-up plan (below) and how many flashcards are due.
+  **Studied** takes a section off the plan. **Full plan** opens the whole plan.
+- **Coming up**: the next items due in 7 days; **Show more** adds the rest of the week and later.
+- **Past items to catch up on** (folded): past due, not done, from courses you're enrolled in,
+  due in the last 120 days. Open it when you want to.
+- **Done** marks an item done when Moodle doesn't track it (for example you handed it in on
+  paper). **Undo** reverts it. Items Moodle already marks complete show *done in Moodle*.
+  Your marks survive every resync.
+- **Sync now** (top right) fetches from Moodle; the page refreshes when the sync ends.
+- **Your courses**: per course, the share of activities you completed, out of those Moodle
+  tracks completion for (Moodle's own course progress when it reports one).
+
+Little wins (a deadline done, a section studied, a review session finished) get a confetti
+burst. With *reduce motion* turned on in your device settings, animations and confetti are off.
 
 All times are shown in your device's time zone.
 

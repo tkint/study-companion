@@ -61,6 +61,7 @@ export interface Dashboard {
   sync: SyncState;
   version: string;
   study: StudyOverview;
+  stats: Stats;
   plan: {
     hours_per_day: number;
     total_minutes: number;
@@ -68,6 +69,28 @@ export interface Dashboard {
     sections_done: number;
     late: number;
     today: PlanDay | null;
+  };
+}
+
+// Positive stats for the home page (backend: app/stats.py).
+export interface Stats {
+  streak: number;
+  best_streak: number;
+  studied_today: boolean;
+  week: { date: string; active: boolean }[];
+  this_week: {
+    deadlines_done: number;
+    sections_studied: number;
+    cards_reviewed: number;
+    quizzes: number;
+    quiz_percent: number | null;
+  };
+  total: {
+    sections_studied: number;
+    cards_learned: number;
+    summaries: number;
+    quizzes: number;
+    deadlines_done: number;
   };
 }
 

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Question, type StudyOverview } from "../api";
 import { Status, useLoad } from "../components/common";
+import { celebrate } from "../components/Confetti";
+import { Icon } from "../components/Icon";
 import { Markdown } from "../components/Markdown";
 import { QuizResults } from "../components/QuizResults";
 import { Reminders } from "../components/Reminders";
@@ -118,11 +120,12 @@ function Session({ cards, course, section, all, onRestart }: {
   useEffect(() => {
     if (card || done === 0 || saved) return;
     setSaved(true);
+    celebrate(null, right / done >= 0.6 ? 140 : 70);
     for (const [cid, [known, total]] of Object.entries(tally)) {
       api.saveResult({ course_id: Number(cid), section_id: section ?? null, score: known, total,
         topic: all ? "Flashcards: practice" : "Flashcards: review" }).catch(() => undefined);
     }
-  }, [card, done, saved, section, all, tally]);
+  }, [card, done, saved, section, all, tally, right]);
 
   const choices = useMemo(() => card?.choices ?? [], [card]);
 
@@ -164,12 +167,16 @@ function Session({ cards, course, section, all, onRestart }: {
     return (
       <>
         <p className="crumbs"><a href={back}>← Back</a></p>
-        <h1>{done ? "Session done" : "Nothing to review"}</h1>
-        {done > 0 ? (
-          <p>You reviewed {done} card{done === 1 ? "" : "s"} and knew {right}. The result is saved with the course.</p>
-        ) : (
-          <p className="muted">No cards are due here right now.</p>
-        )}
+        <div className="done-card">
+          <span className="done-badge"><Icon name={done ? "trophy" : "leaf"} /></span>
+          <h1>{done ? (right / done >= 0.8 ? "Brilliant session!" : right / done >= 0.5 ? "Well done!" : "Good effort!") : "All clear"}</h1>
+          {done > 0 ? (
+            <p>You reviewed {done} card{done === 1 ? "" : "s"} and knew {right}.
+              {right < done && " The ones you missed will come back soon, that's how they stick."} Saved with the course.</p>
+          ) : (
+            <p className="muted">No cards are due here right now. Come back later, or practise them all.</p>
+          )}
+        </div>
         <div className="row">
           {!all && <a className="btn" href={href.study({ course, section, all: true })}>Practise all cards</a>}
           {all && done > 0 && <button className="btn" onClick={onRestart}>Again</button>}

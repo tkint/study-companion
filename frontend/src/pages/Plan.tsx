@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api, type Plan as PlanData, type PlanItem, type PlanSlot } from "../api";
 import { Status, useLoad } from "../components/common";
+import { celebrate } from "../components/Confetti";
+import { Icon } from "../components/Icon";
 import { courseColor, sourceLabel, when } from "../format";
 import { href } from "../router";
 
@@ -26,11 +28,13 @@ export function PlanRow({ item, onStudied }: { item: PlanSlot | PlanItem; onStud
   const slot = "minutes_today" in item ? item : null;
   const [busy, setBusy] = useState(false);
   const isSection = item.kind === "section";
-  async function studied() {
+  async function studied(e: React.MouseEvent<HTMLButtonElement>) {
     if (!item.section_id) return;
+    const button = e.currentTarget;
     setBusy(true);
     try {
       await api.setStudied(item.section_id, true);
+      celebrate(button, 60);
       onStudied?.(item.section_id);
     } finally {
       setBusy(false);
@@ -65,7 +69,7 @@ export function PlanRow({ item, onStudied }: { item: PlanSlot | PlanItem; onStud
       <div className="plan-side">
         <strong>{minutes(slot ? slot.minutes_today : item.minutes)}</strong>
         {isSection && onStudied && (
-          <button className="btn small ghost" onClick={studied} disabled={busy}>Mark studied</button>
+          <button className="btn small ok" onClick={studied} disabled={busy}><Icon name="check" /> Studied</button>
         )}
         {!isSection && item.url && (
           <a className="btn small ghost" href={item.url} target="_blank" rel="noopener noreferrer">Moodle ↗</a>
