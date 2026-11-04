@@ -166,7 +166,7 @@ def test_section_minutes(engine):
 
 def test_plan_orders_by_deadline_and_skips_studied(settings, engine):
     planner = Planner(settings, engine, now=NOW)
-    plan = planner.plan(hours=1, days=5)
+    plan = planner.plan(hours=1, days=5, beyond_target=True)
     kinds = [(s.item.kind, s.item.title) for _, slots in plan.days for s in slots]
     # The overdue quiz first, then the section the assignment needs, then the assignment;
     # Vecteurs is complete in Moodle, Eigen has no deadline so it comes last.
