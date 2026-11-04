@@ -45,7 +45,7 @@ export function DeadlineItem({
           <span className="tag">{sourceLabel(d.source)}</span>
           {d.closed && <span className="tag warn">closed</span>}
           <PrefTags state={d} />
-          {d.done && <span className="tag ok pop">done{d.done_by === "moodle" ? " in Moodle" : ""}</span>}
+          {d.done && <span className="tag ok pop">done{d.done_by === "moodle" ? " at the source" : ""}</span>}
         </div>
         <div className="deadline-when">
           <time dateTime={new Date(d.due_at * 1000).toISOString()}>{when(d.due_at)}</time>
@@ -55,7 +55,7 @@ export function DeadlineItem({
       <div className="deadline-actions">
         {d.url && (
           <a className="btn small ghost" href={d.url} target="_blank" rel="noopener noreferrer">
-            Moodle ↗
+            Source ↗
           </a>
         )}
         {d.done_by !== "moodle" && (

@@ -59,7 +59,7 @@ function FileRow({ f, courseId, moduleUrl }: { f: FileInfo; courseId: number; mo
         {label}
         <span className="muted"> · {FILE_STATUS[f.status] ?? f.status}</span>
         {moduleUrl && (
-          <a href={moduleUrl} target="_blank" rel="noopener noreferrer"> · open in Moodle ↗</a>
+          <a href={moduleUrl} target="_blank" rel="noopener noreferrer"> · open in source ↗</a>
         )}
       </li>
     );
@@ -87,10 +87,10 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
       <div className="module-head">
         <span className="tag">{MOD_LABELS[m.modname] ?? m.modname}</span>
         <span className="module-name">{m.name}</span>
-        {done && <span className="check" title="Completed in Moodle">✓</span>}
+        {done && <span className="check" title="Completed at the source">✓</span>}
         {m.url && (
           <a className="module-link" href={m.url} target="_blank" rel="noopener noreferrer">
-            Moodle ↗
+            Source ↗
           </a>
         )}
       </div>
@@ -315,7 +315,7 @@ export default function Course({ id, section }: { id: number; section?: number }
         })}
         {orphans.length > 0 && (
           <>
-            <h2>Notes for sections no longer in Moodle</h2>
+            <h2>Notes for sections no longer in the source</h2>
             {orphans.map((n) => <AiNote key={n.id} note={n} onDelete={() => deleteNote(n)} />)}
           </>
         )}

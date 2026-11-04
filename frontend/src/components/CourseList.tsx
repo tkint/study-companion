@@ -26,7 +26,7 @@ export function CourseSearch({ value, onChange, autoFocus }: { value: string; on
 export function CourseList({ courses, search = true }: { courses: CourseSummary[]; search?: boolean }) {
   const [query, setQuery] = useState("");
   const shown = useMemo(() => courses.filter((c) => matches(c, query)), [courses, query]);
-  if (!courses.length) return <p className="empty">No courses yet. Run a sync after connecting Moodle.</p>;
+  if (!courses.length) return <p className="empty">No courses yet. Run a sync after connecting your source site.</p>;
   return (
     <>
       {search && <CourseSearch value={query} onChange={setQuery} />}
