@@ -133,5 +133,16 @@ Builds a ready-to-paste prompt for Claude (with the connector from
 - The preview counts the sections, files and pages that match. Large periods are split into
   several prompts so Claude stays within its limits; copy and paste them one after the other.
 
-The templates are Markdown files in `backend/app/prompts/` (placeholders are documented in
-`backend/app/prompts/__init__.py`); edit them to change the wording.
+### Editing the prompt templates
+
+Each goal comes from a Markdown template. To change its wording, open **Settings › Prompt
+templates** (or *Edit the templates* on the prompt builder page), pick a goal and edit the text.
+The editor checks it as you type and only saves a template that still works: the front matter
+(title, description, order, topic) closes, `{{steps}}` is kept, only known placeholders and
+`{{#option}}…{{/option}}` sections are used, and anything written like a call, `name(…)`, is a
+real Study Companion tool. **Reset to built-in** goes back to the default.
+
+Your edits are stored in the database (so they are in the backups and survive updates); the
+built-in templates stay the Markdown files in `backend/app/prompts/` (placeholders are documented
+in `backend/app/prompts/__init__.py`). When an app update changes a built-in template you edited,
+the editor says so and shows the new built-in text next to yours.

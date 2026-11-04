@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { request, ApiError } from "../api";
 import { Status, useLoad } from "../components/common";
 import { when } from "../format";
+import { href } from "../router";
 
 // Types of /api/prompt/* (backend: app/prompts and app/api/prompts.py).
 interface PromptCourse {
@@ -198,7 +199,8 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
         <h1>Prompt builder</h1>
         <p className="muted small">
           Pick a course, a period and a goal, then copy the prompt into Claude (with the Study Companion
-          connector on). Claude reads only the material the prompt names.
+          connector on). Claude reads only the material the prompt names.{" "}
+          <a href={href.templates()}>Edit the templates</a>
         </p>
 
         <fieldset className="field">

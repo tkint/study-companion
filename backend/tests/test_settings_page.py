@@ -45,6 +45,11 @@ def test_settings_requires_login(client):
     assert r.headers["location"] == "/login"
 
 
+def test_settings_links_to_the_template_editor(client):
+    login(client)
+    assert 'href="/#/templates"' in client.get("/settings").text
+
+
 def test_home_points_to_settings_when_not_connected(client):
     login(client)
     r = client.get("/")

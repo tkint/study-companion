@@ -317,3 +317,21 @@ class StudyPrefs(SQLModel, table=True):
     user_id: int = Field(primary_key=True)
     hours_per_day: float = 2.0
     updated_at: int = 0
+
+
+class PromptTemplateEdit(SQLModel, table=True):
+    """Your edited version of a built-in prompt template (``app/prompts/*.md``).
+
+    The whole Markdown text (front matter + body) replaces the file's; deleting the row
+    goes back to the built-in version. ``base_sha`` is the built-in text's hash when you
+    saved, so the UI can tell you when an update changed the default since.
+    """
+
+    __table_args__ = (UniqueConstraint("user_id", "template_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    template_id: str = Field(index=True)
+    text: str = ""
+    base_sha: str = ""
+    updated_at: int = 0
