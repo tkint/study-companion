@@ -8,18 +8,18 @@ from html import escape
 
 # Same design tokens as the React UI (frontend/src/styles.css), so these pages match it.
 _TOKENS_DARK = """
-  --bg: #0b0f17; --surface: #151b26; --text: #e5e7eb; --muted: #9ca3af; --border: #273042;
-  --accent: #60a5fa; --accent-text: #0b0f17; --bad: #f87171; --bad-bg: #2a1215;
-  --warn: #fbbf24; --warn-bg: #2a2110; --ok: #4ade80;
+  --bg: #12111a; --surface: #1c1a27; --text: #ecebf5; --muted: #a19eb5; --border: #2e2b3d;
+  --accent: #a598ff; --accent-text: #12111a; --bad: #ff8a8f; --bad-bg: #2d1619;
+  --warn: #ffc35c; --warn-bg: #2c2312; --ok: #5fd99a;
 """
 
 _STYLE = (
     """
-:root { color-scheme: light; --bg: #f6f7f9; --surface: #ffffff; --text: #111827;
-  --muted: #6b7280; --border: #e5e7eb; --accent: #2563eb; --accent-text: #ffffff;
-  --bad: #dc2626; --bad-bg: #fef2f2; --warn: #b45309; --warn-bg: #fffbeb; --ok: #15803d;
-  --radius: 12px; --topbar: 56px; --tabbar: 60px;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+:root { color-scheme: light; --bg: #f6f5fb; --surface: #ffffff; --text: #1f1d2b;
+  --muted: #6b6880; --border: #e8e5f2; --accent: #6d5dfc; --accent-text: #ffffff;
+  --bad: #d9454f; --bad-bg: #fff1f2; --warn: #b86200; --warn-bg: #fff7eb; --ok: #14935a;
+  --radius: 16px; --topbar: 56px; --tabbar: 60px;
+  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; """
     + _TOKENS_DARK
     + """ } }
@@ -109,7 +109,7 @@ _THEME_JS = """<script>
     if (t === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
     var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-      m.setAttribute("content", dark ? "#151b26" : "#ffffff");
+      m.setAttribute("content", dark ? "#1c1a27" : "#ffffff");
     });
     // Android takes the system bars' colour from the manifest, which reads this cookie.
     try {
@@ -183,7 +183,7 @@ def _page(title: str, body: str, wide: bool = False, nav: str | None = None) -> 
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#151b26" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1c1a27" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">

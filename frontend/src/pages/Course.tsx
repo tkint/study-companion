@@ -11,6 +11,7 @@ import {
   type StudyNote,
 } from "../api";
 import { Progress, Status, useLoad } from "../components/common";
+import { celebrate } from "../components/Confetti";
 import { DeadlineList } from "../components/DeadlineList";
 import { Markdown } from "../components/Markdown";
 import { QuizResults } from "../components/QuizResults";
@@ -159,10 +160,12 @@ function SectionStudy({ section, study, onStudied }: {
   const [busy, setBusy] = useState(false);
   const studied = study.studied.includes(section.id);
   const counts = study.questions[String(section.id)];
-  async function toggle() {
+  async function toggle(e: React.MouseEvent<HTMLButtonElement>) {
+    const button = e.currentTarget;
     setBusy(true);
     try {
       await api.setStudied(section.id, !studied);
+      if (!studied) celebrate(button, 60);
       onStudied(!studied);
     } finally {
       setBusy(false);

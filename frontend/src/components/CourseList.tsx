@@ -39,7 +39,7 @@ export function CourseList({ courses, search = true }: { courses: CourseSummary[
                 <div className="course-name">{c.fullname}</div>
                 <div className="course-meta">
                   <span>{c.shortname}</span>
-                  {c.overdue > 0 && <span className="late">{c.overdue} overdue</span>}
+                  {c.overdue > 0 && <span>{c.overdue} to catch up</span>}
                   {c.upcoming > 0 && <span>{c.upcoming} upcoming</span>}
                 </div>
               </div>
