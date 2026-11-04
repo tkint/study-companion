@@ -257,3 +257,26 @@ def test_settings_page_uses_the_app_layout(client):
     assert '<a href="/settings" aria-current="page">' in html
     assert 'name="theme-color"' in html and "localStorage.getItem(\"theme\")" in html
     assert 'action="/logout"' in html  # signing out lives here now
+
+
+def test_settings_nav_matches_the_web_ui(client):
+    """The server-rendered pages show the same tabs, in the same order, as App.tsx."""
+    import re
+    from pathlib import Path
+
+    app_tsx = Path(__file__).resolve().parents[2] / "frontend" / "src" / "App.tsx"
+    if not app_tsx.is_file():
+        pytest.skip("frontend sources not present")
+    src = app_tsx.read_text()
+    labels = re.findall(r'label: "([^"]+)"', src) + ["Settings"]
+    login(client)
+    html = client.get("/settings").text
+    nav = html[html.index('<nav class="tabs"'):html.index("</nav>")]
+    assert re.findall(r"<span>([^<]+)</span>", nav) == labels
+    assert 'href="/#/study"' in nav and 'href="/#/prompt"' in nav
+
+
+def test_pages_send_the_theme_cookie_and_load_the_manifest_with_it(client):
+    html = client.get("/login").text
+    assert 'rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials"' in html
+    assert 'document.cookie = "theme="' in html

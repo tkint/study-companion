@@ -292,3 +292,44 @@ def test_static_cache_headers_and_spa_shell(settings, tmp_path):
         assert "id=root" in c.get("/").text
         assert "Study Companion" in c.get("/status").text
         assert c.get("/api/dashboard").headers["cache-control"] == "no-store"
+
+
+def test_manifest_follows_the_theme_cookie(settings, tmp_path):
+    import json
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<div id=root></div>")
+    (dist / "manifest.webmanifest").write_text(json.dumps({
+        "name": "Study", "theme_color": "#ffffff", "background_color": "#ffffff",
+        "user_preferences": {"color_scheme_dark": {"theme_color": "#151b26"}},
+    }))
+    app = create_app(replace(settings, frontend_dir=dist))
+    with TestClient(app) as c:
+        r = c.get("/manifest.webmanifest")
+        assert r.headers["content-type"].startswith("application/manifest+json")
+        assert "Cookie" in r.headers["vary"]
+        m = r.json()
+        assert m["theme_color"] == "#ffffff" and "user_preferences" in m  # device theme
+
+        c.cookies.set("theme", "dark")
+        m = c.get("/manifest.webmanifest").json()
+        assert m["theme_color"] == "#151b26" and m["background_color"] == "#0b0f17"
+        assert "user_preferences" not in m and m["name"] == "Study"
+
+        c.cookies.set("theme", "light")
+        assert c.get("/manifest.webmanifest").json()["theme_color"] == "#ffffff"
+
+        c.cookies.set("theme", "<script>")  # anything else: defaults
+        assert c.get("/manifest.webmanifest").json()["theme_color"] == "#ffffff"
+
+
+def test_real_manifest_has_a_dark_variant():
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "frontend" / "public" / "manifest.webmanifest"
+    if not path.is_file():
+        pytest.skip("frontend sources not present")
+    m = json.loads(path.read_text())
+    assert m["user_preferences"]["color_scheme_dark"]["theme_color"] == "#151b26"

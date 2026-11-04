@@ -23,7 +23,9 @@
         }
       } catch (e) {}
     </script>
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- With credentials: the server picks the manifest colours (Android's system bars) from
+         the theme cookie. -->
+    <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Study Companion</title>

@@ -91,7 +91,7 @@ code { font-size: .85em; }
   .theme-switch { margin-left: auto; }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; gap: 0; background: var(--surface);
     border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
-  .tabs a { flex: 1; flex-direction: column; gap: 2px; padding: 8px 0; font-size: .7rem;
+  .tabs a { flex: 1; flex-direction: column; gap: 2px; padding: 8px 0; font-size: .65rem;
     border-radius: 0; min-height: var(--tabbar); justify-content: center; }
   .tabs a[aria-current="page"] { background: transparent; }
   body.app main { padding-bottom: calc(var(--tabbar) + 32px + env(safe-area-inset-bottom)); }
@@ -111,6 +111,11 @@ _THEME_JS = """<script>
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
       m.setAttribute("content", dark ? "#151b26" : "#ffffff");
     });
+    // Android takes the system bars' colour from the manifest, which reads this cookie.
+    try {
+      document.cookie = "theme=" + (t === "system" ? "; max-age=0" : t + "; max-age=31536000") +
+        "; path=/; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : "");
+    } catch (e) {}
     document.querySelectorAll(".theme-switch button").forEach(function (b) {
       b.setAttribute("aria-pressed", String(b.dataset.theme === t));
     });
@@ -132,7 +137,9 @@ _THEME_JS = """<script>
 _ICONS = {
     "today": '<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',
     "courses": '<path d="M4 5h7a3 3 0 013 3v12a2 2 0 00-2-2H4zM20 5h-5a3 3 0 00-3 3"/>',
+    "study": '<path d="M4 7l8-4 8 4-8 4zM8 9v5c0 1.5 2 3 4 3s4-1.5 4-3V9M20 7v6"/>',
     "calendar": '<path d="M4 6h16v14H4zM4 10h16M9 3v5M15 3v5"/>',
+    "prompt": '<path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5"/>',
     "settings": '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
     "light": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     "system": '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
@@ -145,8 +152,10 @@ def _svg(name: str) -> str:
 
 
 def _topbar(active: str) -> str:
+    # Same tabs, in the same order, as the React UI (frontend/src/App.tsx).
     tabs = [("today", "Today", "/#/"), ("courses", "Courses", "/#/courses"),
-            ("calendar", "Calendar", "/#/calendar"), ("settings", "Settings", "/settings")]
+            ("study", "Study", "/#/study"), ("calendar", "Calendar", "/#/calendar"),
+            ("prompt", "Prompt", "/#/prompt"), ("settings", "Settings", "/settings")]
     links = "".join(
         f'<a href="{href}"{" aria-current=\"page\"" if key == active else ""}>{_svg(key)}<span>{label}</span></a>'
         for key, label, href in tabs
@@ -177,7 +186,7 @@ def _page(title: str, body: str, wide: bool = False, nav: str | None = None) -> 
 <meta name="theme-color" content="#151b26" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>{escape(title)}</title>
