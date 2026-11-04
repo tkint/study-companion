@@ -16,8 +16,8 @@ Infomaniak VPS Lite in Geneva.
 | M1 | Moodle sync (courses, contents, files, deadlines, course language), settings page, nightly backups | ✅ v0.2.x |
 | M2 | Web UI: dashboard, course view with PDF viewer, calendar + ICS feed, installable on your phone | ✅ v0.3.0 |
 | M3 | MCP connector (OAuth 2.1), text extraction and search, prompt builder | ✅ v0.4.0 |
-| M4 | Study loop: Claude saves notes, questions and quiz results; flashcards with spaced repetition; rule-based catch-up plan | ✅ this release |
-| M5 | Polish (optional): notifications, study-time tracking, more templates | later |
+| M4 | Study loop: Claude saves notes, questions and quiz results; flashcards with spaced repetition; rule-based catch-up plan | ✅ released |
+| M5 | Polish: reminders (calendar alarms, daily study event, in-app card), study-time tracking, more prompt templates | ✅ this release |
 
 ## Install on a server
 
@@ -36,7 +36,7 @@ Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)**.
 **[docs/web-ui.md](docs/web-ui.md)** covers the dashboard, adding the app to your phone's home
 screen, subscribing to your deadlines from your phone or Outlook calendar, and the prompt
-builder, Claude's notes, study mode (flashcards) and the catch-up plan.
+builder, Claude's notes, study mode (flashcards), study time, reminders and the catch-up plan.
 **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
@@ -128,6 +128,7 @@ the deploy files. Details in [docs/releasing.md](docs/releasing.md).
 backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (client, sync,
                     scheduler), extract/ (text + FTS5 search), materials.py, mcp_tools.py +
                     mcp_server.py (/mcp), auth/oauth*.py (OAuth 2.1), prompts/ (templates),
+                    study.py, study_time.py, reminders.py, planner/,
                     api/ (UI routes, ICS feed, prompt builder)
 backend/tests/      pytest (Moodle responses always mocked)
 frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)

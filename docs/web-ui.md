@@ -79,6 +79,34 @@ cards you miss come back soon. When a session ends, its score is saved as a quiz
 quizzes you and calls `record_quiz_result` with the question ids, those cards are rescheduled
 the same way (right = *Good*, wrong = *Again*).
 
+## Study time
+
+Open it from **Study › Study time** (`#/time`). Tap **Start the timer** when you sit down
+(pick a course or leave *General study*) and **Stop and save** when you're done; the timer
+keeps running if you close the app or lock your phone, since only its start time is kept on
+the device. Forgot the timer? **Add time by hand**. When Claude runs a study session or a
+quiz from the prompt builder, it asks how long you studied and logs it with `log_study_time`.
+
+The page shows today against your daily goal (the catch-up plan's **hours per day**), this
+week (from Monday), your streak of days in a row, the last 14 days as a chart (green bars: goal
+reached), time per course over the last 7 days, and your recent sessions (✕ deletes one). Days
+follow the server's `TIMEZONE`.
+
+## Reminders
+
+There is no push service: reminders arrive as alarms in the calendar feed you subscribe to (see
+below), so your phone notifies you like any other calendar event. Set them on the **Calendar**
+page under **Reminders**:
+
+- **Before each deadline**: up to 3 alarms (1 week, 2 days, 1 day, 2 hours, 1 hour; default
+  1 day and 2 hours). Done deadlines have no alarm.
+- **Daily study reminder** (on by default, 18:00): a "Study time" event for today and the next
+  6 days, at your chosen time, with the minutes the catch-up plan gives that day, its items in
+  the description, and today's flashcards to review. Days with nothing planned have no event.
+
+The **Study** page also shows a short card for today: cards to review, deadlines in the next
+48 hours, and what you studied against what's planned.
+
 ## Catch-up plan
 
 Open it from **Today › Full plan**. It is built by rules, without AI:
@@ -110,7 +138,8 @@ To see deadlines in your phone or Outlook calendar, tap **Show subscription link
 - **Outlook:** *Add calendar → Subscribe from web*, paste the link.
 
 Calendar apps refresh subscriptions on their own schedule (from every few minutes to about
-a day). Each event has a reminder one day before the deadline; done items are prefixed ✓.
+a day). Each deadline has the alarms you chose under **Reminders** (by default one day and two
+hours before); done items are prefixed ✓. The daily study reminders come in the same feed.
 
 The link contains a private token, so anyone with it can read your deadline titles (nothing
 else). If it leaks, tap **New link**: the old one stops working at once and you subscribe
@@ -125,7 +154,10 @@ Builds a ready-to-paste prompt for Claude (with the connector from
 - **Course**: one or more. **Period**: last 2 months, last 4 weeks, until the next deadline,
   the whole course, your own dates, or a section range (one course only).
 - **Goal**: catch-up summary, study plan, explain a topic, quiz me, flashcards, exam prep,
-  understand an assignment, or review saved questions. **Depth**, **time available** and the **language** of the answers
+  understand an assignment, review saved questions, revision sheet (one page to remember),
+  work on my weak spots (from the questions you missed), focused study session (the next item
+  of your plan, step by step, then logs the time), or practice exercises (in the course's
+  style, with hints). **Depth**, **time available** and the **language** of the answers
   (by default the course's language).
 - **Save results to the app** (on by default) adds the write tool calls to the prompt, so
   Claude saves its summaries, questions and quiz scores where the course page and the Study tab
