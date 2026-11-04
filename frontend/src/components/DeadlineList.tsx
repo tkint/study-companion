@@ -4,6 +4,7 @@ import { celebrate } from "./Confetti";
 import { Icon } from "./Icon";
 import { courseColor, fromNow, sourceLabel, when } from "../format";
 import { href } from "../router";
+import { PrefsMenu, PrefTags } from "./Prefs";
 
 export function DeadlineItem({
   d,
@@ -31,7 +32,7 @@ export function DeadlineItem({
   }
 
   return (
-    <li className={`deadline${overdue ? " overdue" : ""}${d.done ? " done" : ""}`}>
+    <li className={`deadline${overdue && d.mandatory && !d.ignored ? " overdue" : ""}${d.done ? " done" : ""}${d.ignored ? " ignored" : ""}`}>
       <span className="swatch" style={{ background: courseColor(d.course_id) }} aria-hidden="true" />
       <div className="deadline-main">
         <div className="deadline-title">{d.name}</div>
@@ -43,11 +44,12 @@ export function DeadlineItem({
           )}
           <span className="tag">{sourceLabel(d.source)}</span>
           {d.closed && <span className="tag warn">closed</span>}
+          <PrefTags state={d} />
           {d.done && <span className="tag ok pop">done{d.done_by === "moodle" ? " in Moodle" : ""}</span>}
         </div>
         <div className="deadline-when">
           <time dateTime={new Date(d.due_at * 1000).toISOString()}>{when(d.due_at)}</time>
-          <span className={overdue ? "late" : "muted"}> · {fromNow(d.due_at)}</span>
+          <span className={overdue && d.mandatory && !d.ignored ? "late" : "muted"}> · {fromNow(d.due_at)}</span>
         </div>
       </div>
       <div className="deadline-actions">
@@ -60,6 +62,10 @@ export function DeadlineItem({
           <button className={`btn small ${d.done ? "ghost" : "ok"}`} onClick={toggle} disabled={busy}>
             {d.done ? "Undo" : <><Icon name="check" /> Done</>}
           </button>
+        )}
+        {!d.done && (
+          <PrefsMenu state={d} label={d.name} save={(p) => api.setDeadlinePrefs(d.id, p)}
+            onChange={(st) => onChange?.({ ...d, ...st, id: d.id })} />
         )}
       </div>
     </li>

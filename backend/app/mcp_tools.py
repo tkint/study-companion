@@ -572,6 +572,11 @@ class StudyTools:
             f"studied; {fmt_minutes(plan.total_minutes)} of work planned.",
         ]
         lines += [f"Note: {n}" for n in plan.notes]
+        if plan.optional_left_out:
+            lines.append(f"Note: {plan.optional_left_out} optional item(s) left out to focus on "
+                         "mandatory work (include_optional=true plans them).")
+        if plan.ignored:
+            lines.append(f"Note: {plan.ignored} item(s) the student chose to ignore are left out.")
         kinds = {"assign": "Assignment", "quiz": "Quiz", "event": "Event"}
         for d, slots in plan.days[:PLAN_DAYS_SHOWN]:
             lines.append("")

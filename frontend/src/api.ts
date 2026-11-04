@@ -18,6 +18,38 @@ export interface Deadline {
   module_id: number | null;
   done: boolean;
   done_by: "moodle" | "you" | null;
+  // Realistic catch-up (backend: app/catchup.py)
+  mandatory: boolean;
+  criticality: "mandatory" | "optional";
+  criticality_by: "auto" | "you";
+  optional_reason: string;
+  ignored: boolean;
+}
+
+// What you chose for a deadline or a section: null criticality = automatic.
+export interface ItemPrefs {
+  ignored?: boolean;
+  criticality?: "mandatory" | "optional" | null;
+}
+
+export interface ItemState {
+  id: number;
+  mandatory: boolean;
+  criticality: "mandatory" | "optional";
+  criticality_by: "auto" | "you";
+  optional_reason: string;
+  ignored: boolean;
+}
+
+export interface CatchUp {
+  target_percent: number;
+  percent: number;
+  reached: boolean;
+  done_items: number;
+  total_items: number;
+  done_minutes: number;
+  total_minutes: number;
+  left_minutes_to_target: number;
 }
 
 export interface CourseSummary {
@@ -68,8 +100,13 @@ export interface Dashboard {
     sections_left: number;
     sections_done: number;
     late: number;
+    target_percent: number;
+    projected_percent: number;
+    optional_left_out: number;
+    ignored: number;
     today: PlanDay | null;
   };
+  catch_up: CatchUp;
 }
 
 // Positive stats for the home page (backend: app/stats.py).
@@ -177,6 +214,8 @@ export interface PlanItem {
   has_summary: boolean;
   questions: number;
   overdue: boolean;
+  mandatory: boolean;
+  catch_up: boolean; // behind (overdue, or needed by nothing upcoming) rather than upcoming
 }
 
 export interface PlanSlot extends PlanItem {
@@ -203,6 +242,13 @@ export interface Plan {
   days: PlanDay[];
   unscheduled: PlanItem[];
   unscheduled_minutes: number;
+  target_percent: number;
+  progress: CatchUp;
+  projected_percent: number;
+  beyond_target: PlanItem[];
+  beyond_target_minutes: number;
+  optional_left_out: number;
+  ignored: number;
 }
 
 export interface FileInfo {
@@ -239,6 +285,10 @@ export interface SectionInfo {
   summary: string;
   visible: boolean;
   modules: ModuleInfo[];
+  mandatory: boolean;
+  criticality: "mandatory" | "optional";
+  criticality_by: "auto" | "you";
+  ignored: boolean;
 }
 
 export interface CourseDetail {
@@ -315,9 +365,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ studied }),
     }),
-  plan: (days = 14, course?: number) => request<Plan>(`/api/plan?days=${days}${course ? `&course=${course}` : ""}`),
+  plan: (days = 14, course?: number, opts: { optional?: boolean; beyond?: boolean } = {}) => {
+    const q = new URLSearchParams({ days: String(days) });
+    if (course) q.set("course", String(course));
+    if (opts.optional) q.set("optional", "1");
+    if (opts.beyond) q.set("beyond", "1");
+    return request<Plan>(`/api/plan?${q}`);
+  },
   setHours: (hours_per_day: number) =>
     request<{ hours_per_day: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ hours_per_day }) }),
+  setTarget: (target_percent: number) =>
+    request<{ target_percent: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ target_percent }) }),
+  setDeadlinePrefs: (id: number, prefs: ItemPrefs) =>
+    request<ItemState>(`/api/deadlines/${id}/prefs`, {
+      method: "POST",
+      body: JSON.stringify(prefs),
+    }),
+  setSectionPrefs: (id: number, prefs: ItemPrefs) =>
+    request<ItemState>(`/api/sections/${id}/prefs`, {
+      method: "POST",
+      body: JSON.stringify(prefs),
+    }),
 };
 
 export function fileUrl(f: Pick<FileInfo, "id" | "filename">, download = false): string {

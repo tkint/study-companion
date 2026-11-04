@@ -10,6 +10,12 @@ Items are ordered by needed-by date, then by grade weight, then by section numbe
 courses without deadlines interleave), and laid out day by day within your hours per day.
 An item that only fits after its date is flagged ``late``; what does not fit in the horizon
 is listed as unscheduled.
+
+Realistic catch-up (``app.catchup``): ignored items are left out entirely and optional ones
+unless asked for; ``needed_by`` only comes from mandatory deadlines. Progress is measured on
+the mandatory work against your target (60% by default): the plan keeps what upcoming
+deadlines need, then backlog items in order until the target is covered, and lists the rest
+as *beyond target*.
 """
 
 from __future__ import annotations
@@ -416,13 +422,6 @@ class Planner:
         if any(s.late for _, slots in schedule for s in slots):
             notes.append("Some items only fit after the deadline they are needed for: add study "
                          "time per day or skip less important sections.")
-        if found.optional_left_out:
-            notes.append(f"{found.optional_left_out} optional item(s) left out to focus on "
-                         "mandatory work.")
-        if beyond:
-            notes.append(f"{len(beyond)} backlog item(s) ({fmt_minutes(sum(i.minutes for i in beyond))}) "
-                         f"are beyond your {progress.target_percent:g}% catch-up target: do them "
-                         "only if you have time left.")
         scheduled_mandatory = {}
         for _, slots in schedule:
             for sl in slots:

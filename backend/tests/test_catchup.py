@@ -108,7 +108,6 @@ def test_progress_and_plan_trimmed_to_target(settings, engine):
     data = plan.to_dict()
     assert data["target_percent"] == 60 and data["beyond_target_minutes"] == 15
     assert all("mandatory" in i and "catch_up" in i for d in data["days"] for i in d["items"])
-    assert any("beyond your 60% catch-up target" in n for n in plan.notes)
 
     catchup.set_target_percent(engine, 100)
     assert not Planner(settings, engine, now=NOW).plan(hours=1, days=5).beyond_target
@@ -121,7 +120,6 @@ def test_plan_leaves_out_optional_and_ignored(settings, engine):
     titles = [s.item.title for _, slots in plan.days for s in slots]
     assert "Devoir 1" not in titles and "Eigen" not in titles
     assert plan.optional_left_out == 1 and plan.ignored == 1
-    assert any("optional item(s) left out" in n for n in plan.notes)
     # Matrices is no longer needed by an upcoming mandatory deadline: it is backlog now.
     matrices = next(s.item for _, slots in plan.days for s in slots if s.item.title == "Matrices")
     assert matrices.catch_up and matrices.needed_by is None
@@ -164,7 +162,8 @@ def test_mcp_tools_focus_on_mandatory(tools, engine):
 
     plan = tools.get_catch_up_plan(hours_per_day=1, days=5)
     assert "mandatory work only" in plan and "Target: catch up 60%" in plan
-    assert "Devoir 1" not in plan
+    assert "Devoir 1" not in plan and "1 optional item(s) left out" in plan
+    assert "2 item(s) the student chose to ignore" in plan
     assert "Devoir 1" in tools.get_catch_up_plan(hours_per_day=1, days=5, include_optional=True)
 
 
@@ -193,10 +192,11 @@ def c(settings, engine):
 
 
 def test_api(c):
-    assert c.post("/api/deadlines/2/prefs", json={"ignored": True},
-                  headers=SAME_ORIGIN).json() == {"id": 2, "ignored": True, "criticality": None}
-    assert c.post("/api/deadlines/1/prefs", json={"criticality": "optional"},
-                  headers=SAME_ORIGIN).json()["criticality"] == "optional"
+    assert c.post("/api/deadlines/2/prefs", json={"ignored": True}, headers=SAME_ORIGIN).json() == {
+        "id": 2, "ignored": True, "mandatory": True, "criticality": "mandatory",
+        "criticality_by": "auto", "optional_reason": ""}
+    out = c.post("/api/deadlines/1/prefs", json={"criticality": "optional"}, headers=SAME_ORIGIN).json()
+    assert out["criticality"] == "optional" and out["criticality_by"] == "you"
     assert c.post("/api/deadlines/1/prefs", json={"criticality": "nope"},
                   headers=SAME_ORIGIN).status_code == 400
     assert c.post("/api/deadlines/1/prefs", json={}, headers=SAME_ORIGIN).status_code == 400

@@ -6,6 +6,7 @@ import {
   type CourseStudy,
   type Deadline,
   type FileInfo,
+  type ItemState,
   type ModuleInfo,
   type SectionInfo,
   type StudyNote,
@@ -13,6 +14,7 @@ import {
 import { Progress, Status, useLoad } from "../components/common";
 import { celebrate } from "../components/Confetti";
 import { DeadlineList } from "../components/DeadlineList";
+import { PrefsMenu, PrefTags } from "../components/Prefs";
 import { Markdown } from "../components/Markdown";
 import { QuizResults } from "../components/QuizResults";
 import { fromNow, size } from "../format";
@@ -113,19 +115,37 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
   );
 }
 
+// Only what is ahead by default; the past (and what you chose to ignore) one tap away.
 function Deadlines({ course, onChange }: { course: CourseDetail; onChange: (d: Deadline) => void }) {
+  const [showPast, setShowPast] = useState(false);
+  const [showIgnored, setShowIgnored] = useState(false);
   const now = Date.now() / 1000;
-  const open = course.deadlines.filter((d) => d.due_at >= now || !d.done);
-  const past = course.deadlines.filter((d) => d.due_at < now && d.done);
+  const visible = course.deadlines.filter((d) => showIgnored || !d.ignored);
+  const upcoming = visible.filter((d) => d.due_at >= now);
+  const past = visible.filter((d) => d.due_at < now);
+  const pastCount = course.deadlines.filter((d) => d.due_at < now && (showIgnored || !d.ignored)).length;
+  const ignoredCount = course.deadlines.filter((d) => d.ignored).length;
   return (
     <section>
       <h2>Deadlines</h2>
-      <DeadlineList items={open} empty="No open deadlines." onChange={onChange} showCourse={false} />
-      {past.length > 0 && (
-        <details className="past">
-          <summary>{past.length} done</summary>
-          <DeadlineList items={past} empty="" onChange={onChange} showCourse={false} />
-        </details>
+      <DeadlineList items={upcoming} empty="Nothing coming up." onChange={onChange} showCourse={false} />
+      {(pastCount > 0 || ignoredCount > 0) && (
+        <div className="view-toggles">
+          {pastCount > 0 && (
+            <label><input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} />
+              Show past ({pastCount})</label>
+          )}
+          {ignoredCount > 0 && (
+            <label><input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} />
+              Show ignored ({ignoredCount})</label>
+          )}
+        </div>
+      )}
+      {showPast && past.length > 0 && (
+        <>
+          <h3 className="small muted">Past</h3>
+          <DeadlineList items={[...past].reverse()} empty="" onChange={onChange} showCourse={false} />
+        </>
       )}
     </section>
   );
@@ -152,10 +172,11 @@ function AiNote({ note, onDelete }: { note: StudyNote; onDelete: () => void }) {
   );
 }
 
-function SectionStudy({ section, study, onStudied }: {
+function SectionStudy({ section, study, onStudied, onPrefs }: {
   section: SectionInfo;
   study: CourseStudy;
   onStudied: (studied: boolean) => void;
+  onPrefs: (s: ItemState) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const studied = study.studied.includes(section.id);
@@ -181,6 +202,7 @@ function SectionStudy({ section, study, onStudied }: {
       <button className={`btn small ${studied ? "ok" : "ghost"}`} onClick={toggle} disabled={busy} aria-pressed={studied}>
         {studied ? "✓ Studied" : "Mark as studied"}
       </button>
+      <PrefsMenu state={section} label={section.name} save={(p) => api.setSectionPrefs(section.id, p)} onChange={onPrefs} />
     </div>
   );
 }
@@ -234,6 +256,10 @@ export default function Course({ id, section }: { id: number; section?: number }
     await api.deleteNote(note.id);
     studyLoad.setData({ ...study, notes: study.notes.filter((n) => n.id !== note.id) });
   }
+  function setSectionState(sectionId: number, st: ItemState) {
+    if (!data) return;
+    setData({ ...data, sections: data.sections.map((x) => (x.id === sectionId ? { ...x, ...st, id: x.id } : x)) });
+  }
   function setStudied(sectionId: number, studied: boolean) {
     if (!study) return;
     studyLoad.setData({
@@ -263,13 +289,15 @@ export default function Course({ id, section }: { id: number; section?: number }
           const note = notes.get(s.id);
           const studied = study?.studied.includes(s.id);
           return (
-            <details key={s.id} id={`section-${s.id}`} className={`section${s.visible ? "" : " hidden"}`}
+            <details key={s.id} id={`section-${s.id}`}
+              className={`section${s.visible ? "" : " hidden"}${s.ignored ? " ignored" : ""}`}
               open={i < 2 || s.id === section}>
               <summary>
                 <span>{s.name}</span>
                 <span className="muted"> {s.modules.length}</span>
                 {note && <span className="tag ai">notes</span>}
                 {studied && <span className="tag ok">studied</span>}
+                <PrefTags state={s} />
               </summary>
               {note && <AiNote note={note} onDelete={() => deleteNote(note)} />}
               {s.summary && <div className="text">{s.summary}</div>}
@@ -278,7 +306,10 @@ export default function Course({ id, section }: { id: number; section?: number }
                   <ModuleRow key={m.id} m={m} courseId={data.id} />
                 ))}
               </ul>
-              {study && <SectionStudy section={s} study={study} onStudied={(v) => setStudied(s.id, v)} />}
+              {study && (
+                <SectionStudy section={s} study={study} onStudied={(v) => setStudied(s.id, v)}
+                  onPrefs={(st) => setSectionState(s.id, st)} />
+              )}
             </details>
           );
         })}

@@ -112,6 +112,21 @@ def resolve(pref: ItemPref | None, auto: bool, reason: str = "") -> dict:
     }
 
 
+def state(engine: Engine, kind: str, item_id: int) -> dict:
+    """The resolved fields (``resolve``) of one deadline or section."""
+    from app.models import Module
+
+    with session(engine) as s:
+        auto, reason = True, ""
+        if kind == "deadline":
+            d = s.get(Deadline, item_id)
+            if d is not None:
+                module = s.get(Module, d.module_id) if d.module_id else None
+                auto, reason = auto_mandatory(d.source, d.name, d.grade,
+                                              module.modname if module else "")
+    return resolve(prefs(engine, kind, [item_id]).get(item_id), auto, reason)
+
+
 def target_percent(engine: Engine) -> float:
     with session(engine) as s:
         row = s.get(CatchUpPrefs, USER)

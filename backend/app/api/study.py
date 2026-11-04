@@ -178,8 +178,7 @@ def register(
             return bad(str(exc))
         if pref is None:
             return not_found()
-        return JSONResponse({"id": item_id, "ignored": pref.ignored_at is not None,
-                             "criticality": pref.criticality or None})
+        return JSONResponse({"id": item_id, **catchup.state(engine, kind, item_id)})
 
     @app.post("/api/deadlines/{deadline_id}/prefs")
     async def deadline_prefs(request: Request, deadline_id: int) -> JSONResponse:
