@@ -44,7 +44,7 @@ the task needs: prefer a few targeted read_file calls over reading every file. A
 language the student asks for. Save your work back to the app so the student finds it in the
 web UI: save_summary for a section summary, save_questions for practice questions and
 flashcards, record_quiz_result after a quiz (get_questions lists saved questions and their
-ids). When quizzing, ask each multiple-choice question with ask_question(question, choices):
+ids), log_study_time when a study session ends. When quizzing, ask each multiple-choice question with ask_question(question, choices):
 the student answers by clicking a choice."""
 
 QUESTION_UI = "ui://study-companion/ask-question.html"
@@ -265,6 +265,17 @@ def build_server(tools: StudyTools, version: str,
         in the app."""
         return await run(tools.record_quiz_result, score, total, course_id, section_id, topic,
                          [i.model_dump() for i in items] if items else None, notes)
+
+    @mcp.tool(annotations=APPEND, structured_output=False)
+    async def log_study_time(
+        minutes: Annotated[int, Field(ge=1, le=720, description="Length of the study session in minutes")],
+        course_id: Annotated[int | None, Field(description="Course the session was about")] = None,
+        note: Annotated[str | None, Field(description="What was studied, a few words")] = None,
+    ) -> str:
+        """Log the study session that just ended (when the student says how long it took,
+        or at the end of a long session). It counts toward their daily goal and streak in
+        the app."""
+        return await run(tools.log_study_time, minutes, course_id, note)
 
     @mcp.tool(annotations=APPEND, structured_output=False)
     async def trigger_sync() -> str:

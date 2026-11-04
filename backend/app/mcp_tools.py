@@ -35,7 +35,7 @@ from app.materials import (
     load_course,
     parse_date,
 )
-from app import study
+from app import study, study_time
 from app.models import Course, Deadline, File, FilePage, FileText, Module, Section
 from app.planner import Planner, fmt_minutes
 
@@ -61,6 +61,7 @@ TOOL_NAMES = (
     "save_summary",
     "save_questions",
     "record_quiz_result",
+    "log_study_time",
     "trigger_sync",
     "ask_question",
 )
@@ -640,6 +641,25 @@ class StudyTools:
         if reviewed:
             out += f" Updated the review schedule of {reviewed} saved question(s)."
         return out + self._ui(f"#/course/{result.course_id}")
+
+    def log_study_time(self, minutes: int, course_id: int | None = None,
+                       note: str | None = None) -> str:
+        """Log the time of the study session that just ended (counts toward the daily goal)."""
+        try:
+            row = study_time.log_time(self.engine, minutes, course_id, None, "claude",
+                                      note or "", now=self.clock())
+        except study_time.TimeError as exc:
+            raise ToolInputError(str(exc)) from None
+        summary = study_time.time_summary(self.engine, self.tz, now=self.clock(), recent=0)
+        goal = summary["goal_minutes_per_day"]
+        out = (f"Logged {fmt_minutes(row.minutes)} of study"
+               + (f" for course {row.course_id}" if row.course_id is not None else "")
+               + f". Today: {fmt_minutes(summary['today_minutes'])}"
+               + (f" of a {fmt_minutes(goal)} goal" if goal else "")
+               + f"; this week: {fmt_minutes(summary['week_minutes'])}")
+        if summary["streak_days"] > 1:
+            out += f"; {summary['streak_days']}-day streak"
+        return out + "." + self._ui("#/time")
 
     def ask_question(self, question: str, choices: list[str], interactive: bool) -> str:
         """Check a multiple-choice question and tell Claude how it reaches the student.

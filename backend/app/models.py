@@ -335,3 +335,17 @@ class PromptTemplateEdit(SQLModel, table=True):
     text: str = ""
     base_sha: str = ""
     updated_at: int = 0
+
+
+class StudyTime(SQLModel, table=True):
+    """Time you spent studying: a timer run in the web UI, a manual entry, or a session
+    Claude logged with ``log_study_time``. ``course_id`` is optional (general study)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    course_id: Optional[int] = Field(default=None, index=True)
+    started_at: int = Field(default=0, index=True)
+    minutes: int = 0
+    source: str = "manual"  # timer, manual or claude
+    note: str = ""
+    created_at: int = 0
