@@ -349,3 +349,14 @@ class StudyTime(SQLModel, table=True):
     source: str = "manual"  # timer, manual or claude
     note: str = ""
     created_at: int = 0
+
+
+class ReminderPrefs(SQLModel, table=True):
+    """Reminder settings (``app.reminders``): alarms on deadlines in the calendar feed, and
+    a daily study reminder (calendar event + in-app banner)."""
+
+    user_id: int = Field(primary_key=True)
+    deadline_alarms: str = "1440,120"  # minutes before the due time, comma separated
+    daily_enabled: bool = True
+    daily_time: str = "18:00"  # local time (TIMEZONE)
+    updated_at: int = 0
