@@ -182,6 +182,33 @@ export interface Plan {
   unscheduled_minutes: number;
 }
 
+// ---- study time (backend: app/study_time.py)
+
+export interface TimeEntry {
+  id: number;
+  course_id: number | null;
+  course_name: string;
+  course_shortname: string;
+  started_at: number;
+  minutes: number;
+  source: "timer" | "manual" | "claude" | string;
+  note: string;
+}
+
+export interface TimeSummary {
+  today: string;
+  today_minutes: number;
+  week_minutes: number;
+  last7_minutes: number;
+  total_minutes: number;
+  goal_minutes_per_day: number;
+  streak_days: number;
+  best_day: { date: string; minutes: number } | null;
+  days: { date: string; minutes: number }[];
+  courses: { course_id: number | null; course_name: string; course_shortname: string; minutes: number }[];
+  recent: TimeEntry[];
+}
+
 export interface FileInfo {
   id: number;
   filename: string;
@@ -293,6 +320,13 @@ export const api = {
       body: JSON.stringify({ studied }),
     }),
   plan: (days = 14, course?: number) => request<Plan>(`/api/plan?days=${days}${course ? `&course=${course}` : ""}`),
+  studyTime: () => request<TimeSummary>("/api/study/time"),
+  logTime: (e: { minutes: number; course_id?: number | null; started_at?: number; note?: string; source: "timer" | "manual" }) =>
+    request<{ entry: { id: number; minutes: number }; summary: TimeSummary }>("/api/study/time", {
+      method: "POST",
+      body: JSON.stringify(e),
+    }),
+  deleteTime: (id: number) => request<{ deleted: number }>(`/api/study/time/${id}`, { method: "DELETE" }),
   setHours: (hours_per_day: number) =>
     request<{ hours_per_day: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ hours_per_day }) }),
 };

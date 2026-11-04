@@ -53,6 +53,7 @@ function Overview({ overview, due }: { overview: StudyOverview; due: number }) {
         </span>
         <span className="row tight">
           {due > 0 && <a className="btn small" href={href.study({ due: true })}>Review all due</a>}
+          <a className="btn small ghost" href={href.time}>⏱ Study time</a>
           <a className="btn small ghost" href={href.plan}>Catch-up plan</a>
         </span>
       </div>
