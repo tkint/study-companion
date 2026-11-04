@@ -507,7 +507,7 @@ def create_app(
 # localStorage). With the device theme, Chrome's dark-mode override applies instead.
 MANIFEST_COLOURS = {
     "light": {"theme_color": "#ffffff", "background_color": "#ffffff"},
-    "dark": {"theme_color": "#151b26", "background_color": "#0b0f17"},
+    "dark": {"theme_color": "#1c1a27", "background_color": "#12111a"},
 }
 
 

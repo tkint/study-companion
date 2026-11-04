@@ -20,7 +20,7 @@ function apply(theme: Theme) {
   else root.setAttribute("data-theme", theme);
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   // Both media-specific metas get the same colour, so a forced theme wins over the device's.
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#151b26" : "#ffffff"));
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#1c1a27" : "#ffffff"));
   // Android colours the installed app's system bars from the manifest, which the server
   // builds from this cookie (see manifest_response in backend/app/main.py).
   try {

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { api, type Deadline } from "../api";
+import { celebrate } from "./Confetti";
+import { Icon } from "./Icon";
 import { courseColor, fromNow, sourceLabel, when } from "../format";
 import { href } from "../router";
 
@@ -16,10 +18,12 @@ export function DeadlineItem({
   const now = Date.now() / 1000;
   const overdue = d.due_at < now && !d.done;
 
-  async function toggle() {
+  async function toggle(e: React.MouseEvent<HTMLButtonElement>) {
+    const button = e.currentTarget;
     setBusy(true);
     try {
       await api.setDone(d.id, !d.done);
+      if (!d.done) celebrate(button, 60);
       onChange?.({ ...d, done: !d.done, done_by: d.done ? null : "you" });
     } finally {
       setBusy(false);
@@ -39,7 +43,7 @@ export function DeadlineItem({
           )}
           <span className="tag">{sourceLabel(d.source)}</span>
           {d.closed && <span className="tag warn">closed</span>}
-          {d.done && <span className="tag ok">done{d.done_by === "moodle" ? " in Moodle" : ""}</span>}
+          {d.done && <span className="tag ok pop">done{d.done_by === "moodle" ? " in Moodle" : ""}</span>}
         </div>
         <div className="deadline-when">
           <time dateTime={new Date(d.due_at * 1000).toISOString()}>{when(d.due_at)}</time>
@@ -53,8 +57,8 @@ export function DeadlineItem({
           </a>
         )}
         {d.done_by !== "moodle" && (
-          <button className="btn small ghost" onClick={toggle} disabled={busy}>
-            {d.done ? "Undo" : "Mark done"}
+          <button className={`btn small ${d.done ? "ghost" : "ok"}`} onClick={toggle} disabled={busy}>
+            {d.done ? "Undo" : <><Icon name="check" /> Done</>}
           </button>
         )}
       </div>
