@@ -1,23 +1,26 @@
 # Releasing
 
-Releases are fully automated from a version tag.
+Releases are fully automated from a version tag. The version is not stored in the code:
+the tag is the version. Merge to `main` as usual, then:
 
-1. Bump `__version__` in `backend/app/__init__.py` (semantic versioning) and merge to `main`.
-2. Tag and push:
+1. Tag the commit to release (semantic versioning) and push the tag:
 
    ```bash
    git tag v0.1.0
    git push origin v0.1.0
    ```
 
-3. `.github/workflows/release.yml` then:
+2. `.github/workflows/release.yml` then:
    - runs the CI workflow (tests, compose/Caddyfile validation, image smoke test),
-   - checks the tag matches `__version__`,
-   - builds the multi-arch image (amd64, arm64) and pushes
+   - builds the multi-arch image (amd64, arm64) with `APP_VERSION=X.Y.Z` baked in and pushes
      `ghcr.io/tkint/study-companion:X.Y.Z`, `:X.Y` and `:latest`,
    - creates a GitHub Release with generated notes and attaches
      `study-companion-deploy.tar.gz` (compose file, `.env.example` with `IMAGE_TAG=latest`,
      Caddyfile, backup script), plus `docker-compose.yml`, `env.example` and `server-setup.md`.
+
+The app reads its version from the `APP_VERSION` environment variable (set in the image from
+the tag) and shows it in `/healthz`, the settings page and the MCP server info. Local runs
+and images built without the build arg report `dev`.
 
 ## First release only: make the image public
 

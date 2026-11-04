@@ -62,4 +62,5 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `cd backend && pip install -e ".[dev]" && pytest` and `cd frontend && npm ci && npm run build`
   before every push.
 - Small commits with clear messages.
-- Version lives in `backend/app/__init__.py`; the release tag must match it.
+- Don't bump a version in code: the release tag `vX.Y.Z` is the version (passed to the image as
+  `APP_VERSION`, read in `backend/app/__init__.py`; `dev` locally).
