@@ -8,6 +8,7 @@ and a health check, and the MCP endpoint for Claude's connector.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import mimetypes
 from contextlib import asynccontextmanager
@@ -500,7 +501,44 @@ def create_app(
     return app
 
 
+# Colours of the installed app's splash screen and system bars, per theme. Android (Chrome)
+# takes the status and navigation bar colours from the manifest's theme_color, not from the
+# page, so the manifest follows the theme picked in the UI (a ``theme`` cookie set next to
+# localStorage). With the device theme, Chrome's dark-mode override applies instead.
+MANIFEST_COLOURS = {
+    "light": {"theme_color": "#ffffff", "background_color": "#ffffff"},
+    "dark": {"theme_color": "#151b26", "background_color": "#0b0f17"},
+}
+
+
+def manifest_for_theme(raw: str, theme: str | None) -> str:
+    try:
+        manifest = json.loads(raw)
+    except ValueError:
+        return raw
+    if not isinstance(manifest, dict):
+        return raw
+    colours = MANIFEST_COLOURS.get(theme or "")
+    if colours:
+        manifest.update(colours)
+        manifest.pop("user_preferences", None)  # a forced theme wins over the device's
+    return json.dumps(manifest)
+
+
+def _manifest_file(path):
+    async def serve(request: Request) -> Response:
+        body = manifest_for_theme(path.read_text(encoding="utf-8"), request.cookies.get("theme"))
+        # Short cache, varying on the cookie, so a theme switch reaches the next manifest check.
+        return Response(body, media_type="application/manifest+json",
+                        headers={"Cache-Control": "no-cache", "Vary": "Cookie"})
+
+    return serve
+
+
 def _static_file(path):
+    if path.name == "manifest.webmanifest":
+        return _manifest_file(path)
+
     async def serve() -> FileResponse:
         headers = {"Cache-Control": "no-cache"} if path.name == "sw.js" else {
             "Cache-Control": "public, max-age=86400"}

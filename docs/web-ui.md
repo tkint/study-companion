@@ -16,6 +16,11 @@ password, and sign out. Removing the saved token asks for confirmation first.
 It then opens full screen like an app. It still needs the network: course data and files are
 never stored on the phone (only the app's own code is cached, so it starts quickly).
 
+The phone's status and navigation bars follow the theme. On Android, Chrome colours them from
+the app's manifest, which it only re-reads now and then (when you open the app, at most about
+once a day): after switching theme, close and reopen the app, and if a bar stays white, remove
+the app from the home screen and install it again.
+
 ## Today (dashboard)
 
 - **Overdue**: past due, not done, from courses you're enrolled in, due in the last 120 days.

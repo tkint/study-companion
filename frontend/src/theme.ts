@@ -21,6 +21,15 @@ function apply(theme: Theme) {
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   // Both media-specific metas get the same colour, so a forced theme wins over the device's.
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#151b26" : "#ffffff"));
+  // Android colours the installed app's system bars from the manifest, which the server
+  // builds from this cookie (see manifest_response in backend/app/main.py).
+  try {
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    const value = theme === "system" ? "; max-age=0" : `${theme}; max-age=31536000`;
+    document.cookie = `theme=${value}; path=/; SameSite=Lax${secure}`;
+  } catch {
+    /* cookies blocked: the manifest keeps its defaults */
+  }
 }
 
 export function useTheme(): [Theme, (t: Theme) => void] {
