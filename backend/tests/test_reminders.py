@@ -96,3 +96,8 @@ def test_reminders_api(settings, engine):
         assert r.status_code == 200 and r.json()["daily_time"] == "08:00"
         body = c.get("/calendar.ics").text
         assert "TRIGGER:-PT3H" in body and "TRIGGER:-P1D" not in body
+
+
+def test_optional_deadlines_have_no_alarm():
+    item = {"id": 1, "source": "assign", "name": "HW", "due_at": NOW + DAY, "mandatory": False}
+    assert "VALARM" not in ics.build_ics([item], now=NOW, alarms=[1440])

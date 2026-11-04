@@ -135,7 +135,7 @@ def build_ics(items: list[dict], now: int | None = None, name: str = "Study dead
             lines.append(f"URL:{d['url']}")
         if d.get("course_name"):
             lines.append(f"CATEGORIES:{_escape(d['course_name'])}")
-        if not d.get("done"):
+        if not d.get("done") and d.get("mandatory", True):
             for lead in alarms:
                 lines += _alarm(title, _lead(lead))
         lines.append("END:VEVENT")

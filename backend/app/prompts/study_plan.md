@@ -12,6 +12,7 @@ Use the Study Companion tools:
 Then, in {{language}}, build a day-by-day study plan{{#time}} for {{time}}{{/time}}:
 - Estimate the reading time of each section from its page counts
 - Order the work by deadline first, then by how much later sections depend on it
+- Plan mandatory work only (leave out what is marked optional or ignored); aim to catch up about {{target}} of the backlog, not all of it, and list what you left out
 - For each day: what to read (file and pages), what to practise, and a 3-question self-check
 {{#deadlines}}- Leave time before each deadline to finish and hand in the work
 {{/deadlines}}{{#completion}}- Leave out activities I already completed (marked ✓ done)

@@ -14,13 +14,6 @@ import { minutes, PlanRow } from "./Plan";
 
 const UP_NEXT = 5;
 
-// Filled in by the catch-up target feature (mandatory work, target %); shown when present.
-interface CatchUp {
-  target_percent: number;
-  percent: number;
-  reached: boolean;
-}
-
 function replace(list: Deadline[], d: Deadline) {
   return list.map((x) => (x.id === d.id ? d : x));
 }
@@ -83,7 +76,7 @@ function cheer(stats: Stats): string {
 }
 
 function overallProgress(data: DashboardData): { value: number; label: string } | null {
-  const catchUp = (data as DashboardData & { catch_up?: CatchUp }).catch_up;
+  const catchUp = data.catch_up;
   if (catchUp && catchUp.target_percent > 0) {
     return {
       value: Math.min(100, (100 * catchUp.percent) / catchUp.target_percent),

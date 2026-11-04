@@ -20,6 +20,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import col, select
 
 from app.api.ui import deadlines as deadline_rows
+from app.catchup import auto_mandatory, prefs, resolve
 from app.config import Settings
 from app.db import session
 from app.extract import index
@@ -198,7 +199,14 @@ class StudyTools:
 
     def _section_text(self, sec: SectionInfo, full: bool, saved: dict | None = None) -> list[str]:
         r = sec.row
-        lines = [f"## Section {r.number}: {r.name} (section_id {r.id})"]
+        head = f"## Section {r.number}: {r.name} (section_id {r.id})"
+        state = resolve(prefs(self.engine, "section", [r.id]).get(r.id), True)
+        if state["ignored"]:
+            head += " · IGNORED by the student (skip it)"
+        elif not state["mandatory"]:
+            head += " · optional"
+        lines = [head]
+        deadline_prefs = prefs(self.engine, "deadline")
         saved_line = self._saved_line(saved)
         if saved_line:
             lines.append(saved_line)
@@ -213,6 +221,12 @@ class StudyTools:
             for d in m.deadlines:
                 if d.due_at:
                     head += f" · {'due' if d.kind == 'due' else 'closes'} {fmt_datetime(d.due_at, self.tz)}"
+                    d_state = resolve(deadline_prefs.get(d.id or 0),
+                                      auto_mandatory(d.source, d.name, d.grade, row.modname)[0])
+                    if d_state["ignored"]:
+                        head += " (ignored)"
+                    elif not d_state["mandatory"]:
+                        head += " (optional)"
             lines.append(head)
             if row.description and (full or row.modname in {"label", "assign"}):
                 limit = DESCRIPTION_CHARS if full else SUMMARY_CHARS
@@ -234,8 +248,9 @@ class StudyTools:
         now = int(self.clock())
         upcoming: dict[int, int] = {}
         overdue: dict[int, int] = {}
-        for d in deadline_rows(self.engine, start=now - 120 * 86400, now=now):
-            if d["course_id"] is None or d["done"]:
+        for d in deadline_rows(self.engine, start=now - 120 * 86400, now=now,
+                               include_ignored=False):
+            if d["course_id"] is None or d["done"] or not d["mandatory"]:
                 continue
             target = upcoming if d["due_at"] >= now else overdue
             target[d["course_id"]] = target.get(d["course_id"], 0) + 1
@@ -261,7 +276,8 @@ class StudyTools:
             if c.lang:
                 bits.append(f"language {c.lang}")
             bits.append(f"{sections.get(c.id, 0)} sections, {files} files, {pages} pages of text")
-            bits.append(f"{upcoming.get(c.id, 0)} upcoming / {overdue.get(c.id, 0)} overdue deadlines")
+            bits.append(f"{upcoming.get(c.id, 0)} upcoming / {overdue.get(c.id, 0)} overdue "
+                        "mandatory deadlines")
             if c.progress is not None:
                 bits.append(f"progress {round(c.progress)}%")
             if not c.enrolled:
@@ -276,9 +292,11 @@ class StudyTools:
         to_date: str | None = None,
         include_done: bool = True,
         page: int = 1,
+        mandatory_only: bool = False,
+        include_ignored: bool = False,
     ) -> str:
         try:
-            start_d = parse_date(from_date, "from_date") or self._today() - timedelta(days=14)
+            start_d = parse_date(from_date, "from_date") or self._today()
             end_d = parse_date(to_date, "to_date") or self._today() + timedelta(days=60)
         except ValueError as exc:
             raise ToolInputError(str(exc)) from None
@@ -288,14 +306,32 @@ class StudyTools:
             self._course(course_id)
         start, end = bounds(start_d, end_d, self.tz)
         now = int(self.clock())
-        items = deadline_rows(self.engine, start, end, course_id=course_id, now=now)
+        items = deadline_rows(self.engine, start, end, course_id=course_id, now=now,
+                              include_ignored=include_ignored)
         if not include_done:
             items = [d for d in items if not d["done"]]
+        optional = sum(1 for d in items if not d["mandatory"])
+        if mandatory_only:
+            items = [d for d in items if d["mandatory"]]
         pages = _page_count(len(items), DEADLINES_PER_PAGE)
         _check_page(page, pages)
         scope = f" in course {course_id}" if course_id is not None else ""
-        head = (f"{len(items)} deadline(s){scope} from {start_d} to {end_d} "
-                f"(times in {self.settings.timezone}, today is {self._today()}).")
+        head = (f"{len(items)} {'mandatory ' if mandatory_only else ''}deadline(s){scope} "
+                f"from {start_d} to {end_d} (times in {self.settings.timezone}, today is "
+                f"{self._today()}).")
+        if optional and not mandatory_only:
+            head += (f" {optional} are optional: focus on the mandatory ones"
+                     " (mandatory_only=true lists only those).")
+        if not include_ignored:
+            head += " Items the student ignored are left out."
+        if from_date is None:
+            past = [d for d in deadline_rows(self.engine, now - 120 * 86400, start,
+                                             course_id=course_id, now=now, include_ignored=False)
+                    if not d["done"] and d["mandatory"] and not d["closed"]]
+            if past:
+                head += (f" Also {len(past)} overdue mandatory deadline(s) before today: "
+                         + _call("get_deadlines", course_id=course_id,
+                                 from_date=str(self._today() - timedelta(days=120))) + ".")
         if not items:
             return head
         lines = [head]
@@ -308,7 +344,10 @@ class StudyTools:
         for d in items[(page - 1) * DEADLINES_PER_PAGE: page * DEADLINES_PER_PAGE]:
             state = "done" if d["done"] else ("OVERDUE" if d["due_at"] < now else "to do")
             line = (f"- {fmt_datetime(d['due_at'], self.tz)} · {d['course_name'] or 'no course'}"
-                    f" · {kinds.get(d['source'], d['source'])}: {d['name']} · {state}")
+                    f" · {kinds.get(d['source'], d['source'])}: {d['name']} · {state}"
+                    f" · {d['criticality']}")
+            if d["ignored"]:
+                line += " · ignored by the student"
             if d["grade"]:
                 line += f" · max grade {d['grade']:g}"
             if d["module_id"]:
@@ -320,7 +359,9 @@ class StudyTools:
         if page < pages:
             lines.append(f"Page {page} of {pages}. Next: " + _call(
                 "get_deadlines", course_id=course_id, from_date=str(start_d), to_date=str(end_d),
-                include_done=None if include_done else False, page=page + 1))
+                include_done=None if include_done else False,
+                mandatory_only=True if mandatory_only else None,
+                include_ignored=True if include_ignored else None, page=page + 1))
         return "\n".join(lines)
 
     def get_materials(
@@ -500,7 +541,8 @@ class StudyTools:
         return f" The student sees it at {self.base_url}/{path}." if self.base_url else ""
 
     def get_catch_up_plan(self, course_id: int | None = None, hours_per_day: float | None = None,
-                          days: int = 14, from_date: str | None = None) -> str:
+                          days: int = 14, from_date: str | None = None,
+                          include_optional: bool = False, beyond_target: bool = False) -> str:
         if course_id is not None:
             self._course(course_id)
         if hours_per_day is not None and not (0.25 <= hours_per_day <= 16):
@@ -512,16 +554,30 @@ class StudyTools:
         except ValueError as exc:
             raise ToolInputError(str(exc)) from None
         plan = Planner(self.settings, self.engine, now=self.clock()).plan(
-            course_id, hours_per_day, days, start)
+            course_id, hours_per_day, days, start, include_optional=include_optional,
+            beyond_target=beyond_target)
         scope = f" for course {course_id}" if course_id is not None else ""
+        prog = plan.progress
+        assert prog is not None
+        focus = "mandatory and optional work" if include_optional else "mandatory work only"
         lines = [
-            f"Catch-up plan{scope} from {plan.today} at {plan.hours_per_day:g} h/day "
+            f"Catch-up plan{scope} from {plan.today} at {plan.hours_per_day:g} h/day, {focus} "
             f"(rule-based: ordered by the deadline each item is needed for, then grade "
             f"weight, then section order; times are estimates from page counts).",
+            f"Target: catch up {prog.target_percent:g}% of the mandatory work (the student's "
+            f"choice; not everything). Done so far: {prog.percent:g}% "
+            f"({prog.done_items} of {prog.total_items} items); with this plan: "
+            f"{plan.projected_percent:g}%."
+            + (" Target reached." if prog.reached else ""),
             f"{plan.sections_left} section(s) left, {plan.sections_done} done or marked "
-            f"studied; {fmt_minutes(plan.total_minutes)} of work in total.",
+            f"studied; {fmt_minutes(plan.total_minutes)} of work planned.",
         ]
         lines += [f"Note: {n}" for n in plan.notes]
+        if plan.optional_left_out:
+            lines.append(f"Note: {plan.optional_left_out} optional item(s) left out to focus on "
+                         "mandatory work (include_optional=true plans them).")
+        if plan.ignored:
+            lines.append(f"Note: {plan.ignored} item(s) the student chose to ignore are left out.")
         kinds = {"assign": "Assignment", "quiz": "Quiz", "event": "Event"}
         for d, slots in plan.days[:PLAN_DAYS_SHOWN]:
             lines.append("")
@@ -560,6 +616,14 @@ class StudyTools:
                          f"{fmt_minutes(mins)}: " + "; ".join(
                              f"{i.course_short or i.course_name} {i.title}"
                              for i in plan.unscheduled[:15]))
+        if plan.beyond_target:
+            lines.append("")
+            lines.append(f"Beyond the target (only if time is left; beyond_target=true plans them): "
+                         f"{len(plan.beyond_target)} item(s), "
+                         f"{fmt_minutes(sum(i.minutes for i in plan.beyond_target))}: " + "; ".join(
+                             f"{i.course_short or i.course_name} {i.title}"
+                             + (f" (section_id {i.section_id})" if i.section_id else "")
+                             for i in plan.beyond_target[:15]))
         if not plan.days and not plan.unscheduled:
             lines.append("Nothing left to catch up on.")
         return "\n".join(lines)

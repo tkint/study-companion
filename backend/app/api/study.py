@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
-from app import study, study_time
+from app import catchup, study, study_time
 from app.config import Settings
 from app.db import session
 from app.models import Course
@@ -137,21 +137,57 @@ def register(
         if not is_authenticated(request):
             return unauthorized()
         days = int_param(request, "days") or 14
+        flag = lambda name: request.query_params.get(name) == "1"  # noqa: E731
         return JSONResponse(Planner(settings, engine).plan(
-            int_param(request, "course"), days=min(max(days, 1), 90)).to_dict())
+            int_param(request, "course"), days=min(max(days, 1), 90),
+            include_optional=flag("optional"), beyond_target=flag("beyond")).to_dict())
 
     @app.post("/api/plan/settings")
     async def plan_settings(request: Request) -> JSONResponse:
+        """``{"hours_per_day": 2}`` and/or ``{"target_percent": 60}``."""
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        data = await body(request) or {}
+        hours, target = data.get("hours_per_day"), data.get("target_percent")
+        if hours is None and target is None:
+            return bad('send {"hours_per_day": 2} or {"target_percent": 60}')
+        out: dict = {}
+        try:
+            if hours is not None:
+                if not isinstance(hours, (int, float)) or isinstance(hours, bool):
+                    return bad('send {"hours_per_day": 2}')
+                out["hours_per_day"] = study.set_hours_per_day(engine, float(hours))
+            if target is not None:
+                out["target_percent"] = catchup.set_target_percent(engine, target)
+        except (study.StudyError, catchup.PrefError) as exc:
+            return bad(str(exc))
+        return JSONResponse(out)
+
+    async def set_pref(request: Request, kind: str, item_id: int) -> JSONResponse:
         if not is_authenticated(request) or not same_origin(request):
             return unauthorized()
         data = await body(request)
-        hours = data.get("hours_per_day") if data else None
-        if not isinstance(hours, (int, float)) or isinstance(hours, bool):
-            return bad('send {"hours_per_day": 2}')
+        if not data or not ({"ignored", "criticality"} & data.keys()):
+            return bad('send {"ignored": true|false} and/or '
+                       '{"criticality": "mandatory"|"optional"|null}')
         try:
-            return JSONResponse({"hours_per_day": study.set_hours_per_day(engine, float(hours))})
-        except study.StudyError as exc:
+            pref = catchup.set_pref(engine, kind, item_id,
+                                    ignored=data.get("ignored", catchup.UNSET),
+                                    criticality=data.get("criticality", catchup.UNSET))
+        except catchup.PrefError as exc:
             return bad(str(exc))
+        if pref is None:
+            return not_found()
+        return JSONResponse({"id": item_id, **catchup.state(engine, kind, item_id)})
+
+    @app.post("/api/deadlines/{deadline_id}/prefs")
+    async def deadline_prefs(request: Request, deadline_id: int) -> JSONResponse:
+        """Ignore a deadline or set it mandatory / optional (null: automatic)."""
+        return await set_pref(request, "deadline", deadline_id)
+
+    @app.post("/api/sections/{section_id}/prefs")
+    async def section_prefs(request: Request, section_id: int) -> JSONResponse:
+        return await set_pref(request, "section", section_id)
 
     # ------------------------------------------------------------------ study time
 

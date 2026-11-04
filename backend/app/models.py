@@ -337,6 +337,37 @@ class PromptTemplateEdit(SQLModel, table=True):
     updated_at: int = 0
 
 
+# ------------------------------------------------------------------ M5: realistic catch-up
+
+
+class ItemPref(SQLModel, table=True):
+    """Your call on a deadline or a section: ignore it, or override whether it is mandatory.
+
+    ``kind`` is ``deadline`` (``item_id`` = Deadline.id) or ``section`` (Section.id). No
+    foreign key on purpose, like the study rows: a resync never drops your choices.
+    ``criticality`` is empty for *automatic* (``app.catchup.auto_mandatory``).
+    """
+
+    __table_args__ = (UniqueConstraint("user_id", "kind", "item_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    kind: str = Field(index=True)
+    item_id: int = Field(index=True)
+    criticality: str = ""  # "", mandatory, optional
+    ignored_at: Optional[int] = None
+    updated_at: int = 0
+
+
+class CatchUpPrefs(SQLModel, table=True):
+    """How much of the backlog you aim to catch up (a separate table from StudyPrefs so
+    existing databases need no migration)."""
+
+    user_id: int = Field(primary_key=True)
+    target_percent: float = 60.0
+    updated_at: int = 0
+
+
 class StudyTime(SQLModel, table=True):
     """Time you spent studying: a timer run in the web UI, a manual entry, or a session
     Claude logged with ``log_study_time``. ``course_id`` is optional (general study)."""

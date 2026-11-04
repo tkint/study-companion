@@ -47,8 +47,12 @@ def test_list_courses(tools):
 def test_get_deadlines(tools):
     out = tools.get_deadlines()
     assert "Devoir 1" in out and "to do" in out and "max grade 20" in out
-    assert "Quiz 1" in out and "OVERDUE" in out
-    only = tools.get_deadlines(course_id=11)
+    # Only the future by default, with a pointer to the overdue mandatory work.
+    assert "Quiz 1" not in out
+    assert "1 overdue mandatory deadline(s) before today" in out
+    past = tools.get_deadlines(from_date=day(-14))
+    assert "Quiz 1" in past and "OVERDUE" in past and "· mandatory" in past
+    only = tools.get_deadlines(course_id=11, from_date=day(-14))
     assert "Devoir 1" not in only and "Quiz 1" in only
     assert "0 deadline(s)" in tools.get_deadlines(from_date=day(30), to_date=day(40))
     with pytest.raises(ToolInputError):

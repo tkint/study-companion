@@ -2,6 +2,7 @@
 and a "today" read model for the in-app banner.
 
 - Deadlines get one VALARM per lead time (default 1 day and 2 hours before), until done.
+  Ignored deadlines are not in the feed; optional ones are, but without alarms.
 - A daily "study session" event at your reminder time for today and the next days, with
   the catch-up plan's minutes and items for that day and the flashcards due. Calendar apps
   show its alarm as a phone notification.
@@ -122,7 +123,8 @@ def daily_sessions(engine: Engine, settings: Settings, now: int, days: int = DAI
 def today(engine: Engine, settings: Settings, now: float | None = None) -> dict:
     """The in-app reminder banner: what is worth doing today, in a friendly order."""
     ts = int(now if now is not None else time.time())
-    soon = [d for d in ui.deadlines(engine, start=ts, end=ts + SOON, now=ts) if not d["done"]]
+    soon = [d for d in ui.deadlines(engine, start=ts, end=ts + SOON, now=ts, include_ignored=False)
+            if not d["done"] and d.get("mandatory", True)]
     sessions = daily_sessions(engine, settings, ts, days=1)
     tsum = study_time.time_summary(engine, settings.tz, now=ts, recent=0)
     return {
