@@ -1,0 +1,37 @@
+# The edge: one Caddy that owns ports 80 and 443 and serves every app on the server over HTTPS.
+# Shared unchanged by study-companion and coach-poulpy; install only one copy in ~/edge.
+# Each app joins the `edge` network and drops one file in sites/. See the app's deployment guide.
+#   docker network create edge    # once per server
+#   docker compose up -d
+
+name: edge
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      # Certificates and keys: keep this volume, or Caddy asks for new certificates.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  # Created once with `docker network create edge`, so no project owns it and restarting one
+  # never cuts the others off.
+  edge:
+    external: true
+    name: edge
+
+volumes:
+  caddy-data:
+  caddy-config:

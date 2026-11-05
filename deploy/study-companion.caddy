@@ -1,7 +1,7 @@
-# Caddy obtains and renews the HTTPS certificate for {$DOMAIN} automatically.
-# DOMAIN must point (DNS A/AAAA record) to this server, and ports 80 and 443 must be open.
+# Copy into ~/edge/sites/ and replace study.example.ch with DOMAIN from the app's .env.
+# The edge is independent of the app and does not read its environment.
 
-{$DOMAIN} {
+study.example.ch {
 	encode zstd gzip
 
 	header {
@@ -29,5 +29,5 @@
 		}
 	}
 
-	reverse_proxy app:8000
+	reverse_proxy study-companion-app:8000
 }

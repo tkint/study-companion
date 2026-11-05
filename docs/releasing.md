@@ -16,7 +16,8 @@ the tag is the version. Merge to `main` as usual, then:
      `ghcr.io/tkint/study-companion:X.Y.Z`, `:X.Y` and `:latest`,
    - creates a GitHub Release with generated notes and attaches
      `study-companion-deploy.tar.gz` (compose file, `.env.example` with `IMAGE_TAG=latest`,
-     Caddyfile, backup script), plus `docker-compose.yml`, `env.example` and `server-setup.md`.
+     shared `deploy/edge/` project, `deploy/study-companion.caddy`, backup script),
+     plus `docker-compose.yml`, `env.example` and `server-setup.md`.
 
 The app reads its version from the `APP_VERSION` environment variable (set in the image from
 the tag) and shows it in `/healthz`, the settings page and the MCP server info. Local runs
@@ -58,6 +59,11 @@ under **Settings > Secrets and variables > Actions > Variables > New repository 
 (or as secrets). Then rerun the workflow. It checks required settings before attempting SSH
 and reports missing names without printing their values.
 
-Changes to the Caddyfile or compose file still need the deploy bundle, see
+The workflow updates only Study Companion, not the shared edge or Coach Poulpy.
+Existing installations must complete the
+[one-time Caddy migration](server-setup.md#migrate-the-existing-study-companion-caddy)
+before installing the app-only Compose file.
+
+Changes to the site or compose file still need the deploy bundle, see
 [server-setup.md](server-setup.md#update). If the VPS firewall restricts SSH, allow GitHub-hosted
 runners or use a self-hosted runner on the VPS.

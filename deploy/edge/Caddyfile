@@ -1,0 +1,9 @@
+# The edge's Caddyfile: global options, then one file per app in sites/.
+# Caddy gets and renews each site's HTTPS certificate on its own.
+
+{
+	# An address for the certificate authority's expiry notices.
+	# email ops@example.com
+}
+
+import /etc/caddy/sites/*.caddy

@@ -82,7 +82,7 @@ sudo dpkg-reconfigure -f noninteractive unattended-upgrades
 
 > **Docker and ufw:** ports published by Docker bypass ufw rules. That is fine here because only
 > Caddy publishes ports (80 and 443); the app container publishes none and is reachable only
-> through Caddy on the internal Docker network. Keep the Infomaniak firewall from step 1 as a
+> through Caddy on the shared edge network. Keep the Infomaniak firewall from step 1 as a
 > second layer.
 
 ## 4. Install Docker
@@ -94,6 +94,9 @@ docker compose version
 ```
 
 ## 5. Install the app
+
+If Study Companion is already running with its own Caddy, use the
+[migration below](#migrate-the-existing-study-companion-caddy) instead of this fresh install.
 
 ```bash
 mkdir -p ~/study && cd ~/study
@@ -111,12 +114,54 @@ Fill in `.env`:
 - `SECRET_KEY`: output of `openssl rand -hex 32`
 - `MOODLE_URL`, `MOODLE_TOKEN`: leave them out; you connect Moodle on the Settings page
 
-Start it:
+### Set up the shared edge once
+
+`docker-compose.yml` runs only the app. A separate `edge` project runs Caddy and owns
+ports 80/443 for both Study Companion and Coach Poulpy. Both repositories ship the same
+`deploy/edge/compose.yaml` and `deploy/edge/Caddyfile`: install **one** copy in `~/edge`,
+not one per app. Do not combine it with an app using `docker compose -f ... -f ...`.
+
+Create the shared network once (skip this if `docker network inspect edge` succeeds):
 
 ```bash
+docker network create edge
+```
+
+If `~/edge` is not set up yet and no Caddy owns ports 80/443:
+
+```bash
+cp -r ~/study/deploy/edge ~/edge
+```
+
+If Coach Poulpy already set up `~/edge`, reuse it without overwriting its configuration.
+Install Study Companion's site:
+
+```bash
+cp ~/study/deploy/study-companion.caddy ~/edge/sites/
+nano ~/edge/sites/study-companion.caddy
+# Replace study.example.ch with exactly the DOMAIN in ~/study/.env.
+```
+
+The edge does not read the app's `.env`, so the hostname in the site file must be literal.
+The site keeps Study Companion's security headers and query-string secret redaction, and
+proxies to `study-companion-app:8000`, a unique alias on the shared `edge` network.
+
+Start the app and then the edge:
+
+```bash
+cd ~/study
 docker compose up -d
+cd ~/edge
+docker compose up -d
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 docker compose logs -f caddy   # watch for "certificate obtained successfully", then Ctrl+C
 ```
+
+For Coach Poulpy, start its app-only Compose project, copy its `coach-poulpy.caddy` into
+`~/edge/sites/`, set its hostname and reload this same Caddy. Neither app publishes ports;
+Coach Poulpy's database stays on its private network. Stopping either app project leaves
+Caddy and the other app running. The shared network is for trusted apps on this server;
+containers on it can reach each other's app ports.
 
 Open `https://study-companion.ch` on your phone and sign in. Then open **Settings**, enter
 your Moodle address and paste your token ([docs/moodle-token.md](moodle-token.md) explains how
@@ -131,6 +176,10 @@ Settings page instead.
 Follow [docs/backups.md](backups.md) to back up the data volume with restic every night.
 
 ## Update
+
+For an installation that still has Caddy inside the app project, complete the migration
+below first. Keep using the same app directory and Compose project name so its data volume
+does not change.
 
 **From GitHub:** run the **Deploy** workflow in GitHub Actions; it SSHes into this server and
 updates it, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual).
@@ -159,11 +208,102 @@ curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/stu
 docker compose up -d
 ```
 
+This updates the app files, not the live `~/edge` configuration. When a release changes
+`deploy/study-companion.caddy`, merge the changes into `~/edge/sites/study-companion.caddy`
+while keeping your hostname, then run:
+
+```bash
+cd ~/edge
+docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Manage Caddy upgrades separately from either app: `cd ~/edge && docker compose pull &&
+docker compose up -d`. Never overwrite the live `sites/` folder from a release bundle.
+
 To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run the same
 `pull` and `up -d`.
 
 > The v0.1.0 release bundle shipped `.env.example` with `IMAGE_TAG=0.1.0`, so an `.env`
 > copied from it stays on 0.1.0 until you change that line as shown above.
+
+## Migrate the existing Study Companion Caddy
+
+This is a one-time change with a short HTTPS interruption during the swap. Prepare everything
+before stopping the old Caddy. Back up the app as described in [backups.md](backups.md), keep
+your `.env` and `SECRET_KEY`, and do not run `docker compose down -v`.
+
+These commands assume the existing app is in `~/study` and no separate edge is running yet.
+Keep any existing `COMPOSE_PROJECT_NAME` or `-p` setting when running app commands.
+
+1. While the **old Compose file is still installed**, record Caddy's actual volume names:
+
+   ```bash
+   cd ~/study
+   docker inspect "$(docker compose ps -q caddy)" \
+     --format '{{range .Mounts}}{{println .Destination .Name}}{{end}}'
+   ```
+
+   Note the volumes mounted at `/data` and `/config` (typically `study_caddy-data` and
+   `study_caddy-config`). Save the old Compose file and `deploy/Caddyfile` for rollback.
+
+2. Download the new release bundle into a separate staging directory, not over the running app:
+
+   ```bash
+   mkdir -p ~/study-deploy && cd ~/study-deploy
+   curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
+     | tar xz --strip-components=1
+   docker network inspect edge >/dev/null 2>&1 || docker network create edge
+   cp -r deploy/edge ~/edge
+   cp deploy/study-companion.caddy ~/edge/sites/
+   nano ~/edge/sites/study-companion.caddy
+   # Replace study.example.ch with DOMAIN from ~/study/.env.
+   ```
+
+3. In `~/edge/compose.override.yaml`, reuse the **actual names recorded in step 1**:
+
+   ```yaml
+   volumes:
+     caddy-data:
+       external: true
+       name: study_caddy-data
+     caddy-config:
+       external: true
+       name: study_caddy-config
+   ```
+
+   This keeps certificates and keys in place, rather than copying live certificate data
+   or asking for new certificates. Keep this override; the volumes belong to neither app.
+   Validate before the swap:
+
+   ```bash
+   cd ~/edge
+   docker compose config --quiet
+   docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
+   ```
+
+4. Swap the stacks. Only now stop the old Caddy, then install the app-only Compose file:
+
+   ```bash
+   cd ~/study
+   docker compose stop caddy
+   docker compose rm -f caddy
+   cp ~/study-deploy/docker-compose.yml docker-compose.yml
+   docker compose up -d app
+   cd ~/edge && docker compose up -d
+   ```
+
+   The app service and `app-data` volume keep their existing project identity.
+   Do not run both Caddies against the same certificate volume.
+
+5. Check `https://<DOMAIN>/healthz`, sign in, and check the Claude connector. Inspect
+   `cd ~/edge && docker compose logs caddy` for errors. Then add Coach Poulpy's site to
+   `~/edge/sites/` as above and check its `/health` endpoint.
+
+If the swap fails, stop the new edge (`cd ~/edge && docker compose down`, **without `-v`**),
+restore the old app Compose file and Caddyfile, then run `cd ~/study && docker compose up -d`.
+Keep the old certificate volumes: the edge now actively uses them. Once confirmed, the
+unused `~/study/deploy/Caddyfile` can be removed.
 
 ## Troubleshooting
 
@@ -171,6 +311,10 @@ To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run 
   old version; set it to `latest` (see Update above).
 - **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
   or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
+  Check `cd ~/edge && docker compose logs caddy`.
+- **Network `edge` not found:** create it once with `docker network create edge`.
+- **502 from Caddy:** check the app is running and attached to `edge`; the site's upstream
+  must be `study-companion-app:8000`, not the ambiguous name `app:8000`.
 - **App container restarting:** `docker compose logs app`. A missing or too short
   `SECRET_KEY`, or no `APP_PASSWORD` on the very first start, stops the app with a clear message.
 - **Sync says the token is invalid or expired:** get a new one ([docs/moodle-token.md](moodle-token.md))
