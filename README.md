@@ -7,7 +7,7 @@ LLM API calls; all AI work happens in the Claude apps on your subscription.
 
 The app runs behind a shared Caddy for automatic HTTPS on a small VPS, for example an
 Infomaniak VPS Lite in Geneva. Caddy lives in its own Compose project and can also serve
-Coach Poulpy on the same machine.
+other applications on the same machine.
 
 ## Status
 
@@ -29,8 +29,8 @@ domain at it, install Docker, then:
 curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
   | tar xz --strip-components=1
 cp .env.example .env && chmod 600 .env   # fill in DOMAIN, APP_PASSWORD, SECRET_KEY
-# Set up ~/edge once as described in the server guide, and install deploy/study-companion.caddy.
-docker compose up -d
+python3 deploy/edge/deploy.py --app-dir . \
+  --compose-file docker-compose.yml --site-file deploy/study-companion.caddy
 ```
 
 Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
@@ -43,12 +43,13 @@ builder, Claude's notes, study mode (flashcards), study time, reminders and the 
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
 
-Already deployed with Caddy inside Study Companion? Follow the
-[one-time migration](docs/server-setup.md#migrate-the-existing-study-companion-caddy)
-before replacing the Compose file.
+Already deployed with an app-owned Caddy? The deployer
+[migrates it automatically](docs/server-setup.md#automatic-caddy-migration),
+preserving sites and certificate volumes.
 
 Updates: run the **Deploy** workflow from GitHub Actions (see
-[docs/releasing.md](docs/releasing.md)). Manually: `docker compose pull && docker compose up -d`.
+[docs/releasing.md](docs/releasing.md)). It uploads current deployment files, updates the
+app's site, and starts or reloads the shared Caddy. The same deployer handles manual updates.
 
 ## Configuration
 
@@ -59,7 +60,7 @@ you never edit `.env` to change them.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DOMAIN` | yes | Public hostname, e.g. `study-companion.ch`. Also set it in the edge's `sites/study-companion.caddy`. |
+| `DOMAIN` | yes | Public hostname, e.g. `study-companion.ch`. Deployment renders it into the shared edge's site file. |
 | `SECRET_KEY` | yes | 32+ characters; `openssl rand -hex 32`. Signs sessions and encrypts the Moodle token: rotating it signs you out and means pasting the token again. |
 | `APP_PASSWORD` | first start | Initial web UI password, 12+ characters. Ignored once set; change it on the Settings page. |
 | `IMAGE_TAG` | no | Image version to run (default `latest`). |
@@ -119,16 +120,13 @@ Full stack locally (Caddy issues a local certificate for `localhost`):
 ```bash
 docker build -f docker/Dockerfile -t ghcr.io/tkint/study-companion:latest .
 cp .env.example .env   # set DOMAIN=localhost, APP_PASSWORD, SECRET_KEY
-docker network create edge   # skip if it already exists
-mkdir -p deploy/edge/sites
-sed 's/^study.example.ch {/localhost {/' deploy/study-companion.caddy > deploy/edge/sites/study-companion.caddy
-docker compose up -d
-docker compose -f deploy/edge/compose.yaml up -d
+docker pull caddy:2
+python3 deploy/edge/deploy.py --app-dir . --no-pull \
+  --compose-file docker-compose.yml --site-file deploy/study-companion.caddy
 curl -k https://localhost/healthz
 ```
 
-Run only one edge project per host. If Caddy already runs in `~/edge`, put the local site
-there and reload that instance instead.
+Run only one edge project per host. The deployer reuses it and preserves other sites.
 
 ## Releases
 

@@ -1,7 +1,6 @@
-# Copy into ~/edge/sites/ and replace study.example.ch with DOMAIN from the app's .env.
-# The edge is independent of the app and does not read its environment.
+# deploy.py renders DOMAIN from the app's .env into the shared edge's sites/ folder.
 
-study.example.ch {
+{$DOMAIN} {
 	encode zstd gzip
 
 	header {

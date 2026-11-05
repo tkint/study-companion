@@ -52,9 +52,11 @@ jobs:
       - name: Validate shared Caddy and Study Companion site
         run: |
           cp deploy/study-companion.caddy deploy/edge/sites/
-          docker run --rm -v "$PWD/deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro" \
+          docker run --rm -e DOMAIN=study.example.ch -v "$PWD/deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro" \
             -v "$PWD/deploy/edge/sites:/etc/caddy/sites:ro" caddy:2 \
             caddy validate --config /etc/caddy/Caddyfile
+      - name: Test shared-edge deployments and legacy migration
+        run: EDGE_INTEGRATION_TESTS=1 python3 -m unittest discover -s deploy/edge -p 'test_*.py' -v
       - uses: docker/setup-buildx-action@v3
       - name: Build image (no push)
         uses: docker/build-push-action@v6
@@ -80,40 +82,17 @@ jobs:
           curl -fsS http://127.0.0.1:8000/.well-known/oauth-authorization-server | grep -q code_challenge_methods_supported
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/mcp)" = 401
           docker exec msc python -c "import app.prompts as p; assert len(p.load_templates()) >= 7"
-      - name: Check shared edge routing and app isolation
+      - name: Deploy the built app behind Caddy
         run: |
-          docker network create edge
           docker tag study-companion:ci ghcr.io/tkint/study-companion:edge-ci
-          export IMAGE_TAG=edge-ci
-          printf '\nSECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
-          # Use HTTP only in this test, without requesting public certificates.
-          sed 's/^study.example.ch {/http:\/\/study.example.ch {/' \
-            deploy/study-companion.caddy > deploy/edge/sites/study-companion.caddy
-          printf 'http://coach.example.ch {\n reverse_proxy coach-poulpy-server:8080\n}\n' \
-            > deploy/edge/sites/coach-poulpy.caddy
-          # Stand-in for a second, independently managed app on the same network.
-          docker run -d --name other-app --network edge --network-alias coach-poulpy-server \
-            caddy:2 caddy respond --listen :8080 --body coach-poulpy
-          docker compose up -d
-          docker compose -f deploy/edge/compose.yaml up -d
+          printf '\nDOMAIN=localhost\nSECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
+          python3 deploy/edge/deploy.py --app-dir . --edge-dir "$RUNNER_TEMP/edge" \
+            --compose-file docker-compose.yml --site-file deploy/study-companion.caddy \
+            --version edge-ci --no-pull
           for _ in $(seq 30); do
-            if docker compose -f deploy/edge/compose.yaml exec -T caddy \
-              wget -qO- --header='Host: study.example.ch' http://127.0.0.1/healthz; then break; fi
+            if docker compose -f "$RUNNER_TEMP/edge/compose.yaml" exec -T caddy \
+              wget --no-check-certificate -qO- https://localhost/healthz; then break; fi
             sleep 1
           done
-          docker compose -f deploy/edge/compose.yaml exec -T caddy \
-            wget -qO- --header='Host: study.example.ch' http://127.0.0.1/healthz
-          test "$(docker compose -f deploy/edge/compose.yaml exec -T caddy \
-            wget -qO- --header='Host: coach.example.ch' http://127.0.0.1/health)" = coach-poulpy
-          docker compose down
-          test "$(docker compose -f deploy/edge/compose.yaml exec -T caddy \
-            wget -qO- --header='Host: coach.example.ch' http://127.0.0.1/health)" = coach-poulpy
-          docker compose up -d
-          docker rm -f other-app
-          for _ in $(seq 30); do
-            if docker compose -f deploy/edge/compose.yaml exec -T caddy \
-              wget -qO- --header='Host: study.example.ch' http://127.0.0.1/healthz; then break; fi
-            sleep 1
-          done
-          docker compose -f deploy/edge/compose.yaml exec -T caddy \
-            wget -qO- --header='Host: study.example.ch' http://127.0.0.1/healthz
+          docker compose -f "$RUNNER_TEMP/edge/compose.yaml" exec -T caddy \
+            wget --no-check-certificate -qO- https://localhost/healthz

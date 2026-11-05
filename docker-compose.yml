@@ -1,5 +1,5 @@
 # Study Companion only. HTTPS comes from the shared edge project in deploy/edge/.
-# Set up the edge first (docs/server-setup.md), then `docker compose up -d`.
+# Use deploy/edge/deploy.py to install/update both projects (docs/server-setup.md).
 
 services:
   app:
@@ -24,7 +24,7 @@ services:
 networks:
   edge:
     external: true
-    name: edge
+    name: ${EDGE_NETWORK:-edge}
 
 volumes:
   app-data:

@@ -34,7 +34,8 @@ so the VPS can pull without credentials, or keep it private and run
 
 Releasing only publishes the image. To roll it out, open GitHub > Actions > **Deploy** >
 **Run workflow** and pick the tag (`latest` or e.g. `0.5.0`). The workflow SSHes into the
-server and runs `docker compose pull && docker compose up -d` (`.github/workflows/deploy.yml`).
+server, uploads the current deployment files and runs the shared-edge deployer
+(`.github/workflows/deploy.yml`).
 No cron and no extra service on the server. A version other than `latest` only applies to
 that run; to stay on it permanently, set `IMAGE_TAG` in the server's `.env`.
 
@@ -45,7 +46,8 @@ that run; to stay on it permanently, set `IMAGE_TAG` in the server's `.env`.
    - secret `DEPLOY_SSH_KEY`: contents of the private key `deploy_key`,
    - variables `DEPLOY_HOST` (domain or IP), `DEPLOY_USER`, `DEPLOY_HOST_KEY` (output of
      `ssh-keyscan -t ed25519 <host>`),
-   - optional variables `DEPLOY_PORT` (default 22) and `DEPLOY_DIR` (default `~/study`).
+   - optional variables `DEPLOY_PORT` (default 22), `DEPLOY_DIR` (default `~/study`) and
+     `EDGE_DIR` (default `~/edge`, the same shared directory for every deployment).
 3. The job uses an environment named `production`; add required reviewers to it
    (Settings > Environments) if you want an approval step.
 
@@ -59,11 +61,13 @@ under **Settings > Secrets and variables > Actions > Variables > New repository 
 (or as secrets). Then rerun the workflow. It checks required settings before attempting SSH
 and reports missing names without printing their values.
 
-The workflow updates only Study Companion, not the shared edge or Coach Poulpy.
-Existing installations must complete the
-[one-time Caddy migration](server-setup.md#migrate-the-existing-study-companion-caddy)
-before installing the app-only Compose file.
+The server needs Python 3 and Docker Compose 2.24.4 or newer. Prepare `~/study/.env`
+before the first run. Each deployment installs the app Compose file, updates only this
+app's site, and starts or reloads the shared Caddy, even if the app or Caddy is absent.
+It preserves existing sites and automatically migrates a standard app-owned Docker Caddy,
+including its certificates. The shared edge lock serializes independent deployments.
 
-Changes to the site or compose file still need the deploy bundle, see
+The selected workflow ref supplies the deployment files; the version input selects the
+app image. Manual deployment and migration details:
 [server-setup.md](server-setup.md#update). If the VPS firewall restricts SSH, allow GitHub-hosted
 runners or use a self-hosted runner on the VPS.
