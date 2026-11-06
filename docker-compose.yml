@@ -1,5 +1,5 @@
-# Study Companion only. HTTPS comes from the shared edge project in deploy/edge/.
-# Use deploy/edge/deploy.py to install/update both projects (docs/server-setup.md).
+# Study Companion only. HTTPS comes from the shared Caddy in deploy/caddy/, which reaches the app
+# over the external `edge` network. Deployed by the Deploy workflow (docs/server-setup.md).
 
 name: study
 
@@ -26,7 +26,6 @@ services:
 networks:
   edge:
     external: true
-    name: ${EDGE_NETWORK:-edge}
 
 volumes:
   app-data:

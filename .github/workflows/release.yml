@@ -62,7 +62,7 @@ jobs:
           mkdir -p dist/study-companion/deploy
           cp docker-compose.yml .env.example dist/study-companion/
           cp deploy/study-companion.caddy deploy/backup.sh dist/study-companion/deploy/
-          cp -r deploy/edge dist/study-companion/deploy/
+          cp -r deploy/caddy dist/study-companion/deploy/
           # IMAGE_TAG stays "latest" so `docker compose pull` picks up new releases.
           tar -C dist -czf dist/study-companion-deploy.tar.gz study-companion
           cp docker-compose.yml dist/
