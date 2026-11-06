@@ -54,12 +54,12 @@ export function DeadlineItem({
       </div>
       <div className="deadline-actions">
         {d.url && (
-          <a className="btn small ghost" href={d.url} target="_blank" rel="noopener noreferrer">
+          <a className="btn btn-sm btn-ghost" href={d.url} target="_blank" rel="noopener noreferrer">
             Source ↗
           </a>
         )}
         {d.done_by !== "moodle" && (
-          <button className={`btn small ${d.done ? "ghost" : "ok"}`} onClick={toggle} disabled={busy}>
+          <button className={`btn btn-sm ${d.done ? "btn-ghost" : "btn-success"}`} onClick={toggle} disabled={busy}>
             {d.done ? "Undo" : <><Icon name="check" /> Done</>}
           </button>
         )}

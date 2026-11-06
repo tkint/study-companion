@@ -1,6 +1,7 @@
 import { cp } from "node:fs/promises";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // pdf.js loads fonts, character maps and image decoders at runtime; ship them under /pdfjs.
 function pdfjsAssets(): Plugin {
@@ -21,7 +22,7 @@ const backend = "http://127.0.0.1:8000";
 const proxied = ["/api", "/files", "/login", "/logout", "/settings", "/status", "/calendar.ics", "/healthz"];
 
 export default defineConfig({
-  plugins: [react(), pdfjsAssets()],
+  plugins: [react(), tailwindcss(), pdfjsAssets()],
   build: {
     outDir: "dist",
     // Safari 15+ / Chrome 100+: phones from the last few years.
