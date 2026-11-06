@@ -195,11 +195,11 @@ function SectionStudy({ section, study, onStudied, onPrefs }: {
   return (
     <div className="section-study">
       {counts && counts.questions > 0 && (
-        <a className="btn small" href={href.study({ section: section.id, all: counts.due === 0 })}>
+        <a className="btn btn-primary btn-sm" href={href.study({ section: section.id, all: counts.due === 0 })}>
           {counts.due > 0 ? `Review ${counts.due} card${counts.due === 1 ? "" : "s"}` : `Practise ${counts.questions} cards`}
         </a>
       )}
-      <button className={`btn small ${studied ? "ok" : "ghost"}`} onClick={toggle} disabled={busy} aria-pressed={studied}>
+      <button className={`btn btn-sm ${studied ? "btn-success" : "btn-ghost"}`} onClick={toggle} disabled={busy} aria-pressed={studied}>
         {studied ? "✓ Studied" : "Mark as studied"}
       </button>
       <PrefsMenu state={section} label={section.name} save={(p) => api.setSectionPrefs(section.id, p)} onChange={onPrefs} />
@@ -219,11 +219,11 @@ function StudyPanel({ course, study, onChange }: { course: CourseDetail; study: 
         </span>
         <span className="row tight">
           {study.questions_total > 0 && (
-            <a className="btn small" href={href.study({ course: course.id, all: study.questions_due === 0 })}>
+            <a className="btn btn-primary btn-sm" href={href.study({ course: course.id, all: study.questions_due === 0 })}>
               {study.questions_due > 0 ? "Review due cards" : "Practise all"}
             </a>
           )}
-          <a className="btn small ghost" href={href.prompt(course.id)}>Ask Claude</a>
+          <a className="btn btn-sm btn-ghost" href={href.prompt(course.id)}>Ask Claude</a>
         </span>
       </div>
       {!study.notes.length && !study.questions_total && (

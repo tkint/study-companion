@@ -163,8 +163,8 @@ export default function Time() {
             <div className="time-clock">{clock(now - timer.start)}</div>
             <p className="muted">{timerCourse ? timerCourse.fullname : "General study"} · started {when(Math.floor(timer.start / 1000))}</p>
             <div className="row">
-              <button className="btn" onClick={stop} disabled={busy}>Stop and save</button>
-              <button className="btn ghost" onClick={cancel} disabled={busy}>Discard</button>
+              <button className="btn btn-primary" onClick={stop} disabled={busy}>Stop and save</button>
+              <button className="btn btn-ghost" onClick={cancel} disabled={busy}>Discard</button>
             </div>
           </>
         ) : (
@@ -177,7 +177,7 @@ export default function Time() {
               </select>
             </label>
             <div className="row">
-              <button className="btn wide" onClick={start}>▶ Start the timer</button>
+              <button className="btn btn-primary btn-block" onClick={start}>▶ Start the timer</button>
             </div>
             <p className="muted small-print">The timer keeps running if you close the app.</p>
           </>
@@ -241,7 +241,7 @@ export default function Time() {
             onChange={(e) => setManual({ ...manual, note: e.target.value })} placeholder="e.g. read chapter 3" />
         </label>
         <div className="row">
-          <button className="btn" type="submit" disabled={busy}>Add</button>
+          <button className="btn btn-primary" type="submit" disabled={busy}>Add</button>
         </div>
       </form>
 
@@ -261,7 +261,7 @@ export default function Time() {
                   </small>
                 </span>
                 <strong>{minutesLabel(e.minutes)}</strong>
-                <button className="btn small ghost" onClick={() => remove(e.id)} aria-label="Delete this session">✕</button>
+                <button className="btn btn-sm btn-ghost" onClick={() => remove(e.id)} aria-label="Delete this session">✕</button>
               </li>
             ))}
           </ul>

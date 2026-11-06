@@ -43,7 +43,7 @@ export default function Templates({ id }: { id?: string }) {
         Each goal of the prompt builder comes from one of these templates. Edit one to change the
         prompts it builds; reset it to go back to the built-in version.
       </p>
-      {id && !current && <p className="alert" role="alert">There is no template called “{id}”.</p>}
+      {id && !current && <p className="alert alert-error" role="alert">There is no template called “{id}”.</p>}
       <ul className="template-list">
         {data.templates.map((t) => (
           <li key={t.id}>
@@ -149,21 +149,21 @@ function Editor({ template, list, onSaved }: {
       />
 
       {problems.length > 0 && (
-        <ul className="alert template-problems" role="alert">
+        <ul className="alert alert-error template-problems" role="alert">
           {problems.map((p) => <li key={p}>{p}</li>)}
         </ul>
       )}
-      {saveError && problems.length === 0 && <p className="alert" role="alert">{saveError}</p>}
+      {saveError && problems.length === 0 && <p className="alert alert-error" role="alert">{saveError}</p>}
       {message && !dirty && <p className="muted small" role="status">{message}</p>}
 
       <div className="row template-actions">
-        <button className="btn" type="button" disabled={busy || !dirty || problems.length > 0} onClick={save}>
+        <button className="btn btn-primary" type="button" disabled={busy || !dirty || problems.length > 0} onClick={save}>
           Save
         </button>
-        <button className="btn ghost" type="button" disabled={busy || !dirty} onClick={() => setText(template.text)}>
+        <button className="btn btn-ghost" type="button" disabled={busy || !dirty} onClick={() => setText(template.text)}>
           Undo changes
         </button>
-        <button className="btn ghost" type="button" disabled={busy || !template.edited} onClick={reset}>
+        <button className="btn btn-ghost" type="button" disabled={busy || !template.edited} onClick={reset}>
           Reset to built-in
         </button>
       </div>
@@ -194,7 +194,7 @@ function Editor({ template, list, onSaved }: {
           <summary>Built-in version</summary>
           <pre className="prompt-text">{template.default_text}</pre>
           <div className="row">
-            <button className="btn ghost small" type="button" onClick={() => setText(template.default_text)}>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setText(template.default_text)}>
               Copy into the editor
             </button>
           </div>

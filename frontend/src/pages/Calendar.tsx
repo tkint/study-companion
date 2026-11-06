@@ -50,7 +50,7 @@ export default function Calendar() {
   return (
     <>
       <h1>Calendar</h1>
-      {error && <p className="alert">Could not load deadlines: {error}</p>}
+      {error && <p className="alert alert-error">Could not load deadlines: {error}</p>}
       <div className="calendar">
         <FullCalendar
           ref={ref}
@@ -82,7 +82,7 @@ export default function Calendar() {
                 }}
               />
             </ul>
-            <button className="btn ghost wide" onClick={() => setSelected(null)}>
+            <button className="btn btn-ghost btn-block" onClick={() => setSelected(null)}>
               Close
             </button>
           </div>
@@ -132,16 +132,16 @@ function Subscribe() {
       </p>
       {!feed ? (
         <div className="row">
-          <button className="btn" onClick={show}>Show subscription link</button>
-          <a className="btn ghost" href="/calendar.ics?download=1">Download .ics</a>
+          <button className="btn btn-primary" onClick={show}>Show subscription link</button>
+          <a className="btn btn-ghost" href="/calendar.ics?download=1">Download .ics</a>
         </div>
       ) : (
         <>
           <input className="feed-url" readOnly value={feed.url} onFocus={(e) => e.currentTarget.select()} aria-label="Calendar link" />
           <div className="row">
-            <a className="btn" href={feed.webcal}>Subscribe on this device</a>
-            <button className="btn ghost" onClick={copy}>{copied ? "Copied" : "Copy link"}</button>
-            <button className="btn ghost" onClick={rotate}>New link</button>
+            <a className="btn btn-primary" href={feed.webcal}>Subscribe on this device</a>
+            <button className="btn btn-ghost" onClick={copy}>{copied ? "Copied" : "Copy link"}</button>
+            <button className="btn btn-ghost" onClick={rotate}>New link</button>
           </div>
           <p className="muted small">
             iPhone: tap Subscribe. Google Calendar: Settings → Add calendar → From URL, paste the
@@ -149,7 +149,7 @@ function Subscribe() {
           </p>
         </>
       )}
-      {error && <p className="alert">{error}</p>}
+      {error && <p className="alert alert-error">{error}</p>}
     </section>
   );
 }
