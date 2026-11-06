@@ -128,7 +128,7 @@ backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (cli
                     study.py, study_time.py, reminders.py, planner/,
                     api/ (UI routes, ICS feed, prompt builder)
 backend/tests/      pytest (Moodle responses always mocked)
-frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)
+frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), teacher page viewer, calendar (FullCalendar)
 deploy/caddy/       shared Caddy (separate Compose project) and its deploy script
 deploy/study-companion.caddy  this app's site, added to Caddy through its admin API
 docker/Dockerfile   multi-stage image

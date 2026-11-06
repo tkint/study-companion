@@ -300,6 +300,10 @@ export interface Reminders {
 export interface FileInfo {
   id: number;
   filename: string;
+  /** Readable name: the activity or chapter name for a teacher page, else the file name. */
+  title: string;
+  /** A teacher page (HTML from a Moodle page or book), shown in the app's page viewer. */
+  page: boolean;
   filepath: string;
   mimetype: string;
   filesize: number;
@@ -311,6 +315,17 @@ export interface FileInfo {
 export interface FileDetail extends FileInfo {
   course_id: number;
   module_id: number;
+}
+
+export interface TeacherPage {
+  id: number;
+  title: string;
+  module: { id: number; name: string; modname: string; url: string } | null;
+  course_id: number;
+  /** Sanitised on the server; rendered by HtmlContent with its own allow-list. */
+  html: string;
+  chapters: { id: number; title: string }[];
+  attachments: { id: number; filename: string; href: string | null }[];
 }
 
 export interface ModuleInfo {
@@ -488,6 +503,7 @@ export const api = {
       body: JSON.stringify({ done }),
     }),
   file: (id: number) => request<FileDetail>(`/api/files/${id}`),
+  page: (id: number) => request<TeacherPage>(`/api/files/${id}/page`),
   sync: () => request<SyncState>("/api/sync"),
   startSync: () => request<{ status: string }>("/api/sync", { method: "POST" }),
   feed: () => request<Feed>("/api/calendar/feed"),

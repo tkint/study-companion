@@ -16,7 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.engine import Engine
 
-from app import reminders, stats, study
+from app import reminders, stats, study, teacher_pages
 from app.api import ics, ui
 from app.config import Settings
 from app.db import session
@@ -126,7 +126,17 @@ def register(
             f = s.get(File, file_id)
         if f is None:
             return not_found()
-        return JSONResponse({**ui.file_dict(f), "course_id": f.course_id, "module_id": f.module_id})
+        title = teacher_pages.titles(engine, [f]).get(f.id)
+        return JSONResponse({**ui.file_dict(f, title), "course_id": f.course_id,
+                             "module_id": f.module_id})
+
+    @app.get("/api/files/{file_id}/page")
+    async def file_page(request: Request, file_id: int) -> JSONResponse:
+        """A teacher page (Moodle page or book chapter) as sanitised HTML for the viewer."""
+        if not is_authenticated(request):
+            return unauthorized()
+        data = teacher_pages.render(engine, settings.data_dir, file_id)
+        return JSONResponse(data) if data else not_found()
 
     @app.get("/files/{file_id}/{name:path}")
     @app.get("/files/{file_id}")

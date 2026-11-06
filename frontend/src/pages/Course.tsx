@@ -155,11 +155,17 @@ const Count = styled.span`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-function FileRow({ f, courseId, moduleUrl }: { f: FileInfo; courseId: number; moduleUrl: string }) {
+function isImage(f: FileInfo) {
+  return f.mimetype.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.filename);
+}
+
+function FileRow({ f, courseId, moduleUrl, moduleName }: {
+  f: FileInfo; courseId: number; moduleUrl: string; moduleName: string;
+}) {
   const label = (
     <>
-      <span>{f.filename}</span>
-      <Size> {size(f.filesize)}</Size>
+      <span>{f.page ? (f.title === moduleName ? "Read the page" : f.title) : f.title || f.filename}</span>
+      {!f.page && <Size> {size(f.filesize)}</Size>}
     </>
   );
   if (!f.available) {
@@ -174,14 +180,16 @@ function FileRow({ f, courseId, moduleUrl }: { f: FileInfo; courseId: number; mo
   }
   return (
     <File>
-      {isPdf(f) ? (
+      {isPdf(f) || f.page ? (
         <a href={href.file(f.id, courseId)}>{label}</a>
       ) : (
         <a href={fileUrl(f)} target="_blank" rel="noopener">{label}</a>
       )}
-      <Button as="a" $variant="ghost" $size="sm" href={fileUrl(f, true)} aria-label={`Download ${f.filename}`} title="Download">
-        ⤓
-      </Button>
+      {!f.page && (
+        <Button as="a" $variant="ghost" $size="sm" href={fileUrl(f, true)} aria-label={`Download ${f.filename}`} title="Download">
+          ⤓
+        </Button>
+      )}
     </File>
   );
 }
@@ -190,6 +198,11 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
   const done = m.completion_state === 1 || m.completion_state === 2;
   const [expanded, setExpanded] = useState(false);
   const long = m.description.length > 280;
+  // A teacher page shows its images inside it: list the page first, then its other files.
+  const hasPage = m.files.some((f) => f.page);
+  const files = hasPage
+    ? [...m.files.filter((f) => f.page), ...m.files.filter((f) => !f.page && !isImage(f))]
+    : m.files;
   return (
     <Module $hidden={!m.visible}>
       <ModuleHead>
@@ -212,10 +225,10 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
           )}
         </Text>
       )}
-      {m.files.length > 0 && (
+      {files.length > 0 && (
         <Files>
-          {m.files.map((f) => (
-            <FileRow key={f.id} f={f} courseId={courseId} moduleUrl={m.url} />
+          {files.map((f) => (
+            <FileRow key={f.id} f={f} courseId={courseId} moduleUrl={m.url} moduleName={m.name} />
           ))}
         </Files>
       )}
