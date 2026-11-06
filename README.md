@@ -49,7 +49,9 @@ preserving sites and certificate volumes.
 
 Updates: run the **Deploy** workflow from GitHub Actions (see
 [docs/releasing.md](docs/releasing.md)). It uploads current deployment files, updates the
-app's site, and starts or reloads the shared Caddy. The same deployer handles manual updates.
+app's site through Caddy's local admin API, and starts Caddy if needed. Caddy persists API
+changes and resumes the saved configuration after restart. The same deployer handles manual
+updates.
 
 ## Configuration
 

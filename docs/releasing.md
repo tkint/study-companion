@@ -63,9 +63,11 @@ and reports missing names without printing their values.
 
 The server needs Python 3 and Docker Compose 2.24.4 or newer. Prepare `~/study/.env`
 before the first run. Each deployment installs the app Compose file, updates only this
-app's site, and starts or reloads the shared Caddy, even if the app or Caddy is absent.
-It preserves existing sites and automatically migrates a standard app-owned Docker Caddy,
-including its certificates. The shared edge lock serializes independent deployments.
+app's site, and starts the shared Caddy if needed, even if the app or Caddy is absent.
+It updates only this app's identified route through Caddy's local admin REST API. Caddy
+persists that config and resumes it after restarts. The deployer preserves existing sites
+and automatically migrates a standard app-owned Docker Caddy, including its certificates.
+The shared edge lock serializes independent deployments.
 
 The selected workflow ref supplies the deployment files; the version input selects the
 app image. Manual deployment and migration details:

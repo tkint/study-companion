@@ -11,42 +11,56 @@ import time
 import unittest
 import uuid
 
-from deploy import DeployError, combine, legacy_candidate, merge
+from deploy import DeployError, http_server, legacy_candidate, site_changes, site_id
 
 
 class ConfigTests(unittest.TestCase):
     def test_conflicting_settings_fail_instead_of_overwriting(self):
         with self.assertRaises(DeployError):
-            merge({"admin": {"listen": "localhost:2019"}}, {"admin": {"listen": ":2020"}})
+            site_id(Path("bad name.caddy"))
 
-    def test_replaces_only_the_managed_host_and_preserves_other_routes(self):
-        def config(hosts, upstream):
-            return {"apps": {"http": {"servers": {"srv0": {
-                "listen": [":443"],
-                "routes": [{"match": [{"host": hosts}], "handle": [{
-                    "handler": "reverse_proxy", "upstreams": [{"dial": upstream}],
-                }]}],
-            }}}}}
+    def test_site_api_update_changes_only_its_identified_route(self):
+        first = {"@id": "edge-first", "match": [{"host": ["first.test"]}]}
+        second = {"@id": "edge-second", "match": [{"host": ["second.test"]}]}
+        config = {"apps": {"http": {"servers": {"srv0": {
+            "listen": [":443"], "routes": [first, second],
+        }}}}}
+        replacement = {"@id": "edge-first", "match": [{"host": ["first.test"]}],
+                       "handle": [{"handler": "static_response"}]}
+        result, operations = site_changes(config, "srv0", ["first.test"], "edge-first",
+                                          replacement, {}, [])
+        routes = result["apps"]["http"]["servers"]["srv0"]["routes"]
+        self.assertEqual(routes, [replacement, second])
+        self.assertIn(("PATCH", "/id/edge-first", replacement), operations)
+        self.assertNotIn(("PATCH", "/id/edge-second", second), operations)
 
-        old = config(["first.test", "existing.test"], "old:8000")
-        before = copy.deepcopy(old)
-        combined, remaining = combine(config(["first.test"], "new:8000"), old)
-        routes = combined["apps"]["http"]["servers"]["srv0"]["routes"]
-        self.assertEqual(routes[0]["match"], [{"host": ["first.test"]}])
-        self.assertEqual(routes[1]["match"], [{"host": ["existing.test"]}])
-        self.assertEqual(remaining["apps"]["http"]["servers"]["srv0"]["routes"], routes[1:])
-        self.assertEqual(old, before)
+    def test_api_creation_preserves_existing_sites(self):
+        second = {"@id": "edge-second", "match": [{"host": ["second.test"]}]}
+        config = {"apps": {"http": {"servers": {"srv0": {
+            "listen": [":443"], "routes": [second],
+        }}}}}
+        route = {"@id": "edge-first", "match": [{"host": ["first.test"]}]}
+        result, operations = site_changes(config, "srv0", ["first.test"], "edge-first",
+                                          route, {}, [])
+        routes = result["apps"]["http"]["servers"]["srv0"]["routes"]
+        self.assertEqual(routes, [route, second])
+        self.assertIn(("PATCH", "/config/apps/http/servers/srv0/routes", [route, second]), operations)
 
-    def test_distinct_listener_groups_keep_distinct_servers(self):
-        current = {"apps": {"http": {"servers": {"srv0": {"listen": [":443"]}}}}}
-        old = {"apps": {"http": {"servers": {"srv0": {"listen": [":8080"]}}}}}
-        combined, _ = combine(current, old)
-        self.assertEqual(len(combined["apps"]["http"]["servers"]), 2)
+    def test_multi_host_route_is_rejected_without_replacing_other_hosts(self):
+        existing = {"match": [{"host": ["first.test", "second.test"]}],
+                    "handle": [{"handler": "static_response"}]}
+        config = {"apps": {"http": {"servers": {"srv0": {
+            "listen": [":443"], "routes": [existing],
+        }}}}}
+        route = {"@id": "edge-first", "match": [{"host": ["first.test"]}]}
+        with self.assertRaises(DeployError):
+            site_changes(config, "srv0", ["first.test"], "edge-first", route, {}, [])
 
     def test_empty_config_is_supported(self):
-        combined, remaining = combine({}, {})
-        self.assertEqual(combined["apps"]["http"]["servers"], {})
-        self.assertEqual(remaining, {})
+        name, server = http_server({})
+        self.assertEqual(name, "srv0")
+        self.assertEqual(server["listen"], [":443"])
+        self.assertEqual(server["routes"], [])
 
     def test_ambiguous_or_non_caddy_port_owners_are_rejected(self):
         container = {
@@ -84,7 +98,7 @@ networks:
     name: {self.network}
 """)
         (self.edge_dir / "Caddyfile").write_text(
-            "{\n local_certs\n}\nimport /etc/caddy/sites/*.caddy\n"
+            "{\n local_certs\n}\n"
         )
         self.sources = {}
         self.apps = {}
@@ -111,7 +125,8 @@ networks:
     name: ${{EDGE_NETWORK}}
 """)
             (source / f"{name}.caddy").write_text(
-                "{$DOMAIN} {\n reverse_proxy " + name + "-upstream:8000\n}\n"
+                "{$DOMAIN} {\n log {\n output stdout\n }\n reverse_proxy "
+                + name + "-upstream:8000\n}\n"
             )
             self.sources[name] = source
             self.apps[name] = app
@@ -242,12 +257,25 @@ volumes:
         self.app("second", "down")
         self.assertEqual(self.request("first")[0], "first")
 
+    def test_removed_edge_container_resumes_the_autosaved_api_config(self):
+        self.deploy("first")
+        self.deploy("second")
+        self.edge("stop", "caddy")
+        self.edge("rm", "-f", "caddy")
+        self.deploy("second")
+        self.assertEqual(self.request("first")[0], "first")
+        self.assertEqual(self.request("second")[0], "second")
+
     def test_invalid_site_preserves_existing_sites(self):
         self.deploy("first")
-        before = (self.edge_dir / "generated/caddy.json").read_bytes()
+        container = self.edge("ps", "-q", "caddy").stdout.strip()
+        before = self.command("docker", "exec", container, "curl", "-fsS",
+                              "http://127.0.0.1:2019/config/").stdout
         (self.sources["second"] / "second.caddy").write_text("{$DOMAIN} {\n invalid_directive\n}\n")
         self.deploy("second", success=False)
-        self.assertEqual((self.edge_dir / "generated/caddy.json").read_bytes(), before)
+        after = self.command("docker", "exec", container, "curl", "-fsS",
+                             "http://127.0.0.1:2019/config/").stdout
+        self.assertEqual(after, before)
         self.assertFalse((self.edge_dir / "sites/second.caddy").exists())
         self.assertEqual(self.request("first")[0], "first")
 
@@ -316,9 +344,12 @@ volumes:
             '    ports: !override ["127.0.0.1::443"]\n    command: ["caddy", "version"]',
         ))
         self.deploy("second", success=False)
-        self.assertEqual(self.request("first", self.legacy)[0], "first")
         metadata = json.loads(self.command("docker", "inspect", self.legacy).stdout)[0]
         self.assertTrue(metadata["State"]["Running"])
+        config = json.loads(self.command(
+            "docker", "exec", self.legacy, "curl", "-fsS", "http://127.0.0.1:2019/config/"
+        ).stdout)
+        self.assertIn("first.localhost", json.dumps(config))
 
 
 if __name__ == "__main__":

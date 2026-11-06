@@ -127,13 +127,16 @@ python3 deploy/edge/deploy.py --app-dir . \
 ```
 
 The app's Compose file runs only the app. Deployment creates the external `edge` network,
-renders `DOMAIN` into its own site file, validates the combined Caddy configuration, pulls
-the images and starts or updates both projects. Caddy lives independently in `~/edge` and
+renders `DOMAIN` into its own site file, validates the proposed route against Caddy's current config, pulls
+the images and starts the app and Caddy projects. Caddy lives independently in `~/edge` and
 is started if absent or stopped, regardless of whether the app already exists.
 
 Existing site files and a customized edge `Caddyfile` are preserved. Repeated deployments
-update this app's site and reload a running Caddy. A host-level lock serializes changes
-from independent deployments. All deployments sharing Caddy must use the same edge
+validate the proposed site against Caddy's current config, then create or replace only the
+site's identified route through Caddy's admin REST API. Caddy persists accepted API updates
+to its `/config` volume and resumes that saved config after a restart. The admin API stays
+bound to Caddy's localhost; deployment invokes it from inside the container. A host-level
+lock serializes changes from independent deployments. All deployments sharing Caddy must use the same edge
 directory, Compose project and external network.
 
 Use `--edge-dir /path/to/edge` to change the shared directory. `EDGE_NETWORK` in the
@@ -194,24 +197,27 @@ docker compose -f compose.yaml -f migration.compose.json ps
 
 Omit `-f migration.compose.json` if no migration took place; also include
 `-f compose.override.yaml` if you customized the edge. Deployment supplies these
-automatically. Caddy runs the generated `generated/caddy.json`, not the source Caddyfile.
-Do not edit generated JSON by hand.
+automatically. `generated/bootstrap.json` is only used for the first start when no saved
+Caddy config exists. After that, Caddy runs `caddy run --resume` from its persistent
+`caddy-config` volume. Do not edit the bootstrap file by hand.
 
 ## Automatic Caddy migration
 
 Back up [app data](backups.md) and `.env` first. The deployer discovers a Docker Caddy
 owning host ports 80/443, including a stopped container. It adapts the mounted Caddyfile
 with the old container's environment, retains existing sites and network connectivity,
-and reuses its named `/data` and `/config` volumes. It rewrites Docker upstream aliases
+and reuses its named `/data` certificate volume. The shared edge gets a new `/config`
+volume so the old autosaved config cannot override the bootstrap. It rewrites Docker upstream aliases
 to unique container names so a new service cannot shadow an existing upstream.
 
-The generated shared configuration replaces only the redeployed hostname's legacy
-route. Other routes remain until their owners redeploy. Legacy networks are detached
-once no legacy proxy routes remain. Keep `legacy.json`, `migration.compose.json` and the
-original certificate volumes: they are active deployment state, not disposable backups.
+The legacy config is used only to bootstrap the new Caddy. The redeployed hostname's
+legacy route is removed before bootstrap and recreated through the REST API with a stable
+`@id`. Other legacy routes remain. Legacy networks are detached once no legacy proxy
+routes remain. The API-autosaved config in `caddy-config`, `migration.compose.json` and
+the original certificate volume are active state; keep them.
 
-The swap briefly interrupts HTTPS. Configuration is validated before stopping the old
-Caddy. If starting the new edge fails, deployment restores the saved edge files and
+The swap briefly interrupts HTTPS. Bootstrap and the new site are validated before
+stopping the old Caddy. If starting the new edge fails, deployment restores the saved edge files and
 restarts the original Caddy. An application update may already have completed; a failed
 deployment reports this rather than claiming the entire application was rolled back.
 

@@ -8,10 +8,10 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
+from urllib.parse import quote
 
 
 class DeployError(Exception):
@@ -36,24 +36,6 @@ def write(path, content):
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
-
-
-def merge(left, right, path="config"):
-    """Combine compatible settings; never silently replace legacy settings."""
-    if left == right:
-        return copy.deepcopy(left)
-    if isinstance(left, dict) and isinstance(right, dict):
-        result = copy.deepcopy(left)
-        for key, value in right.items():
-            result[key] = (
-                merge(result[key], value, f"{path}.{key}") if key in result else copy.deepcopy(value)
-            )
-        return result
-    if isinstance(left, list) and isinstance(right, list):
-        if left and right and path.endswith(("tls_connection_policies", "automation.policies")):
-            raise DeployError(f"Incompatible existing Caddy policies at {path}; migration was not applied.")
-        return copy.deepcopy(left + [value for value in right if value not in left])
-    raise DeployError(f"Incompatible existing Caddy setting at {path}; migration was not applied.")
 
 
 def without_hosts(value, hosts):
@@ -87,31 +69,19 @@ def site_hosts(value):
     return set()
 
 
-def combine(managed, legacy):
-    legacy = without_hosts(legacy, site_hosts(managed))
-    current = copy.deepcopy(managed)
-    previous = copy.deepcopy(legacy)
-    servers = current.get("apps", {}).get("http", {}).pop("servers", {})
-    old_servers = previous.get("apps", {}).get("http", {}).pop("servers", {})
-    for server in old_servers.values():
-        listeners = sorted(server.get("listen", []))
-        match = next(
-            (key for key, value in servers.items() if sorted(value.get("listen", [])) == listeners),
-            None,
-        )
-        if match is None:
-            servers[f"legacy{len(servers)}"] = server
-        else:
-            servers[match] = merge(servers[match], server, "http.server")
-    result = merge(current, previous)
-    result.setdefault("apps", {}).setdefault("http", {})["servers"] = servers
-    return result, legacy
-
-
 def has_proxy(value):
     if isinstance(value, dict):
         return value.get("handler") == "reverse_proxy" or any(has_proxy(item) for item in value.values())
     return isinstance(value, list) and any(has_proxy(item) for item in value)
+
+
+def has_legacy_proxy(config):
+    servers = config.get("apps", {}).get("http", {}).get("servers", {})
+    return any(
+        not route.get("@id", "").startswith("edge-") and has_proxy(route)
+        for server in servers.values()
+        for route in server.get("routes", [])
+    )
 
 
 def legacy_candidate(containers, project):
@@ -187,7 +157,6 @@ def export_legacy(container, containers):
     override = {
         "volumes": {
             "caddy-data": {"external": True, "name": mounts["/data"]["Name"]},
-            "caddy-config": {"external": True, "name": mounts["/config"]["Name"]},
         },
         "networks": {
             f"legacy{index}": {"external": True, "name": name}
@@ -198,6 +167,254 @@ def export_legacy(container, containers):
         "caddy": {"networks": ["edge", *override["networks"]]}
     }
     return config, override
+
+
+def http_server(config):
+    servers = config.setdefault("apps", {}).setdefault("http", {}).setdefault("servers", {})
+    server_name = next(
+        (name for name, value in servers.items()
+         if any(address.rsplit(":", 1)[-1] == "443" for address in value.get("listen", []))),
+        None,
+    )
+    if server_name is None:
+        server_name = next(iter(servers), "srv0")
+    server = servers.setdefault(server_name, {"listen": [":443"]})
+    server.setdefault("routes", [])
+    return server_name, server
+
+
+def site_id(site_file):
+    name = site_file.stem
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name):
+        raise DeployError(f"Site filename {site_file.name!r} cannot form a safe Caddy ID.")
+    return f"edge-{name}"
+
+
+def adapt_file(path, image, *, env=None, extra_mounts=()):
+    command = ["docker", "run", "--rm"]
+    for source, target in extra_mounts:
+        command += ["-v", f"{source}:{target}:ro"]
+    command += ["-v", f"{path}:/etc/caddy/site.caddy:ro"]
+    for key, value in (env or {}).items():
+        command += ["-e", f"{key}={value}"]
+    command += [image, "caddy", "adapt", "--config", "/etc/caddy/site.caddy"]
+    return json.loads(run(command))
+
+
+def make_site(adapted, domains, identifier):
+    _, server = http_server(adapted)
+    routes = copy.deepcopy(server.get("routes", []))
+    if not routes:
+        raise DeployError(f"The Caddyfile for {domain} did not adapt to any HTTP routes.")
+    route = {
+        "@id": identifier,
+        "match": [{"host": domains}],
+        "handle": [{"handler": "subroute", "routes": routes}],
+        "terminal": True,
+    }
+
+    log_config = adapted.get("logging", {}).get("logs", {})
+    logs = {}
+    for name, value in log_config.items():
+        if name == "default":
+            continue
+        unique_name = f"{identifier}-{name}"
+        logs[unique_name] = copy.deepcopy(value)
+        default = logs[unique_name].get("include")
+        if default:
+            logs[unique_name]["include"] = [
+                item.replace(f".{name}", f".{unique_name}") for item in default
+            ]
+    logger_names = sorted({
+        f"{identifier}-{name}"
+        for domain in domains
+        for name in server.get("logs", {}).get("logger_names", {}).get(domain, [])
+    })
+    return route, logs, logger_names
+
+
+def route_hosts(route):
+    hosts = set()
+    for matcher in route.get("match", []):
+        hosts.update(matcher.get("host", []))
+    return hosts
+
+
+def site_changes(config, server_name, domains, identifier, route, logs, logger_names):
+    config = copy.deepcopy(config)
+    server_name, server = http_server(config)
+    routes = server["routes"]
+    managed_hosts = set(domains)
+    same_id = next(
+        (index for index, item in enumerate(routes) if item.get("@id") == identifier), None
+    )
+    matching = [index for index, item in enumerate(routes) if managed_hosts & route_hosts(item)]
+    selected = same_id if same_id is not None else (matching[0] if matching else None)
+    old_hosts = route_hosts(routes[selected]) if selected is not None else set()
+    if selected is not None and route_hosts(routes[selected]) - managed_hosts:
+        raise DeployError(
+            "The existing site route also serves other hostnames; split that route before updating this site."
+        )
+    route_operations = []
+
+    if selected is None:
+        routes.insert(0, route)
+        route_operations.append((
+            "PATCH", f"/config/apps/http/servers/{server_name}/routes", routes
+        ))
+    else:
+        routes[selected] = route
+        old = (
+            ("PATCH", f"/id/{identifier}", route)
+            if same_id is not None
+            else ("PATCH", f"/config/apps/http/servers/{server_name}/routes/{selected}", route)
+        )
+        route_operations.append(old)
+
+    for index in reversed(matching):
+        if index == selected:
+            continue
+        remaining = without_hosts(routes[index], managed_hosts)
+        if remaining is None:
+            del routes[index]
+            route_operations.append(
+                ("DELETE", f"/config/apps/http/servers/{server_name}/routes/{index}", None)
+            )
+        else:
+            routes[index] = remaining
+            route_id = remaining.get("@id")
+            route_operations.append(
+                ("PATCH", f"/id/{route_id}" if route_id else
+                 f"/config/apps/http/servers/{server_name}/routes/{index}", remaining)
+            )
+
+    operations = []
+    current_logs = config.setdefault("logging", {}).setdefault("logs", {})
+    default_existed = "default" in current_logs
+    default = current_logs.setdefault("default", {})
+    exclude_existed = "exclude" in default
+    excluded = default.setdefault("exclude", [])
+    access_loggers = []
+    for name, value in logs.items():
+        existed = name in current_logs
+        current_logs[name] = copy.deepcopy(value)
+        operations.insert(0, (
+            "PATCH" if existed else "PUT",
+            f"/config/logging/logs/{name}", value,
+        ))
+        access_logger = next(
+            (item.rsplit(".", 1)[-1] for item in value.get("include", [])
+             if item.startswith("http.log.access.")), None,
+        )
+        if access_logger:
+            access_loggers.append(f"http.log.access.{access_logger}")
+
+    new_excludes = [name for name in access_loggers if name not in excluded]
+    if not default_existed and new_excludes:
+        operations.insert(0, ("PUT", "/config/logging/logs/default", {"exclude": new_excludes}))
+        excluded.extend(new_excludes)
+    elif not exclude_existed and new_excludes:
+        operations.insert(0, ("PUT", "/config/logging/logs/default/exclude", new_excludes))
+        excluded.extend(new_excludes)
+    else:
+        for name in new_excludes:
+            operations.insert(0, ("POST", "/config/logging/logs/default/exclude", name))
+            excluded.append(name)
+
+    names = server.setdefault("logs", {}).setdefault("logger_names", {})
+    for domain in sorted(old_hosts - managed_hosts):
+        if domain in names:
+            del names[domain]
+            operations.append((
+                "DELETE",
+                f"/config/apps/http/servers/{server_name}/logs/logger_names/{quote(domain, safe='')}",
+                None,
+            ))
+    for domain in domains:
+        existed = domain in names
+        names[domain] = logger_names
+        operations.append((
+            "PATCH" if existed else "PUT",
+            f"/config/apps/http/servers/{server_name}/logs/logger_names/{quote(domain, safe='')}",
+            logger_names,
+        ))
+    operations.extend(route_operations)
+    return config, operations
+
+
+def api_request(compose, method, path, value=None, *, expected=(200,)):
+    command = [
+        "docker", "compose", *compose, "exec", "-T", "caddy", "curl",
+        "--silent", "--show-error", "-w", "\n%{http_code}",
+        "-X", method, f"http://127.0.0.1:2019{path}",
+    ]
+    payload = value
+    if isinstance(value, str):
+        payload = json.dumps(value)
+    if payload is not None:
+        command += ["-H", "Content-Type: application/json", "--data-binary", "@-"]
+    result = subprocess.run(command, input=payload if isinstance(payload, str) else
+                            (json.dumps(payload) if payload is not None else None),
+                            text=True, capture_output=True)
+    if result.returncode:
+        raise DeployError(f"Caddy API request failed:\n{result.stderr.strip()}")
+    body, separator, status_text = result.stdout.rpartition("\n")
+    if not separator or int(status_text) not in expected:
+        raise DeployError(
+            f"Caddy API {method} {path} returned {status_text or 'no status'}: {body.strip()}"
+        )
+    if method == "GET":
+        return json.loads(body) if body else {}
+    return body
+
+
+def edge_compose_args(edge):
+    files = ["--project-directory", str(edge), "-f", str(edge / "compose.yaml")]
+    for name in ("compose.override.yaml", "migration.compose.json"):
+        if (edge / name).exists():
+            files += ["-f", str(edge / name)]
+    return files
+
+
+def api_apply(compose, operations):
+    for method, path, value in operations:
+        api_request(compose, method, path, value, expected=(200, 201, 202, 204))
+
+
+def config_has_autosave(volume_name, image):
+    volumes = run(["docker", "volume", "ls", "--format", "{{.Name}}"]).splitlines()
+    if volume_name not in volumes:
+        return False
+    result = subprocess.run(
+        ["docker", "run", "--rm", "-v", f"{volume_name}:/config:ro", image,
+         "sh", "-c", "test -s /config/caddy/autosave.json"],
+        text=True, capture_output=True,
+    )
+    if result.returncode not in (0, 1):
+        raise DeployError(f"Could not inspect saved Caddy configuration:\n{result.stderr.strip()}")
+    return result.returncode == 0
+
+
+def write_bootstrap(config, edge, image):
+    _, server = http_server(config)
+    server["listen"] = [":443"]
+    server.setdefault("logs", {}).setdefault("logger_names", {})
+    config.setdefault("admin", {})
+    if config["admin"].get("disabled"):
+        raise DeployError("Caddy admin API is disabled; site deployment needs the local admin API.")
+    listen = config["admin"].get("listen")
+    if listen and not listen.startswith(("localhost:", "127.0.0.1:")):
+        raise DeployError("Caddy admin API must listen on localhost only.")
+    config.setdefault("logging", {}).setdefault("logs", {}).setdefault("default", {}).setdefault(
+        "exclude", []
+    )
+    path = edge / "generated/bootstrap.json"
+    write(path, json.dumps(config))
+    validate = [
+        "docker", "run", "--rm", "-v", f"{path}:/tmp/bootstrap.json:ro",
+        image, "caddy", "validate", "--config", "/tmp/bootstrap.json",
+    ]
+    run(validate)
 
 
 def deploy(args):
@@ -251,8 +468,8 @@ def reconcile(args, app, edge, source, compose_source, site_source):
     site = site.replace("{$DOMAIN}", domain)
 
     targets = [
-        edge / "compose.yaml", edge / "Caddyfile", edge / "generated/caddy.json",
-        edge / "legacy.json", edge / "migration.compose.json", edge / "sites" / site_source.name,
+        edge / "compose.yaml", edge / "Caddyfile", edge / "generated/bootstrap.json",
+        edge / "migration.compose.json", edge / "sites" / site_source.name,
         app / compose_source.name,
     ]
     backups = {path: path.read_bytes() if path.exists() else None for path in targets}
@@ -260,21 +477,29 @@ def reconcile(args, app, edge, source, compose_source, site_source):
     old_running = False
     edge_changed = False
     shared_existed = False
+    api_changed = False
+    migration = None
+    image = "caddy:2"
 
     def edge_compose(*command):
         files = ["-f", str(edge / "compose.yaml")]
-        for name in ("compose.override.yaml", "migration.compose.json"):
-            if (edge / name).exists():
-                files += ["-f", str(edge / name)]
-        return run(
-            ["docker", "compose", "--project-directory", str(edge), *files, *command],
-            cwd=edge, env=edge_env,
-        )
+        return run(["docker", "compose", "--project-directory", str(edge),
+                    *edge_compose_args(edge)[2:], *command], cwd=edge, env=edge_env)
 
     try:
         write(edge / "compose.yaml", (source / "compose.yaml").read_bytes())
         if not (edge / "Caddyfile").exists():
             write(edge / "Caddyfile", (source / "Caddyfile").read_bytes())
+        (edge / "sites").mkdir(parents=True, exist_ok=True)
+        migration_path = edge / "migration.compose.json"
+        migration = json.loads(migration_path.read_text()) if migration_path.exists() else None
+        if migration:
+            migration.get("volumes", {}).pop("caddy-config", None)
+            migration["volumes"] = {
+                key: value for key, value in migration.get("volumes", {}).items()
+                if key == "caddy-data"
+            }
+            write(migration_path, json.dumps(migration))
         edge_config = json.loads(edge_compose("config", "--format", "json"))
         project = edge_config["name"]
         if app_config["name"] == project:
@@ -303,63 +528,103 @@ def reconcile(args, app, edge, source, compose_source, site_source):
         if not args.no_pull:
             app_compose("pull")
             edge_compose("pull")
-        legacy_path = edge / "legacy.json"
-        legacy = json.loads(legacy_path.read_text()) if legacy_path.exists() else {}
-        migration_path = edge / "migration.compose.json"
-        migration = json.loads(migration_path.read_text()) if migration_path.exists() else None
         if not shared_existed:
             old = legacy_candidate(containers, project)
             if old:
-                if legacy or migration:
+                if migration:
                     raise DeployError("Legacy migration state already exists; refusing to overwrite it.")
                 legacy, migration = export_legacy(old, containers)
+                legacy_domains = {domain}
+                legacy = without_hosts(legacy, legacy_domains)
                 old_running = old["State"]["Running"]
-
-        with tempfile.TemporaryDirectory(prefix=".deploy-", dir=edge) as temporary:
-            staging = Path(temporary)
-            sites = staging / "sites"
-            shutil.copytree(edge / "sites", sites) if (edge / "sites").exists() else sites.mkdir()
-            write(sites / site_source.name, site)
-            managed = json.loads(run(
-                ["docker", "run", "--rm", "-v", f"{edge / 'Caddyfile'}:/etc/caddy/Caddyfile:ro",
-                 "-v", f"{sites}:/etc/caddy/sites:ro", image,
-                 "caddy", "adapt", "--config", "/etc/caddy/Caddyfile"],
-            ))
-            combined, remaining = combine(managed, legacy)
-            if combined.get("admin", {}).get("disabled"):
-                raise DeployError("The shared Caddy requires an enabled admin endpoint for controlled reloads.")
-            candidate = staging / "caddy.json"
-            write(candidate, json.dumps(combined))
-            validation = ["docker", "run", "--rm"]
+                write(migration_path, json.dumps(migration))
+                edge_config = json.loads(edge_compose("config", "--format", "json"))
+        config_volume = edge_config["volumes"]["caddy-config"]["name"]
+        bootstrap_required = not config_has_autosave(config_volume, image)
+        if bootstrap_required:
             if old:
-                validation += ["--volumes-from", f"{old['Id']}:ro"]
-            validation += [
-                "-v", f"{candidate}:/tmp/caddy.json:ro", image,
-                "caddy", "validate", "--config", "/tmp/caddy.json",
-            ]
-            run(validation)
-            if migration and not has_proxy(remaining):
+                bootstrap = legacy
+            else:
+                with tempfile.TemporaryDirectory(prefix=".bootstrap-", dir=edge) as temporary:
+                    empty_sites = Path(temporary) / "sites"
+                    empty_sites.mkdir()
+                    root_config = adapt_file(
+                        edge / "Caddyfile", image,
+                        extra_mounts=((empty_sites, "/etc/caddy/sites"),),
+                    )
+                bootstrap = root_config
+            write_bootstrap(bootstrap, edge, image)
+        if migration:
+            if old:
+                remaining = legacy
+            else:
+                remaining = json.loads(
+                    run(["docker", "run", "--rm", "-v", f"{config_volume}:/config:ro",
+                         image, "sh", "-c", "cat /config/caddy/autosave.json"])
+                )
+            if not has_legacy_proxy(remaining):
                 migration.pop("networks", None)
                 migration["services"]["caddy"]["networks"] = ["edge"]
+        else:
+            remaining = {}
 
-            write(app / compose_source.name, compose_source.read_bytes())
-            app_compose("up", "-d", "--wait", "--wait-timeout", "120", installed=True)
-            write(edge / "sites" / site_source.name, site)
-            write(edge / "generated/caddy.json", candidate.read_bytes())
-            if migration:
-                write(migration_path, json.dumps(migration))
-                write(legacy_path, json.dumps(remaining))
-            if old_running:
-                run(["docker", "stop", old["Id"]])
-            edge_changed = True
-            edge_compose("up", "-d", "--wait", "--wait-timeout", "120")
-            edge_compose(
-                "exec", "-T", "caddy", "caddy", "reload",
-                "--config", "/etc/caddy/generated/caddy.json",
+        write(app / compose_source.name, compose_source.read_bytes())
+        app_compose("up", "-d", "--wait", "--wait-timeout", "120", installed=True)
+        write(edge / "sites" / site_source.name, site)
+        if migration:
+            write(migration_path, json.dumps(migration))
+        if old_running:
+            run(["docker", "stop", old["Id"]])
+        edge_changed = True
+        edge_compose("up", "-d", "--wait", "--wait-timeout", "120")
+
+        compose_args = edge_compose_args(edge)
+        api_config = api_request(compose_args, "GET", "/config/")
+        sites = []
+        if bootstrap_required:
+            sites = [
+                path for path in sorted((edge / "sites").glob("*.caddy"))
+                if path.name != site_source.name
+            ]
+        sites.append(edge / "sites" / site_source.name)
+        for path in sites:
+            if path.name == site_source.name:
+                site_domains = [domain]
+                adapted = adapt_file(path, image)
+            else:
+                adapted = adapt_file(path, image)
+                site_domains = sorted(site_hosts(adapted))
+                if not site_domains:
+                    raise DeployError(f"{path.name} did not adapt to a site with host matchers.")
+            identifier = site_id(path)
+            route, logs, logger_names = make_site(adapted, site_domains, identifier)
+            server_name, _ = http_server(api_config)
+            candidate, operations = site_changes(
+                api_config, server_name, site_domains, identifier, route, logs, logger_names
             )
-            if old:
-                run(["docker", "rm", old["Id"]])
+            with tempfile.TemporaryDirectory(prefix=".validate-", dir=edge) as temporary:
+                candidate_path = Path(temporary) / "candidate.json"
+                write(candidate_path, json.dumps(candidate))
+                validation = [
+                    "docker", "run", "--rm", "-v", f"{candidate_path}:/tmp/candidate.json:ro",
+                    image, "caddy", "validate", "--config", "/tmp/candidate.json",
+                ]
+                run(validation)
+            for operation in operations:
+                api_apply(compose_args, [operation])
+                api_changed = True
+            api_config = candidate
+        if migration and "networks" in migration and not has_legacy_proxy(api_config):
+            migration.pop("networks")
+            migration["services"]["caddy"]["networks"] = ["edge"]
+            write(migration_path, json.dumps(migration))
+            edge_compose("up", "-d", "--wait", "--wait-timeout", "120")
+        if old:
+            run(["docker", "rm", old["Id"]])
     except (DeployError, OSError, ValueError):
+        if api_changed and not old:
+            print("Caddy accepted an API update; its autosaved configuration remains active.", file=sys.stderr)
+            raise
         if edge_changed and not shared_existed:
             try:
                 edge_compose("stop", "caddy")
@@ -375,17 +640,8 @@ def reconcile(args, app, edge, source, compose_source, site_source):
             try:
                 if shared_existed:
                     edge_compose("up", "-d", "--wait", "--wait-timeout", "120")
-                    config = (
-                        "/etc/caddy/generated/caddy.json"
-                        if backups[edge / "generated/caddy.json"] else "/etc/caddy/Caddyfile"
-                    )
-                    edge_compose("exec", "-T", "caddy", "caddy", "reload", "--config", config)
                 elif old_running:
                     run(["docker", "start", old["Id"]])
-                    run(
-                        ["docker", "exec", "-i", old["Id"], "caddy", "reload", "--config", "-"],
-                        input=json.dumps(legacy),
-                    )
             except DeployError as error:
                 print(f"Caddy rollback failed: {error}", file=sys.stderr)
         print("The application may already have been updated; inspect it before retrying.", file=sys.stderr)
