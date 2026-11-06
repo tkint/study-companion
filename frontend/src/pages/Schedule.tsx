@@ -24,6 +24,7 @@ const Grid = styled.div`
 
 const SliderBox = styled.label`
   display: grid;
+  align-content: start;
   gap: 4px;
   flex: 1;
   min-width: 0;
