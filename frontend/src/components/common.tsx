@@ -18,7 +18,7 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
 }
 
 export function Status({ error, loading }: { error: string | null; loading: boolean }) {
-  if (error) return <p className="alert" role="alert">Could not load: {error}</p>;
+  if (error) return <p className="alert alert-error" role="alert">Could not load: {error}</p>;
   if (loading) return <p className="loading">Loading…</p>;
   return null;
 }

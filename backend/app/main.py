@@ -332,7 +332,7 @@ def create_app(
             return RedirectResponse("/login", status_code=303)
         saved = request.query_params.get("saved")
         message = {
-            "moodle": "Moodle connection saved. A sync has started.",
+            "moodle": "Source site connection saved. A sync has started.",
             "password": "Password changed. Other devices have been signed out.",
             "forgot": "Token removed.",
             "connector": "Claude was disconnected. Add the connector again to reconnect.",
@@ -367,7 +367,7 @@ def create_app(
         username, password = form.get("username", "").strip(), form.get("password", "")
         if not token and not (username and password):
             if url != current.url or not current.token:
-                return failed("paste a token (or enter your Moodle username and password).")
+                return failed("paste a token (or enter your username and password).")
             token_to_test = current.token
         else:
             token_to_test = token
@@ -379,9 +379,9 @@ def create_app(
                     token = client.token
                 site = await moodle_api.get_site_info(client)
         except MoodleAuthError as exc:
-            return failed(f"Moodle refused the token ({exc}).")
+            return failed(f"the source site refused the token ({exc}).")
         except MoodleError as exc:
-            return failed(f"could not reach Moodle at {url} ({exc}).")
+            return failed(f"could not reach the source site at {url} ({exc}).")
         accounts.save_moodle(
             engine,
             settings.secret_key,
@@ -461,7 +461,7 @@ def create_app(
         if not is_authenticated(request) or not _same_origin(request):
             return unauthorized()
         if not sync.configured():
-            return JSONResponse({"error": "Moodle is not connected"}, status_code=409)
+            return JSONResponse({"error": "The source site is not connected"}, status_code=409)
         if not start_sync():
             return JSONResponse({"status": "already running"}, status_code=409)
         return JSONResponse({"status": "started"}, status_code=202)

@@ -1,0 +1,33 @@
+# The shared Caddy: owns ports 80/443 and serves every app on this server over HTTPS.
+# Lives in ~/caddy. Apps join the external `edge` network; deploy.py adds their sites through
+# Caddy's admin API. bootstrap.json is used only until Caddy has autosaved a configuration.
+
+name: caddy
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy run --resume --config /etc/caddy/bootstrap.json
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./bootstrap.json:/etc/caddy/bootstrap.json:ro
+      # Certificates: keep this volume, or Caddy requests new ones.
+      - caddy-data:/data
+      # The autosaved configuration with every app's site.
+      - caddy-config:/config
+    networks: [edge]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  caddy-data:
+  caddy-config:

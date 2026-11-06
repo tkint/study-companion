@@ -237,8 +237,8 @@ def home_page(
     overview = overview or []
     if not configured:
         status = (
-            '<p class="warn">Moodle is not connected yet. Open <a href="/settings">Settings</a> '
-            "and paste your Moodle token.</p>"
+            '<p class="warn">Your source site is not connected yet. Open <a href="/settings">Settings</a> '
+            "and paste its token.</p>"
         )
     elif running:
         status = '<p>Sync in progress… refresh in a minute.</p>'
@@ -307,7 +307,7 @@ _TOKEN_LINK_JS = """
     var ok = /^https:\\/\\/[^\\/?#\\s]+(\\/[^?#\\s]*)?$/.test(v);
     link.href = ok ? v + "%s" : "#";
     if (ok) { link.removeAttribute("aria-disabled"); hint.textContent = ""; }
-    else { link.setAttribute("aria-disabled", "true"); hint.textContent = "Enter the Moodle address first."; }
+    else { link.setAttribute("aria-disabled", "true"); hint.textContent = "Enter the source site address first."; }
   }
   url.addEventListener("input", update);
   link.addEventListener("click", function (e) { if (link.getAttribute("href") === "#") e.preventDefault(); });
@@ -390,7 +390,7 @@ def settings_page(
     # Removing the token stops every sync until a new one is pasted: ask first.
     forget = (
         '<form method="post" action="/settings/moodle/forget" '
-        'onsubmit="return confirm(\'Remove the saved Moodle token? Syncing stops until you paste a new one.\')">'
+        'onsubmit="return confirm(\'Remove the saved source site token? Syncing stops until you paste a new one.\')">'
         '<button type="submit" class="danger">Remove saved token</button></form>'
         if creds.token or creds.token_unreadable
         else ""
@@ -401,38 +401,39 @@ def settings_page(
 <h1>Settings</h1>
 {notice}
 <div class="card">
-<h2>Moodle connection</h2>
+<h2>Source site connection</h2>
 {moodle_notice}
 {token_state}
 <form method="post" action="/settings/moodle" autocomplete="off">
-  <label for="url">Moodle address</label>
+  <label for="url">Source site address</label>
   <input id="url" name="url" type="url" inputmode="url" required
          placeholder="https://moodle.your-university.ch" value="{escape(url_value)}">
+  <p class="muted">The address of your school's course site (Moodle).</p>
   <div class="helper">
   <p><strong>Get your token (university SSO)</strong></p>
   <ol class="muted">
-    <li>Use a computer browser (Chrome, Edge or Firefox) where you are signed in to Moodle.</li>
+    <li>Use a computer browser (Chrome, Edge or Firefox) where you are signed in to your source site.</li>
     <li>Open the link below. In the new tab press <strong>F12</strong> and open <em>Console</em>
       (reload the tab if the console is empty).</li>
     <li>Copy the whole <code>moodlemobile://token=…</code> link from the
       <em>Failed to launch</em> message and paste it in the Token field.</li>
   </ol>
   <p><a id="token-link" href="{escape(_launch_url(url_value))}" target="_blank" rel="noopener noreferrer"
-     {'' if _launch_url(url_value) != '#' else 'aria-disabled="true"'}>Open the Moodle token page ↗</a>
-     <span id="token-hint" class="muted">{'' if _launch_url(url_value) != '#' else 'Enter the Moodle address first.'}</span></p>
+     {'' if _launch_url(url_value) != '#' else 'aria-disabled="true"'}>Open the token page ↗</a>
+     <span id="token-hint" class="muted">{'' if _launch_url(url_value) != '#' else 'Enter the source site address first.'}</span></p>
   </div>
   <label for="token">Token</label>
   <input id="token" name="token" type="password" autocomplete="off" spellcheck="false"
          placeholder="{"Leave empty to keep the saved token" if creds.token else "Paste the token or the moodlemobile:// link"}">
-  <p class="muted">With university SSO, copy the token from Moodle's
-  <em>Preferences › Security keys</em> page, or capture it from the Moodle app sign-in.
+  <p class="muted">With university SSO, copy the token from the source site's
+  <em>Preferences › Security keys</em> page, or capture it from the mobile app sign-in.
   More help: docs/moodle-token.md in the repository. Tokens can expire; paste a new one here
   when the sync reports it.</p>
   <details><summary>No SSO? Sign in with username and password instead</summary>
-  <p class="muted">Used once to get a token from Moodle; the password is not stored.</p>
-  <label for="username">Moodle username</label>
+  <p class="muted">Used once to get a token from the source site; the password is not stored.</p>
+  <label for="username">Username</label>
   <input id="username" name="username" autocomplete="off">
-  <label for="mpassword">Moodle password</label>
+  <label for="mpassword">Password</label>
   <input id="mpassword" name="password" type="password" autocomplete="off">
   </details>
   <button type="submit">Test and save</button>

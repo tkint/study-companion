@@ -171,7 +171,7 @@ class CourseMaterials:
         if dated:
             return dated, ""
         return chosen, (
-            "Nothing in this course is dated in that period (Moodle only dates file uploads "
+            "Nothing in this course is dated in that period (the source site only dates file uploads "
             "and deadlines, and copied courses keep old dates), so all sections"
             + (" in the section range" if section_from is not None or section_to is not None else "")
             + " are listed. Ask the student which sections they missed if unsure."

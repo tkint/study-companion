@@ -59,7 +59,8 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `backend/app/cli.py` `python -m app.cli check|sync|snapshot-db`
 - `deploy/backup.sh` restic backup of the data volume (docs/backups.md)
 - `backend/tests/` pytest; `conftest.py` builds an app with test settings
-- `docker/Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile`, `.env.example`
+- `docker/Dockerfile`, `docker-compose.yml` (app only), `.env.example`
+- `deploy/caddy/` shared Caddy project and its admin-API deploy script, `deploy/study-companion.caddy` site
 - `.github/workflows/ci.yml` (tests, compose/Caddyfile validation, image smoke test),
   `release.yml` (tag `vX.Y.Z` -> GHCR multi-arch image + GitHub Release)
 

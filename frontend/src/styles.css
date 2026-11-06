@@ -1,3 +1,8 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
 :root {
   color-scheme: light dark;
   --bg: #f6f5fb;
@@ -23,6 +28,14 @@
   --tabbar: 60px;
   --topbar: 56px;
   --gap: 12px;
+  --color-primary: var(--accent);
+  --color-primary-content: var(--accent-text);
+  --color-error: var(--bad-bg);
+  --color-error-content: var(--bad);
+  --color-success: var(--ok-soft);
+  --color-success-content: var(--ok);
+  --radius-box: var(--radius);
+  --radius-field: 10px;
   font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-text-size-adjust: 100%;
 }
@@ -86,9 +99,6 @@ h2 { font-size: 1.05rem; margin: 28px 0 12px; }
 .small { font-size: .85rem; }
 .late { color: var(--bad); font-weight: 600; }
 .loading, .empty { color: var(--muted); }
-.alert { border: 1px solid var(--bad); background: var(--bad-bg); color: var(--bad);
-  border-radius: var(--radius); padding: 10px 12px; }
-
 /* ---- shell: top bar on wide screens, bottom tab bar on phones ---- */
 .shell { min-height: 100vh; }
 .topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px;
@@ -125,19 +135,13 @@ section, [id] { scroll-margin-top: calc(var(--topbar) + 12px); }
 }
 
 /* ---- buttons ---- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 44px; padding: 10px 16px; border-radius: 10px; border: 1px solid transparent;
-  background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600;
-  cursor: pointer; text-decoration: none; white-space: nowrap; }
-.btn:hover { text-decoration: none; filter: brightness(1.05); }
 .btn, .stat, .grade, .choice-btn, .tabs a { transition: transform .12s ease, background-color .2s, border-color .2s,
   color .2s, box-shadow .2s; }
+.btn:hover { text-decoration: none; }
+.btn.btn-primary:hover { color: var(--color-primary-content); }
+.btn.btn-ghost { color: var(--text); }
 .btn:active:not(:disabled), .grade:active, .choice-btn:active:not(:disabled) { transform: scale(.96); }
 .btn .icon { width: 1.1em; height: 1.1em; }
-.btn:disabled { opacity: .55; cursor: default; }
-.btn.ghost { background: transparent; color: var(--text); border-color: var(--border); }
-.btn.small { min-height: 36px; padding: 6px 12px; font-size: .9rem; }
-.btn.wide { width: 100%; }
 button.link { background: none; border: 0; color: var(--accent); font: inherit; padding: 0 0 0 6px;
   cursor: pointer; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
@@ -351,7 +355,7 @@ details.past > summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
   resize: vertical; tab-size: 2; }
 @media (min-width: 700px) { .template-text { font-size: .9rem; } }
 .template-text:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
-.template-problems { margin: 8px 0; padding: 10px 14px 10px 28px; }
+.template-problems { display: block; margin: 8px 0; padding: 10px 14px 10px 28px; }
 .template-actions .btn { flex: 1 1 auto; }
 @media (min-width: 700px) { .template-actions .btn { flex: 0 0 auto; } }
 .template-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -362,7 +366,6 @@ details.past > summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
 .tag.ai { color: var(--accent); border-color: var(--accent); }
 details.section > summary .tag { margin-left: 6px; vertical-align: middle; }
 button.link.danger { color: var(--bad); }
-.btn.ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
 .row.tight { margin: 0; gap: 6px; }
 .row.end { justify-content: flex-end; }
 h3.sub { font-size: .95rem; margin: 18px 0 8px; }
@@ -562,6 +565,7 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
 
 /* Catch-up choices: the ⋯ menu on deadlines and sections, ignored items, view toggles */
 .prefs-menu { position: relative; }
+.plan-list > li:has(.prefs-menu[open]) { position: relative; z-index: 1; }
 .prefs-menu > summary { list-style: none; min-width: 36px; }
 .prefs-menu > summary::-webkit-details-marker { display: none; }
 .prefs-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 2px;
@@ -630,14 +634,21 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
 .page-viewer .viewer-pages .loading, .page-viewer .viewer-pages .alert { color: var(--text); }
 .page-sheet { max-width: 760px; margin: 0 auto; padding: 18px 16px 32px; background: var(--surface);
   border-radius: var(--radius); box-shadow: var(--shadow); overflow-wrap: anywhere; line-height: 1.6; }
-.page-sheet > h1 { font-size: 1.35rem; margin: 0 0 12px; line-height: 1.3; }
+.page-sheet > h1 { font-weight: 700; font-size: 1.35rem; margin: 0 0 12px; line-height: 1.3; }
 .page-kicker { margin: 0 0 4px; font-size: .85rem; }
+.page-content h2, .page-content h3, .page-content h4, .page-content h5, .page-content h6 { font-weight: 700; }
 .page-content h2 { font-size: 1.2rem; margin: 20px 0 8px; }
 .page-content h3 { font-size: 1.08rem; margin: 18px 0 6px; }
 .page-content h4, .page-content h5, .page-content h6 { font-size: 1rem; margin: 14px 0 4px; }
 .page-content p, .page-content ul, .page-content ol, .page-content blockquote,
 .page-content pre, .page-content figure, .page-content dl { margin: 8px 0; }
 .page-content ul, .page-content ol { padding-left: 1.4em; }
+.page-content ul { list-style: disc; }
+.page-content ol { list-style: decimal; }
+.page-content strong, .page-content b { font-weight: 700; }
+.page-content em, .page-content i { font-style: italic; }
+.page-content u { text-decoration: underline; }
+.page-content a { text-decoration: underline; }
 .page-content img { max-width: 100%; height: auto; border-radius: 8px; display: inline-block; }
 .page-content blockquote { border-left: 3px solid var(--accent); margin-left: 0; padding: 2px 0 2px 12px;
   color: var(--muted); }
@@ -652,7 +663,7 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
   vertical-align: top; overflow-wrap: normal; }
 .page-table th { background: var(--bg); }
 .page-attachments { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 10px; }
-.page-attachments h2 { font-size: 1rem; margin: 0 0 6px; }
+.page-attachments h2 { font-weight: 700; font-size: 1rem; margin: 0 0 6px; }
 .page-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 24px; flex-wrap: wrap; }
 .page-nav .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 640px) { .page-sheet { border-radius: 12px; padding: 14px 14px 28px; } }

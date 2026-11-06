@@ -16,7 +16,8 @@ the tag is the version. Merge to `main` as usual, then:
      `ghcr.io/tkint/study-companion:X.Y.Z`, `:X.Y` and `:latest`,
    - creates a GitHub Release with generated notes and attaches
      `study-companion-deploy.tar.gz` (compose file, `.env.example` with `IMAGE_TAG=latest`,
-     Caddyfile, backup script), plus `docker-compose.yml`, `env.example` and `server-setup.md`.
+     shared `deploy/caddy/` project, `deploy/study-companion.caddy`, backup script),
+     plus `docker-compose.yml`, `env.example` and `server-setup.md`.
 
 The app reads its version from the `APP_VERSION` environment variable (set in the image from
 the tag) and shows it in `/healthz`, the settings page and the MCP server info. Local runs
@@ -32,32 +33,36 @@ so the VPS can pull without credentials, or keep it private and run
 ## Deploy to the VPS from GitHub (manual)
 
 Releasing only publishes the image. To roll it out, open GitHub > Actions > **Deploy** >
-**Run workflow** and pick the tag (`latest` or e.g. `0.5.0`). The workflow SSHes into the
-server and runs `docker compose pull && docker compose up -d` (`.github/workflows/deploy.yml`).
-No cron and no extra service on the server. A version other than `latest` only applies to
-that run; to stay on it permanently, set `IMAGE_TAG` in the server's `.env`.
+**Run workflow** and pick the tag (`latest` or e.g. `0.5.0`). The workflow
+(`.github/workflows/deploy.yml`) writes the app's `.env` from the settings below, uploads it
+with the deploy files over SSH and runs `~/caddy/deploy.py` (see
+[server-setup.md](server-setup.md#5-install-the-app)). No cron and no extra service on the
+server; you never edit files on it.
 
 1. On your computer create a dedicated key (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and add
-   `deploy_key.pub` to `~/.ssh/authorized_keys` of the user that owns `~/study` (a user in the
-   `docker` group, not root).
-2. In GitHub > Settings > Secrets and variables > Actions, add:
-   - secret `DEPLOY_SSH_KEY`: contents of the private key `deploy_key`,
-   - variables `DEPLOY_HOST` (domain or IP), `DEPLOY_USER`, `DEPLOY_HOST_KEY` (output of
-     `ssh-keyscan -t ed25519 <host>`),
-   - optional variables `DEPLOY_PORT` (default 22) and `DEPLOY_DIR` (default `~/study`).
-3. The job uses an environment named `production`; add required reviewers to it
-   (Settings > Environments) if you want an approval step.
+   `deploy_key.pub` to `~/.ssh/authorized_keys` of the deploy user on the server (a user in
+   the `docker` group, not root). The server needs Python 3 and Docker Compose.
+2. In GitHub > Settings > Environments, create `production` (add required reviewers if you
+   want an approval step) and add:
 
-The `DEPLOY_*` settings other than `DEPLOY_SSH_KEY` can also be stored as Actions secrets;
-variables take precedence if both are set. Use repository-level settings or the
-`production` environment, not a different environment. `DEPLOY_SSH_KEY` must be a secret.
+   | Name | Kind | Value |
+   | --- | --- | --- |
+   | `DEPLOY_SSH_KEY` | secret | the private key `deploy_key` |
+   | `DEPLOY_HOST` | variable | domain or IP of the server |
+   | `DEPLOY_USER` | variable | the deploy user |
+   | `DEPLOY_HOST_KEY` | variable | output of `ssh-keyscan -t ed25519 <host>` |
+   | `DEPLOY_PORT` | variable | optional, 22 by default |
+   | `DOMAIN` | variable | the app's hostname, e.g. `study-companion.ch` |
+   | `SECRET_KEY` | secret | `openssl rand -hex 32`; when moving an existing install, its current value |
+   | `APP_PASSWORD` | secret | web UI password for the very first start (12+ characters) |
 
-If the run shows empty `HOST`, `SSH_USER`, or `HOST_KEY`, the corresponding settings are
-missing or unavailable to the job. Add `DEPLOY_HOST`, `DEPLOY_USER`, and `DEPLOY_HOST_KEY`
-under **Settings > Secrets and variables > Actions > Variables > New repository variable**
-(or as secrets). Then rerun the workflow. It checks required settings before attempting SSH
-and reports missing names without printing their values.
+   Optional, written to `.env` only when set (see `.env.example`): variables
+   `MOODLE_URL`, `SYNC_INTERVAL_HOURS`, `MOODLE_MAX_FILE_MB`, `MOODLE_RATE_LIMIT`,
+   `SESSION_MAX_AGE`, `COOKIE_SECURE`, `TIMEZONE`, `OAUTH_REDIRECT_HOSTS`,
+   `OAUTH_ACCESS_TTL`, `OAUTH_REFRESH_TTL`, and secret `MOODLE_TOKEN`.
 
-Changes to the Caddyfile or compose file still need the deploy bundle, see
-[server-setup.md](server-setup.md#update). If the VPS firewall restricts SSH, allow GitHub-hosted
-runners or use a self-hosted runner on the VPS.
+The `DEPLOY_*` values can be repository-level settings too. The workflow stops before
+connecting if a required one is missing, without printing any value. `.env` is rewritten on
+every run, so a setting changed in GitHub takes effect at the next deployment. The version
+input becomes `IMAGE_TAG`. If the VPS firewall restricts SSH, allow GitHub-hosted runners or
+use a self-hosted runner on the VPS.

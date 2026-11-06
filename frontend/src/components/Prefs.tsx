@@ -30,7 +30,7 @@ export function PrefsMenu({
 
   return (
     <details className="prefs-menu" ref={menu}>
-      <summary className="btn small ghost" aria-label={`More for ${label}`} title="More">⋯</summary>
+      <summary className="btn btn-sm btn-ghost" aria-label={`More for ${label}`} title="More">⋯</summary>
       <div className="prefs-pop" role="menu">
         <button role="menuitem" className="link" disabled={busy}
           onClick={() => apply({ criticality: state.mandatory ? "optional" : "mandatory" })}>

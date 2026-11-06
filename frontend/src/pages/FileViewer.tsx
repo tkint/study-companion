@@ -25,7 +25,7 @@ export default function FileViewer({ id, course }: { id: number; course?: number
     return (
       <div className="viewer">
         <header className="viewer-bar">
-          <a className="btn small ghost" href={back} aria-label="Back">←</a>
+          <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
           <span className="viewer-title">File</span>
         </header>
         <div className="viewer-pages"><p className="alert">Could not open this file: {error}</p></div>
@@ -52,12 +52,12 @@ function PageViewer({ file, back }: { file: FileDetail; back: string }) {
   return (
     <div className="viewer page-viewer">
       <header className="viewer-bar">
-        <a className="btn small ghost" href={back} aria-label="Back">←</a>
+        <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
         <span className="viewer-title" title={title}>{title}</span>
         {page && page.chapters.length > 1 && (
           <span className="viewer-page">{at + 1}/{page.chapters.length}</span>
         )}
-        <a className="btn small ghost" href={fileUrl(file, true)} aria-label="Download" title="Download">⤓</a>
+        <a className="btn btn-sm btn-ghost" href={fileUrl(file, true)} aria-label="Download" title="Download">⤓</a>
       </header>
       <div className="viewer-pages">
         {error && <p className="alert">Could not open this page: {error}</p>}
@@ -79,8 +79,8 @@ function PageViewer({ file, back }: { file: FileDetail; back: string }) {
             )}
             {(prev || next) && (
               <nav className="page-nav" aria-label="Chapters">
-                {prev ? <a className="btn ghost" href={href.file(prev.id, page.course_id)}>← {prev.title}</a> : <span />}
-                {next && <a className="btn ghost" href={href.file(next.id, page.course_id)}>{next.title} →</a>}
+                {prev ? <a className="btn btn-outline btn-sm" href={href.file(prev.id, page.course_id)}>← {prev.title}</a> : <span />}
+                {next && <a className="btn btn-outline btn-sm" href={href.file(next.id, page.course_id)}>{next.title} →</a>}
               </nav>
             )}
           </article>
@@ -127,21 +127,21 @@ function PdfViewer({ file, back }: { file: FileDetail; back: string }) {
   return (
     <div className="viewer">
       <header className="viewer-bar">
-        <a className="btn small ghost" href={back} aria-label="Back">←</a>
+        <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
         <span className="viewer-title" title={file.filename}>{file.filename}</span>
         {doc && (
           <span className="viewer-page" aria-live="polite">
             {page}/{doc.numPages}
           </span>
         )}
-        <button className="btn small ghost" onClick={() => setZoom(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out">−</button>
-        <button className="btn small ghost" onClick={() => setZoom(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in">+</button>
+        <button className="btn btn-sm btn-ghost" onClick={() => setZoom(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out">−</button>
+        <button className="btn btn-sm btn-ghost" onClick={() => setZoom(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in">+</button>
         {file && (
-          <a className="btn small ghost" href={fileUrl(file, true)} aria-label="Download">⤓</a>
+          <a className="btn btn-sm btn-ghost" href={fileUrl(file, true)} aria-label="Download">⤓</a>
         )}
       </header>
       <div className="viewer-pages" ref={scroller}>
-        {error && <p className="alert">Could not open this file: {error}</p>}
+        {error && <p className="alert alert-error">Could not open this file: {error}</p>}
         {!doc && !error && <p className="loading">Loading PDF…</p>}
         {doc &&
           Array.from({ length: doc.numPages }, (_, i) => (

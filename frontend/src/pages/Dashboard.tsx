@@ -229,7 +229,7 @@ function StudyToday({ data, onChange }: { data: DashboardData; onChange: () => v
       {due > 0 && (
         <div className="banner soft">
           <span><Icon name="cards" /> <strong>{due}</strong> flashcard{due === 1 ? "" : "s"} ready for review</span>
-          <a className="btn small" href={href.study({ due: true })}>Let's go</a>
+          <a className="btn btn-primary btn-sm" href={href.study({ due: true })}>Let's go</a>
         </div>
       )}
       {today ? (
@@ -264,7 +264,7 @@ function UpNext({ data, onChange }: { data: DashboardData; onChange: (d: Deadlin
         empty={data.later.length ? "Nothing due in the next 7 days. Enjoy the breathing room." : "Nothing scheduled. Enjoy the breathing room."}
         onChange={onChange} />
       {more > 0 && (
-        <button className="btn ghost small more" onClick={() => setAll(true)}>
+        <button className="btn btn-ghost btn-sm more" onClick={() => setAll(true)}>
           Show {more} more
         </button>
       )}
@@ -327,7 +327,7 @@ function SyncNotice({ sync: initial, onDone }: { sync: SyncState; onDone: () => 
   if (!sync.configured) {
     return (
       <p className="banner warn">
-        Moodle is not connected yet. <a href="/settings">Open Settings</a> to add your Moodle address and token.
+        Your source site is not connected yet. <a href="/settings">Open Settings</a> to add its address and token.
       </p>
     );
   }
@@ -338,7 +338,7 @@ function SyncNotice({ sync: initial, onDone }: { sync: SyncState; onDone: () => 
       <span>
         <Icon name="refresh" className={sync.running ? "spin" : undefined} />
         {sync.running
-          ? "Syncing with Moodle…"
+          ? "Syncing with the source…"
           : run
             ? `Synced ${fromNow(run.finished_at ?? run.started_at)}${run.status === "ok" ? "" : ` (${run.status})`}`
             : "Not synced yet"}
