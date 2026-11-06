@@ -22,7 +22,7 @@ Keep backups off the VPS. Two simple Swiss options:
 
 ## 2. Configure
 
-On the server, in the app folder (e.g. `~/study`):
+On the server, in the app folder (e.g. `~/study-companion`):
 
 ```bash
 cat > deploy/backup.env <<'EOF'
@@ -53,7 +53,7 @@ crontab -e
 Add (03:30 every night, log to a file):
 
 ```
-30 3 * * * cd $HOME/study && deploy/backup.sh backup >> $HOME/study/backup.log 2>&1
+30 3 * * * cd $HOME/study-companion && deploy/backup.sh backup >> $HOME/study-companion/backup.log 2>&1
 ```
 
 Retention: 7 daily, 4 weekly and 6 monthly snapshots (`RESTIC_KEEP` overrides it). Run
@@ -62,7 +62,7 @@ Retention: 7 daily, 4 weekly and 6 monthly snapshots (`RESTIC_KEEP` overrides it
 ## Restore
 
 ```bash
-cd ~/study
+cd ~/study-companion
 deploy/backup.sh snapshots                 # pick a snapshot id, or use "latest"
 deploy/backup.sh restore latest /tmp/restore
 docker compose down
@@ -72,5 +72,5 @@ docker run --rm -v study_app-data:/data -v /tmp/restore/data:/restore alpine \
 docker compose up -d
 ```
 
-(`study_app-data` is the volume name when the app folder is `~/study`; check with
+(`study_app-data` is the volume name; check with
 `docker volume ls`.)

@@ -40,14 +40,13 @@ No cron and no extra service on the server. A version other than `latest` only a
 that run; to stay on it permanently, set `IMAGE_TAG` in the server's `.env`.
 
 1. On your computer create a dedicated key (`ssh-keygen -t ed25519 -f deploy_key -N ""`) and add
-   `deploy_key.pub` to `~/.ssh/authorized_keys` of the user that owns `~/study` (a user in the
+   `deploy_key.pub` to `~/.ssh/authorized_keys` of the user that owns `~/study-companion` (a user in the
    `docker` group, not root).
 2. In GitHub > Settings > Secrets and variables > Actions, add:
    - secret `DEPLOY_SSH_KEY`: contents of the private key `deploy_key`,
    - variables `DEPLOY_HOST` (domain or IP), `DEPLOY_USER`, `DEPLOY_HOST_KEY` (output of
      `ssh-keyscan -t ed25519 <host>`),
-   - optional variables `DEPLOY_PORT` (default 22), `DEPLOY_DIR` (default `~/study`) and
-     `EDGE_DIR` (default `~/edge`, the same shared directory for every deployment).
+   - optional variable `DEPLOY_PORT` (default 22).
 3. The job uses an environment named `production`; add required reviewers to it
    (Settings > Environments) if you want an approval step.
 
@@ -61,7 +60,7 @@ under **Settings > Secrets and variables > Actions > Variables > New repository 
 (or as secrets). Then rerun the workflow. It checks required settings before attempting SSH
 and reports missing names without printing their values.
 
-The server needs Python 3 and Docker Compose 2.24.4 or newer. Prepare `~/study/.env`
+The server needs Python 3 and Docker Compose 2.24.4 or newer. Prepare `~/study-companion/.env`
 before the first run. Each deployment installs the app Compose file, updates only this
 app's site, and starts the shared Caddy if needed, even if the app or Caddy is absent.
 It updates only this app's identified route through Caddy's local admin REST API. Caddy

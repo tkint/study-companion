@@ -98,12 +98,13 @@ sudo apt install -y python3
 
 ## 5. Install the app
 
-For an existing installation, keep its `.env`, directory and Compose project name.
+For an existing installation, keep its `.env` and data volume. The Compose project name
+remains `study` so the existing app volume is reused in `~/study-companion`.
 The deployment command below also handles upgrades and automatically migrates an
 app-owned Caddy; see [migration details](#automatic-caddy-migration).
 
 ```bash
-mkdir -p ~/study && cd ~/study
+mkdir -p ~/study-companion && cd ~/study-companion
 curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
   | tar xz --strip-components=1
 cp .env.example .env
@@ -121,14 +122,14 @@ Fill in `.env`:
 ### Deploy the app and shared Caddy
 
 ```bash
-cd ~/study
+cd ~/study-companion
 python3 deploy/edge/deploy.py --app-dir . \
   --compose-file docker-compose.yml --site-file deploy/study-companion.caddy
 ```
 
 The app's Compose file runs only the app. Deployment creates the external `edge` network,
 renders `DOMAIN` into its own site file, validates the proposed route against Caddy's current config, pulls
-the images and starts the app and Caddy projects. Caddy lives independently in `~/edge` and
+the images and starts the app and Caddy projects. Caddy lives independently in `~/caddy` and
 is started if absent or stopped, regardless of whether the app already exists.
 
 Existing site files and a customized edge `Caddyfile` are preserved. Repeated deployments
@@ -139,14 +140,15 @@ bound to Caddy's localhost; deployment invokes it from inside the container. A h
 lock serializes changes from independent deployments. All deployments sharing Caddy must use the same edge
 directory, Compose project and external network.
 
-Use `--edge-dir /path/to/edge` to change the shared directory. `EDGE_NETWORK` in the
+The deployment workflow installs the app in `~/study-companion` and Caddy in `~/caddy`.
+Keep those paths consistent for both apps. `EDGE_NETWORK` in the
 app's `.env` defaults to `edge`; if customized, the edge's network must match.
 Do not combine the edge and app Compose files into one project. `docker compose down`
 in the app directory leaves Caddy running. The shared network is for trusted apps;
 containers on it can reach each other's app ports.
 
 The site retains the security headers and query-string secret redaction and proxies to
-the unique alias `study-companion-app:8000`. Check `cd ~/edge && docker compose logs caddy`
+the unique alias `study-companion-app:8000`. Check `cd ~/caddy && docker compose logs caddy`
 if HTTPS does not become available.
 
 Open `https://study-companion.ch` on your phone and sign in. Then open **Settings**, enter
@@ -173,12 +175,12 @@ Refresh the bundle in a staging directory so the running installation remains av
 for automatic migration. Keep the existing app directory/project name and `.env`:
 
 ```bash
-mkdir -p ~/study-deploy && cd ~/study-deploy
+mkdir -p ~/study-companion-deploy && cd ~/study-companion-deploy
 curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
   | tar xz --strip-components=1
-python3 deploy/edge/deploy.py --app-dir ~/study \
+python3 deploy/edge/deploy.py --app-dir ~/study-companion \
   --compose-file docker-compose.yml --site-file deploy/study-companion.caddy --version latest
-cd ~/study
+cd ~/study-companion
 docker compose exec app python -c "import app; print(app.__version__)"   # running version
 ```
 
@@ -191,7 +193,7 @@ handles a running, stopped or absent Caddy.
 For direct edge inspection, include the migration override when present:
 
 ```bash
-cd ~/edge
+cd ~/caddy
 docker compose -f compose.yaml -f migration.compose.json ps
 ```
 
@@ -232,7 +234,7 @@ to clean up a migrated stack.
   old version; set it to `latest` (see Update above).
 - **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
   or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
-  Check `cd ~/edge && docker compose logs caddy`.
+  Check `cd ~/caddy && docker compose logs caddy`.
 - **Network `edge` not found:** create it once with `docker network create edge`.
 - **502 from Caddy:** check the app is running and attached to `edge`; the site's upstream
   must be `study-companion-app:8000`, not the ambiguous name `app:8000`.

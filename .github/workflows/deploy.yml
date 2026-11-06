@@ -28,8 +28,8 @@ jobs:
           HOST: ${{ vars.DEPLOY_HOST || secrets.DEPLOY_HOST }}
           SSH_USER: ${{ vars.DEPLOY_USER || secrets.DEPLOY_USER }}
           SSH_PORT: ${{ vars.DEPLOY_PORT || secrets.DEPLOY_PORT || '22' }}
-          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || secrets.DEPLOY_DIR || '~/study' }}
-          EDGE_DIR: ${{ vars.EDGE_DIR || secrets.EDGE_DIR || '~/edge' }}
+          DEPLOY_DIR: ~/study-companion
+          EDGE_DIR: ~/caddy
           HOST_KEY: ${{ vars.DEPLOY_HOST_KEY || secrets.DEPLOY_HOST_KEY }}
           VERSION: ${{ inputs.version }}
         run: bash deploy/edge/remote-deploy.sh docker-compose.yml deploy/study-companion.caddy

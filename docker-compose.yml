@@ -1,6 +1,8 @@
 # Study Companion only. HTTPS comes from the shared edge project in deploy/edge/.
 # Use deploy/edge/deploy.py to install/update both projects (docs/server-setup.md).
 
+name: study
+
 services:
   app:
     image: ghcr.io/tkint/study-companion:${IMAGE_TAG:-latest}

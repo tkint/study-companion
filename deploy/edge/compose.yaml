@@ -1,5 +1,5 @@
 # The edge: one Caddy that owns ports 80 and 443 and serves applications over HTTPS.
-# Install only one copy in ~/edge, independently of any application project.
+# Install only one copy in ~/caddy, independently of any application project.
 # Applications join the `edge` network and use Caddy's local admin API to manage their sites.
 # Use deploy.py from an application's deployment bundle to install/update it.
 

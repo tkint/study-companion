@@ -652,7 +652,7 @@ def reconcile(args, app, edge, source, compose_source, site_source):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app-dir", type=Path, default=Path.cwd())
-    parser.add_argument("--edge-dir", type=Path, default=Path.home() / "edge")
+    parser.add_argument("--edge-dir", type=Path, default=Path.home() / "caddy")
     parser.add_argument("--compose-file", type=Path, required=True)
     parser.add_argument("--site-file", type=Path, required=True)
     parser.add_argument("--version")

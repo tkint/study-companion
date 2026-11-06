@@ -28,7 +28,7 @@ printf '%s\n' "$HOST_KEY" > "$credentials/known_hosts"
 chmod 600 "$credentials/key" "$credentials/known_hosts"
 
 # Quote arguments for the remote shell, then unpack only regular files in a temporary directory.
-edge_dir=${EDGE_DIR:-'~/edge'}
+edge_dir=${EDGE_DIR:-'~/caddy'}
 remote_command=$(python3 - "$DEPLOY_DIR" "$edge_dir" "$VERSION" "$compose_file" "$site_file" <<'PY'
 import shlex
 import sys
