@@ -164,6 +164,35 @@ and sections no upcoming deadline needs) in priority order until it reaches your
 is listed under **Beyond your goal** (only if you have time); tick **Plan beyond my goal** to
 schedule it anyway. Claude's `get_catch_up_plan` and the prompts use the same goal.
 
+## Study schedule (timed blocks and .ics)
+
+**Catch-up plan › Timed schedule** turns the plan into focus blocks with start and end times,
+built by rules, without AI. Every change saves on its own and the schedule is generated again.
+
+- **Workload and rest:** hours per day (the same setting as the plan), a **daily maximum**
+  (up to 8 h, only used when a deadline would be missed otherwise), **rest kept each day**
+  (free time inside your study window), the length of a focus block, the break between blocks,
+  and a **buffer** of days before deadlines (work is planned to finish that many days early).
+  **Study from / until** sets the window blocks go in.
+- **Course weights:** a course with weight 2 gets about twice the time of one with weight 1;
+  0 leaves it out. The slider shows the share you asked for and the share planned. Courses
+  take turns (never the same course twice in a row when another has work), and work for a
+  close deadline comes first.
+- **When you can't study:** weekly slots (classes, work, training) and specific days or hours
+  (appointments, travel, all-day off). Blocks never overlap them.
+- **Activities:** *Deep work* blocks for sections (with their files), *Practice* blocks for
+  assignments and quizzes, two short *Active recall* blocks one and four days after you finish
+  a section (spaced repetition; untick **Spaced active recall** to drop them), and a short
+  *Flashcards* block each day once you have flashcards.
+
+**Download .ics** saves the blocks as a calendar file for Google Calendar (*Settings › Import*),
+Apple Calendar (*File › Import*) or Outlook (*Add calendar › Upload from file*). Each event is
+called like `[Study] LA: Matrices (Deep work)`, with what to do, the files (links into the app)
+and the Moodle link in the description. Events keep the same ids per day and position, so
+some apps update them when you import a newer schedule; others add copies, so delete the old
+import first there. Times use the
+server's `TIMEZONE`.
+
 ## Calendar and ICS export
 
 The **Calendar** tab shows deadlines in month, week and list views (list by default on a

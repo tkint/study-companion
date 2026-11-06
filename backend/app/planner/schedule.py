@@ -339,6 +339,7 @@ class Schedule:
     courses: list[dict]
     notes: list[str]
     cards_due: int = 0
+    timezone: str = ""
 
     @property
     def blocks(self) -> list[Block]:
@@ -351,6 +352,7 @@ class Schedule:
             by_kind[b.kind] = by_kind.get(b.kind, 0) + b.minutes
         return {
             "today": self.today.isoformat(), "generated_at": self.generated_at,
+            "timezone": self.timezone,
             "config": self.config, "weekdays": list(WEEKDAYS),
             "total_minutes": sum(b.minutes for b in blocks),
             "minutes_by_kind": by_kind,
@@ -573,7 +575,7 @@ class Generator:
             notes.append("No free study time: check your study window, unavailabilities and "
                          "rest hours.")
         return Schedule(self.today, self.now, cfg, days, unscheduled, course_rows, notes,
-                        cards_due)
+                        cards_due, self.settings.timezone)
 
     def _work(self, item: PlanItem) -> Work:
         deadline = None

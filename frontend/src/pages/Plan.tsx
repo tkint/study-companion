@@ -133,6 +133,9 @@ export default function Plan() {
         missed to reach your goal. You don't have to catch up on everything. Times are estimates from page counts;
         use ⋯ to mark something optional or let it go.
       </p>
+      <p className="small">
+        <a className="btn btn-sm" href={href.schedule}>Timed schedule and .ics export →</a>
+      </p>
       <div className="plan-controls">
         <label>
           Hours per day

@@ -628,3 +628,33 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
 .subscribe .field { margin: 10px 0; }
 .subscribe .field input[type="time"] { font: inherit; font-size: 16px; min-height: 44px; padding: 6px 10px;
   border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+
+/* Timed study schedule (pages/Schedule.tsx) */
+.sched-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0 12px; }
+.sched-panel { margin: 12px 0; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); }
+.sched-panel > summary { font-weight: 600; cursor: pointer; min-height: 32px; }
+.sched-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 20px; margin: 10px 0; }
+.sched-slider { display: grid; gap: 4px; font-size: .9rem; }
+.sched-slider-head { display: flex; justify-content: space-between; gap: 8px; }
+.sched-slider input[type="range"] { width: 100%; min-height: 28px; }
+.sched-course { display: flex; gap: 10px; align-items: flex-start; }
+.sched-course .swatch { margin-top: 4px; }
+.sched-course .sched-slider { flex: 1; }
+.sched-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+.sched-row label { display: grid; gap: 4px; font-size: .9rem; }
+.sched-editor { border: 0; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+.sched-editor legend { font-weight: 600; font-size: .95rem; }
+.sched-slot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sched-slot input[type="text"] { flex: 1 1 140px; min-width: 0; }
+.sched-slot.sched-past { opacity: .6; }
+.sched-range { display: inline-flex; align-items: center; gap: 4px; }
+.sched-allday { display: inline-flex; align-items: center; gap: 4px; font-size: .9rem; }
+.sched-blocked { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.sched-detail { white-space: pre-line; margin: 4px 0 0; }
+.sched-files { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 0; }
+.sched-time { font-variant-numeric: tabular-nums; }
+.sched-editor .input, .sched-editor .select, .sched-row .input, .sched-row .select { font-size: 16px; }
+.sched-actions a.btn-primary, .sched-actions a.btn-primary:visited { color: var(--color-primary-content); }
+.sched-slot .select, .sched-row .select, .sched-range .input, .sched-row .input, .sched-slot input[type="date"] { width: auto; }
+.sched-slot input[type="text"] { width: auto; }
