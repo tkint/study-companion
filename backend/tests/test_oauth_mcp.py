@@ -353,7 +353,7 @@ def test_password_change_and_disconnect_sign_claude_out(c):
     t = tokens(c)
     c.post("/login", data={"password": PASSWORD})
     page = c.get("/settings")
-    assert "Claude connector" in page.text and "http://testserver/mcp" in page.text
+    assert "AI connector" in page.text and "http://testserver/mcp" in page.text
     assert "Claude (claude.ai)" in page.text
     r = c.post("/settings/connector/disconnect", headers=SAME_ORIGIN)
     assert r.status_code == 303

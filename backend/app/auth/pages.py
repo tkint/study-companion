@@ -155,7 +155,7 @@ def _topbar(active: str) -> str:
     # Same tabs, in the same order, as the React UI (frontend/src/nav.ts).
     tabs = [("today", "Today", "/#/"), ("courses", "Courses", "/#/courses"),
             ("study", "Study", "/#/study"), ("calendar", "Calendar", "/#/calendar"),
-            ("prompt", "Ask Claude", "/#/prompt"), ("settings", "Settings", "/settings")]
+            ("prompt", "Ask AI", "/#/prompt"), ("settings", "Settings", "/settings")]
     links = "".join(
         f'<a href="{href}"{" aria-current=\"page\"" if key == active else ""}>{_svg(key)}<span>{label}</span></a>'
         for key, label, href in tabs
@@ -340,12 +340,12 @@ def _connector_card(mcp_url: str, connections: list[dict]) -> str:
     else:
         state, button = '<p class="muted">Not connected yet.</p>', ""
     return f"""<div class="card">
-<h2>Claude connector</h2>
+<h2>AI connector</h2>
 <p>On claude.ai open <em>Settings › Connectors › Add custom connector</em> and enter:</p>
 <p><code>{escape(mcp_url)}</code></p>
 {state}
 <div class="row">{button}</div>
-<p class="muted">Changing the password below also disconnects Claude. Guide: docs/connector.md.</p>
+<p class="muted">Changing the password below also disconnects your AI assistant. Guide: docs/connector.md.</p>
 </div>"""
 
 
@@ -513,5 +513,5 @@ def oauth_error_page(message: str) -> str:
         f"""
 <h1>Can't connect</h1>
 <p class="error" role="alert">{escape(message)}</p>
-<p>Remove the connector in Claude and add it again. See docs/connector.md in the repository.</p>""",
+<p>Remove the connector in your AI assistant and add it again. See docs/connector.md in the repository.</p>""",
     )

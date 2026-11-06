@@ -51,7 +51,7 @@ export const SECTIONS: NavSection[] = [
     short: "Study",
     icon: "M4 7l8-4 8 4-8 4zM8 9v5c0 1.5 2 3 4 3s4-1.5 4-3V9M20 7v6",
     pages: [
-      { route: "study", label: "Flashcards", href: href.study(), hint: "Review the cards Claude saved, with spaced repetition" },
+      { route: "study", label: "Flashcards", href: href.study(), hint: "Review the cards your AI assistant saved, with spaced repetition" },
       { route: "time", label: "Study time", href: href.time, hint: "A timer, your daily goal and your streak" },
     ],
   },
@@ -64,11 +64,11 @@ export const SECTIONS: NavSection[] = [
   },
   {
     id: "prompt",
-    label: "Ask Claude",
-    short: "Claude",
+    label: "Ask AI",
+    short: "AI",
     icon: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
     pages: [
-      { route: "prompt", label: "Prompt builder", href: href.prompt(), hint: "Build a prompt to paste into Claude with the connector" },
+      { route: "prompt", label: "Prompt builder", href: href.prompt(), hint: "Build a prompt to paste into your AI assistant with the connector" },
       { route: "templates", label: "Templates", href: href.templates(), hint: "Edit the text behind each prompt goal" },
     ],
   },

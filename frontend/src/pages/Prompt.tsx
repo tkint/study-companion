@@ -237,8 +237,8 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
       <div>
         <h1>Prompt builder</h1>
         <Lead $small>
-          Pick a course, a period and a goal, then copy the prompt into Claude (with the Study Companion
-          connector on). Claude reads only the material the prompt names.{" "}
+          Pick a course, a period and a goal, then copy the prompt into your AI assistant (with the Study Companion
+          connector on). It reads only the material the prompt names.{" "}
           <a href={href.templates()}>Edit the templates</a>
         </Lead>
 
@@ -412,7 +412,7 @@ function Result({ built, error, busy }: { built: Built | null; error: string | n
       <Small $muted={busy}>
         {s.sections} section{s.sections === 1 ? "" : "s"} · {s.files} file{s.files === 1 ? "" : "s"}
         {" "}({s.readable_files} with text) · about {s.pages} page{s.pages === 1 ? "" : "s"}
-        {s.prompts > 1 && <> · split into {s.prompts} prompts to stay within Claude's limits</>}
+        {s.prompts > 1 && <> · split into {s.prompts} prompts to stay within the AI's limits</>}
       </Small>
       {built.courses.filter((c) => c.note).map((c) => (
         <Alert key={c.id} $tone="warning">{c.fullname}: {c.note}</Alert>
@@ -421,8 +421,8 @@ function Result({ built, error, busy }: { built: Built | null; error: string | n
         <PromptCard key={i} title={p.title} text={p.text} />
       ))}
       <Small $muted>
-        Paste it in a new chat on <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">claude.ai ↗</a> or
-        in the Claude app, with the Study Companion connector enabled.
+        Paste it in a new chat of any AI assistant that has the Study Companion connector enabled (Claude, ChatGPT,
+        Gemini…). See docs/connector.md to add it.
       </Small>
     </>
   );

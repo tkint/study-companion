@@ -59,7 +59,7 @@ export function QuizResults({ results, onDelete, showCourse = false, limit = 10 
                 )}
               </div>
               <Muted $small>
-                <Badge $tone={r.source === "claude" ? "primary" : "sky"}>{r.source === "claude" ? "Quiz with Claude" : "Flashcards"}</Badge>{" "}
+                <Badge $tone={r.source === "claude" ? "primary" : "sky"}>{r.source === "claude" ? "Quiz with AI" : "Flashcards"}</Badge>{" "}
                 {when(r.taken_at)}
               </Muted>
               {r.notes && <div>{r.notes}</div>}

@@ -344,7 +344,7 @@ export default function Time() {
                   {e.note && <Muted> · {e.note}</Muted>}
                   <br />
                   <Muted $small>
-                    {when(e.started_at)} · {e.source === "claude" ? "logged by Claude" : e.source === "timer" ? "timer" : "added by hand"}
+                    {when(e.started_at)} · {e.source === "claude" ? "logged by your AI" : e.source === "timer" ? "timer" : "added by hand"}
                   </Muted>
                 </span>
                 <strong>{minutesLabel(e.minutes)}</strong>

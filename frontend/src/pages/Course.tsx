@@ -265,7 +265,7 @@ function AiNote({ note, onDelete }: { note: StudyNote; onDelete: () => void }) {
   return (
     <Note>
       <NoteHead>
-        <Badge $tone="primary">Claude</Badge>
+        <Badge $tone="primary">AI</Badge>
         <strong>{note.title || "Summary"}</strong>
         <Count>updated {fromNow(note.updated_at)}</Count>
         <TextButton $danger onClick={onDelete} aria-label="Delete this summary">Delete</TextButton>
@@ -329,12 +329,12 @@ function StudyPanel({ course, study, onChange }: { course: CourseDetail; study: 
               {study.questions_due > 0 ? "Review due cards" : "Practise all"}
             </Button>
           )}
-          <Button as="a" $variant="soft" $size="sm" href={href.prompt(course.id)}>Ask Claude</Button>
+          <Button as="a" $variant="soft" $size="sm" href={href.prompt(course.id)}>Ask AI</Button>
         </Row>
       </Banner>
       {!study.notes.length && !study.questions_total && (
         <Empty>
-          Nothing from Claude yet. Build a prompt with “Save results to the app” on, paste it in Claude, and its
+          Nothing from your AI assistant yet. Build a prompt with “Save results to the app” on, paste it in your AI assistant, and its
           summaries and questions appear here.
         </Empty>
       )}
@@ -358,7 +358,7 @@ export default function Course({ id, section }: { id: number; section?: number }
   const orphans = (study?.notes ?? []).filter((n) => !sections.some((s) => s.id === n.section_id));
 
   async function deleteNote(note: StudyNote) {
-    if (!study || !window.confirm("Delete Claude's summary of this section?")) return;
+    if (!study || !window.confirm("Delete the AI summary of this section?")) return;
     await api.deleteNote(note.id);
     studyLoad.setData({ ...study, notes: study.notes.filter((n) => n.id !== note.id) });
   }

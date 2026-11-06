@@ -12,7 +12,7 @@ import { CourseMeta, CourseName, CourseRow } from "../components/CourseList";
 import { pop, rise } from "../styles/motion";
 import { Alert, Badge, Banner, Button, Crumbs, Empty, Footnote, Late, Lead, List, Muted, ProgressBar, Row, TextButton } from "../ui";
 
-// Flashcards from the questions Claude saved, with spaced repetition: each answer is graded
+// Flashcards from the questions your AI assistant saved, with spaced repetition: each answer is graded
 // Again / Hard / Good / Easy and the server schedules the next review (app/study.py).
 
 const GRADES = [
@@ -191,7 +191,7 @@ function Overview({ overview, due }: { overview: StudyOverview; due: number }) {
     <>
       <h1>Study</h1>
       <Lead>
-        Flashcards from the questions Claude saved. Cards you know come back less and less often.
+        Flashcards from the questions your AI assistant saved. Cards you know come back less and less often.
       </Lead>
       <Reminders />
       <Banner $tone="neutral">
@@ -208,7 +208,7 @@ function Overview({ overview, due }: { overview: StudyOverview; due: number }) {
         <Empty>
           <span>
             No questions yet. In the <a href={href.prompt()}>prompt builder</a>, pick “Quiz me” or “Flashcards” with
-            “Save results to the app” on, and paste the prompt in Claude.
+            “Save results to the app” on, and paste the prompt in your AI assistant.
           </span>
         </Empty>
       )}

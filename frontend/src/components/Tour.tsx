@@ -49,7 +49,7 @@ const STEPS: Step[] = [
     go: href.study(),
     target: '[data-tour="tab-study"]',
     title: "Study",
-    body: "Flashcards Claude saved for you, with spaced repetition. Study time (timer and daily goal) sits in the menu above.",
+    body: "Flashcards your AI assistant saved for you, with spaced repetition. Study time (timer and daily goal) sits in the menu above.",
   },
   {
     go: href.calendar,
@@ -60,8 +60,8 @@ const STEPS: Step[] = [
   {
     go: href.prompt(),
     target: '[data-tour="tab-prompt"]',
-    title: "Ask Claude",
-    body: "Pick a course, a period and a goal, then copy the prompt into Claude with the Study Companion connector on.",
+    title: "Ask AI",
+    body: "Pick a course, a period and a goal, then copy the prompt into your AI assistant (Claude, ChatGPT, Gemini…) with the Study Companion connector on.",
   },
   {
     target: '[data-tour="help"]',

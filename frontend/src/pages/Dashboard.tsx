@@ -356,7 +356,7 @@ function Wins({ stats }: { stats: Stats }) {
           sub={`${w.quizzes} quiz${w.quizzes === 1 ? "" : "zes"} this week`} />
       ) : (
         <Win icon="note" tone="accent" value={stats.total.summaries} label={stats.total.summaries === 1 ? "summary" : "summaries"}
-          sub="saved by Claude" />
+          sub="saved by your AI" />
       )}
     </WinList>
   );
