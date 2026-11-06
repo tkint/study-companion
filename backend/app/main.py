@@ -22,6 +22,7 @@ from starlette.routing import Route
 from app import accounts
 from app.api import prompts as prompt_routes
 from app.api import routes
+from app.api import schedule as schedule_routes
 from app.api import study as study_routes
 from app.api.status import course_overview, run_to_dict
 from app.auth import oauth, oauth_routes
@@ -475,6 +476,7 @@ def create_app(
     routes.register(app, settings, engine, is_authenticated, _same_origin)
     prompt_routes.register(app, settings, engine, is_authenticated, _same_origin)
     study_routes.register(app, settings, engine, is_authenticated, _same_origin)
+    schedule_routes.register(app, settings, engine, is_authenticated, _same_origin)
     oauth_routes.register(app, settings, engine, is_authenticated, _same_origin, throttle,
                           _client_key)
     # Claude's connector: OAuth bearer token required (checked in MCPEndpoint).
