@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
-    <!-- Status bar colour in the installed app: follows the theme (see src/theme.ts). -->
+    <!-- Status bar colour in the installed app: follows the theme (see src/colorScheme.ts). -->
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1c1a27" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#131C2E" media="(prefers-color-scheme: dark)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Study" />
@@ -18,7 +18,7 @@
         var t = localStorage.getItem("theme");
         if (t === "light" || t === "dark") {
           document.documentElement.setAttribute("data-theme", t);
-          var c = t === "dark" ? "#1c1a27" : "#ffffff";
+          var c = t === "dark" ? "#131C2E" : "#ffffff";
           document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.setAttribute("content", c); });
         }
       } catch (e) {}
