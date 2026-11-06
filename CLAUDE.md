@@ -37,6 +37,9 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   web service function), `sync.py`, `scheduler.py`, `names.py` (safe paths), `text.py` (multilang, language)
 - `backend/app/extract/` `formats.py` (PDF/DOCX/PPTX/HTML/text to pages), `index.py` (FileText/FilePage,
   FTS5 `search_index`, run after each sync)
+- `backend/app/teacher_pages.py` Moodle page/book HTML (`index.html`): readable titles, allow-list
+  sanitising, images/attachments resolved to synced files (`/api/files/{id}/page`); the UI renders it
+  with `src/components/HtmlContent.tsx` (second allow-list, React elements, no innerHTML)
 - `backend/app/materials.py` course read model (period -> sections) shared by MCP tools and prompts
 - `backend/app/study.py` study loop: Claude's notes, questions (SM-2 spaced repetition), quiz results,
   sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan

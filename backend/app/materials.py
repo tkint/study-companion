@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.engine import Engine
 from sqlmodel import col, select
 
+from app import teacher_pages
 from app.db import session
 from app.models import Course, Deadline, File, FileText, Module, Section
 
@@ -68,6 +69,11 @@ def file_kind(f: File) -> str:
 class FileInfo:
     row: File
     text: FileText | None
+    title: str = ""  # readable name of a teacher page (Moodle exports them as index.html)
+
+    @property
+    def name(self) -> str:
+        return self.title or self.row.filename
 
     @property
     def id(self) -> int:
@@ -199,9 +205,12 @@ def load_course(engine: Engine, course_id: int) -> CourseMaterials | None:
             select(Deadline).where(Deadline.course_id == course_id,
                                    Deadline.removed == False)  # noqa: E712
         ).all()
+    names = teacher_pages.titles(engine, list(files))
     files_by_module: dict[int, list[FileInfo]] = {}
     for f in files:
-        files_by_module.setdefault(f.module_id, []).append(FileInfo(f, texts.get(f.id)))
+        files_by_module.setdefault(f.module_id, []).append(
+            FileInfo(f, texts.get(f.id), names.get(f.id, ""))
+        )
     deadlines_by_module: dict[int, list[Deadline]] = {}
     for d in deadlines:
         if d.module_id:

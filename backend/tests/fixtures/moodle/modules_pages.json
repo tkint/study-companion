@@ -1,0 +1,37 @@
+[
+  {
+    "id": 6101, "name": "Notes du prof: le tri rapide", "modname": "page", "instance": 31,
+    "url": "https://moodle.example.ch/mod/page/view.php?id=6101", "visible": 1, "uservisible": true,
+    "contents": [
+      {"type": "file", "filename": "index.html", "filepath": "/", "filesize": 0,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1500/mod_page/content/index.html?forcedownload=1",
+       "timemodified": 1756300000, "mimetype": "text/html"},
+      {"type": "file", "filename": "schéma tri.png", "filepath": "/", "filesize": 8,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1500/mod_page/content/4/sch%C3%A9ma%20tri.png?forcedownload=1",
+       "timemodified": 1756300000, "mimetype": "image/png"},
+      {"type": "file", "filename": "exercices.pdf", "filepath": "/", "filesize": 9,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1500/mod_page/content/4/exercices.pdf?forcedownload=1",
+       "timemodified": 1756300000, "mimetype": "application/pdf"},
+      {"type": "file", "filename": "graph.gif", "filepath": "/", "filesize": 6,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1500/mod_page/content/4/graph.gif?forcedownload=1",
+       "timemodified": 1756300000, "mimetype": "image/gif"}
+    ]
+  },
+  {
+    "id": 6102, "name": "Manuel", "modname": "book", "instance": 7,
+    "url": "https://moodle.example.ch/mod/book/view.php?id=6102", "visible": 1, "uservisible": true,
+    "contents": [
+      {"type": "content", "filename": "structure", "filepath": "/", "filesize": 0, "fileurl": "",
+       "content": "[{\"title\":\"Introduction\",\"href\":\"71/index.html\",\"level\":0,\"hidden\":\"0\",\"subitems\":[]},{\"title\":\"Complexit\\u00e9\",\"href\":\"72/index.html\",\"level\":0,\"hidden\":\"0\",\"subitems\":[]}]"},
+      {"type": "file", "filename": "index.html", "filepath": "/71/", "filesize": 0,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1501/mod_book/chapter/71/index.html",
+       "timemodified": 1756300100, "mimetype": "text/html"},
+      {"type": "file", "filename": "index.html", "filepath": "/72/", "filesize": 0,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1501/mod_book/chapter/72/index.html",
+       "timemodified": 1756300200},
+      {"type": "file", "filename": "courbe.png", "filepath": "/72/", "filesize": 5,
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/1501/mod_book/chapter/72/courbe.png",
+       "timemodified": 1756300200, "mimetype": "image/png"}
+    ]
+  }
+]

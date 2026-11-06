@@ -624,3 +624,35 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
 .subscribe .field { margin: 10px 0; }
 .subscribe .field input[type="time"] { font: inherit; font-size: 16px; min-height: 44px; padding: 6px 10px;
   border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+
+/* ---- teacher pages (Moodle page and book activities) ---- */
+.page-viewer { background: var(--bg); }
+.page-viewer .viewer-pages .loading, .page-viewer .viewer-pages .alert { color: var(--text); }
+.page-sheet { max-width: 760px; margin: 0 auto; padding: 18px 16px 32px; background: var(--surface);
+  border-radius: var(--radius); box-shadow: var(--shadow); overflow-wrap: anywhere; line-height: 1.6; }
+.page-sheet > h1 { font-size: 1.35rem; margin: 0 0 12px; line-height: 1.3; }
+.page-kicker { margin: 0 0 4px; font-size: .85rem; }
+.page-content h2 { font-size: 1.2rem; margin: 20px 0 8px; }
+.page-content h3 { font-size: 1.08rem; margin: 18px 0 6px; }
+.page-content h4, .page-content h5, .page-content h6 { font-size: 1rem; margin: 14px 0 4px; }
+.page-content p, .page-content ul, .page-content ol, .page-content blockquote,
+.page-content pre, .page-content figure, .page-content dl { margin: 8px 0; }
+.page-content ul, .page-content ol { padding-left: 1.4em; }
+.page-content img { max-width: 100%; height: auto; border-radius: 8px; display: inline-block; }
+.page-content blockquote { border-left: 3px solid var(--accent); margin-left: 0; padding: 2px 0 2px 12px;
+  color: var(--muted); }
+.page-content pre { background: var(--bg); padding: 8px 10px; border-radius: 8px; overflow-x: auto; }
+.page-content code { font-size: .9em; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+.page-content pre code { background: none; padding: 0; }
+.page-content a { color: var(--accent); overflow-wrap: anywhere; }
+.page-content hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
+.page-table { overflow-x: auto; margin: 10px 0; -webkit-overflow-scrolling: touch; }
+.page-table table { border-collapse: collapse; min-width: 100%; font-size: .93rem; }
+.page-table th, .page-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left;
+  vertical-align: top; overflow-wrap: normal; }
+.page-table th { background: var(--bg); }
+.page-attachments { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 10px; }
+.page-attachments h2 { font-size: 1rem; margin: 0 0 6px; }
+.page-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 24px; flex-wrap: wrap; }
+.page-nav .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .page-sheet { border-radius: 12px; padding: 14px 14px 28px; } }

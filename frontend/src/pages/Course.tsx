@@ -46,11 +46,19 @@ function isPdf(f: FileInfo) {
   return f.mimetype === "application/pdf" || f.filename.toLowerCase().endsWith(".pdf");
 }
 
-function FileRow({ f, courseId, moduleUrl }: { f: FileInfo; courseId: number; moduleUrl: string }) {
+function isImage(f: FileInfo) {
+  return f.mimetype.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.filename);
+}
+
+function FileRow({ f, courseId, moduleUrl, moduleName }: {
+  f: FileInfo; courseId: number; moduleUrl: string; moduleName: string;
+}) {
   const label = (
     <>
-      <span className="file-name">{f.filename}</span>
-      <span className="muted"> {size(f.filesize)}</span>
+      <span className="file-name">
+        {f.page ? (f.title === moduleName ? "Read the page" : f.title) : f.title || f.filename}
+      </span>
+      {!f.page && <span className="muted"> {size(f.filesize)}</span>}
     </>
   );
   if (!f.available) {
@@ -66,14 +74,16 @@ function FileRow({ f, courseId, moduleUrl }: { f: FileInfo; courseId: number; mo
   }
   return (
     <li className="file">
-      {isPdf(f) ? (
+      {isPdf(f) || f.page ? (
         <a href={href.file(f.id, courseId)}>{label}</a>
       ) : (
         <a href={fileUrl(f)} target="_blank" rel="noopener">{label}</a>
       )}
-      <a className="file-dl" href={fileUrl(f, true)} aria-label={`Download ${f.filename}`} title="Download">
-        ⤓
-      </a>
+      {!f.page && (
+        <a className="file-dl" href={fileUrl(f, true)} aria-label={`Download ${f.filename}`} title="Download">
+          ⤓
+        </a>
+      )}
     </li>
   );
 }
@@ -82,6 +92,11 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
   const done = m.completion_state === 1 || m.completion_state === 2;
   const [expanded, setExpanded] = useState(false);
   const long = m.description.length > 280;
+  // Images of a teacher page are shown inside the page; list only the page and its other files.
+  const hasPage = m.files.some((f) => f.page);
+  const files = hasPage
+    ? [...m.files.filter((f) => f.page), ...m.files.filter((f) => !f.page && !isImage(f))]
+    : m.files;
   return (
     <li className={`module${m.visible ? "" : " hidden"}`}>
       <div className="module-head">
@@ -104,10 +119,10 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
           )}
         </div>
       )}
-      {m.files.length > 0 && (
+      {files.length > 0 && (
         <ul className="files">
-          {m.files.map((f) => (
-            <FileRow key={f.id} f={f} courseId={courseId} moduleUrl={m.url} />
+          {files.map((f) => (
+            <FileRow key={f.id} f={f} courseId={courseId} moduleUrl={m.url} moduleName={m.name} />
           ))}
         </ul>
       )}
