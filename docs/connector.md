@@ -119,7 +119,7 @@ OAUTH_REDIRECT_HOSTS=claude.ai,claude.com,localhost,127.0.0.1,oauth-redirect.goo
 Then add a custom connector in that app with the URL `https://<DOMAIN>/mcp`, leave the client ID
 and secret empty (the app registers itself), and approve it on the Study Companion page with your
 password, as for Claude. ChatGPT needs developer mode, where your plan offers it. The prompts in
-the web UI are written for Claude but name the same tools, so they work there too. Remove a host
+the web UI don't assume a particular AI and name the exact tools, so they work the same there. Remove a host
 from the list to stop new connections from that app; **Disconnect all** signs out existing ones.
 
 ## Security

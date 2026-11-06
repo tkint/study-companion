@@ -336,7 +336,7 @@ def create_app(
             "moodle": "Source site connection saved. A sync has started.",
             "password": "Password changed. Other devices have been signed out.",
             "forgot": "Token removed.",
-            "connector": "Claude was disconnected. Add the connector again to reconnect.",
+            "connector": "Your AI assistant was disconnected. Add the connector again to reconnect.",
         }.get(saved or "", "")
         return render_settings(request, message=message)
 

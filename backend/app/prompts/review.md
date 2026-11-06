@@ -1,6 +1,6 @@
 ---
 title: Review saved questions
-description: Claude quizzes you on the saved questions that are due and updates their schedule
+description: The AI quizzes you on the saved questions that are due and updates their schedule
 order: 8
 topic: optional
 ---
