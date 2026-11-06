@@ -565,6 +565,7 @@ h2 .icon { color: var(--accent); margin-right: 4px; }
 
 /* Catch-up choices: the ⋯ menu on deadlines and sections, ignored items, view toggles */
 .prefs-menu { position: relative; }
+.plan-list > li:has(.prefs-menu[open]) { position: relative; z-index: 1; }
 .prefs-menu > summary { list-style: none; min-width: 36px; }
 .prefs-menu > summary::-webkit-details-marker { display: none; }
 .prefs-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 2px;
