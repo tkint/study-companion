@@ -243,7 +243,7 @@ class StudyTools:
     def list_courses(self, include_past: bool = False) -> str:
         courses = enrolled_courses(self.engine, include_past)
         if not courses:
-            return ("No courses yet. The server syncs from Moodle every few hours; the student "
+            return ("No courses yet. The server syncs from the source site every few hours; the student "
                     "can start a sync in the web UI.")
         now = int(self.clock())
         upcoming: dict[int, int] = {}
@@ -756,9 +756,9 @@ class StudyTools:
 
     def trigger_sync(self) -> str:
         if self.sync is None or not self.sync.configured():
-            return ("Moodle is not connected yet: the student must add it on the app's "
+            return ("The source site is not connected yet: the student must add it on the app's "
                     "settings page." + (f" {self.base_url}/settings" if self.base_url else ""))
         if not self.sync.start():
             return "A sync is already running. Try the read tools again in a few minutes."
-        return ("Started a sync with Moodle. It takes a few minutes; new files and deadlines "
+        return ("Started a sync with the source site. It takes a few minutes; new files and deadlines "
                 "appear in the other tools when it finishes.")

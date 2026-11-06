@@ -82,48 +82,57 @@ sudo dpkg-reconfigure -f noninteractive unattended-upgrades
 
 > **Docker and ufw:** ports published by Docker bypass ufw rules. That is fine here because only
 > Caddy publishes ports (80 and 443); the app container publishes none and is reachable only
-> through Caddy on the internal Docker network. Keep the Infomaniak firewall from step 1 as a
+> through Caddy on the shared edge network. Keep the Infomaniak firewall from step 1 as a
 > second layer.
 
 ## 4. Install Docker
+
+Use Docker Compose 2.24.4 or newer.
 
 ```bash
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER   # log out and back in afterwards
 docker compose version
+sudo apt install -y python3
 ```
 
 ## 5. Install the app
 
-```bash
-mkdir -p ~/study && cd ~/study
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
-  | tar xz --strip-components=1
-cp .env.example .env
-chmod 600 .env
-nano .env
-```
+Everything is deployed from GitHub; you don't need to log in to the server for it.
 
-Fill in `.env`:
+1. Set up the **Deploy** workflow once: SSH access and the app settings (`DOMAIN`,
+   `SECRET_KEY`, `APP_PASSWORD`, ...) in the repository's `production` environment
+   ([docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual)).
+2. Run **Actions > Deploy > Run workflow** with `latest`.
 
-- `DOMAIN`: your subdomain, e.g. `study-companion.ch`
-- `APP_PASSWORD`: a long password for the web UI (12+ characters)
-- `SECRET_KEY`: output of `openssl rand -hex 32`
-- `MOODLE_URL`, `MOODLE_TOKEN`: leave them out; you connect Moodle on the Settings page
+The workflow writes `~/study-companion/.env` from those settings (it replaces the file on every
+run, so change settings in GitHub, not on the server), uploads the app's Compose file and
+site, and uploads the shared Caddy to `~/caddy`. On the server, `~/caddy/deploy.py` then:
 
-Start it:
+- creates the external `edge` network and starts Caddy if needed,
+- pulls and starts the app (Compose project `study`; it publishes no ports),
+- adds the site to Caddy through its admin API, or replaces it if already there.
 
-```bash
-docker compose up -d
-docker compose logs -f caddy   # watch for "certificate obtained successfully", then Ctrl+C
-```
+Caddy keeps the configuration it receives through the API in its `caddy-config` volume and
+resumes it after a restart; `bootstrap.json` is only used before the first site is added.
+Other sites on the same Caddy are left alone, and deployments wait for each other.
+
+To change the hostname, update `DOMAIN` in GitHub and run the workflow again. The site
+proxies to the alias `study-companion-app:8000` on the `edge` network. If HTTPS doesn't come
+up, check `cd ~/caddy && docker compose logs caddy`.
+
+**Coming from a Caddy that ran inside this app's Compose project:** remove that container
+once before the first deploy (`docker rm -f <old caddy container>`), and copy the
+`SECRET_KEY` from the old `.env` into the GitHub secret: it encrypts the stored Moodle token.
+The new Caddy requests its certificates again. Don't run `docker compose down -v`: it deletes
+the app's data volume.
 
 Open `https://study-companion.ch` on your phone and sign in. Then open **Settings**, enter
 your Moodle address and paste your token ([docs/moodle-token.md](moodle-token.md) explains how
 to get it with university SSO). The first sync starts right away; refresh the home page to
 follow it. Use your browser's "Add to Home Screen" for quick access.
 
-After the first start you can remove `APP_PASSWORD` from `.env`; change the password on the
+After the first start you can delete the `APP_PASSWORD` secret; change the password on the
 Settings page instead.
 
 ## 6. Nightly backups
@@ -132,45 +141,17 @@ Follow [docs/backups.md](backups.md) to back up the data volume with restic ever
 
 ## Update
 
-**From GitHub:** run the **Deploy** workflow in GitHub Actions; it SSHes into this server and
-updates it, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual).
-
-**Manual:**
-
-`docker compose pull` fetches the image named by `IMAGE_TAG` in `.env`. With
-`IMAGE_TAG=latest` it follows new releases; with a version number (e.g. `0.1.0`) it stays on
-that version.
-
-```bash
-cd ~/study
-grep IMAGE_TAG .env                                       # should print IMAGE_TAG=latest
-sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=latest/' .env           # if it shows a version number
-docker compose pull && docker compose up -d
-docker compose exec app python -c "import app; print(app.__version__)"   # running version
-```
-
-Releases can also add deploy files (for example `deploy/backup.sh` in 0.2.0). Refresh them
-without touching `.env` or your data:
-
-```bash
-cd ~/study
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
-  | tar xz --strip-components=1 --exclude=.env.example
-docker compose up -d
-```
-
-To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run the same
-`pull` and `up -d`.
-
-> The v0.1.0 release bundle shipped `.env.example` with `IMAGE_TAG=0.1.0`, so an `.env`
-> copied from it stays on 0.1.0 until you change that line as shown above.
+Run the **Deploy** workflow with `latest` or a version such as `0.5.0`. Check the running version
+with `docker compose exec app python -c "import app; print(app.__version__)"` in
+`~/study-companion`.
 
 ## Troubleshooting
 
-- **`docker compose pull` doesn't update the app:** `IMAGE_TAG` in `.env` is pinned to an
-  old version; set it to `latest` (see Update above).
 - **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
   or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
+  Check `cd ~/caddy && docker compose logs caddy`.
+- **502 from Caddy:** check the app is running and attached to `edge`; the site's upstream
+  must be `study-companion-app:8000`, not the ambiguous name `app:8000`.
 - **App container restarting:** `docker compose logs app`. A missing or too short
   `SECRET_KEY`, or no `APP_PASSWORD` on the very first start, stops the app with a clear message.
 - **Sync says the token is invalid or expired:** get a new one ([docs/moodle-token.md](moodle-token.md))

@@ -104,8 +104,8 @@ docker compose exec app python -m app.cli extract --force  # every file again
 ## Gemini and ChatGPT (optional)
 
 Only Claude is allowed by default. To use the same server from Gemini or ChatGPT, add its
-callback host to `OAUTH_REDIRECT_HOSTS` in `.env` (the list replaces the default, so keep the
-Claude hosts) and run `docker compose up -d`:
+callback host to the `OAUTH_REDIRECT_HOSTS` variable in GitHub (the list replaces the default, so
+keep the Claude hosts) and run the Deploy workflow:
 
 ```
 OAUTH_REDIRECT_HOSTS=claude.ai,claude.com,localhost,127.0.0.1,oauth-redirect.googleusercontent.com,oauth-redirect-sandbox.googleusercontent.com,oauth-redirect-test.googleusercontent.com,chatgpt.com
@@ -141,7 +141,7 @@ from the list to stop new connections from that app; **Disconnect all** signs ou
 
 - **"Couldn't connect" on claude.ai:** open `https://<DOMAIN>/.well-known/oauth-authorization-server`
   in a browser; it should show JSON with your domain. If it shows `http://` or another host, check
-  `DOMAIN` in `.env` and restart (`docker compose up -d`).
+  the `DOMAIN` variable in GitHub and run the Deploy workflow again.
 - **"Can't connect: unknown client" on the approval page:** the registration was lost (database
   reset). Remove the connector in Claude and add it again.
 - **"redirect URI not allowed"** (Gemini: "The Google redirect URL was rejected by the server"):

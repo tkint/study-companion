@@ -84,7 +84,7 @@ export default function Prompt({ course }: { course?: number }) {
     return (
       <>
         <h1>Prompt builder</h1>
-        <p className="empty">No courses yet. Run a sync after connecting Moodle.</p>
+        <p className="empty">No courses yet. Run a sync after connecting your source site.</p>
       </>
     );
   }
@@ -364,7 +364,7 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
 }
 
 function Result({ built, error, busy }: { built: Built | null; error: string | null; busy: boolean }) {
-  if (error) return <p className="alert" role="alert">{error}</p>;
+  if (error) return <p className="alert alert-error" role="alert">{error}</p>;
   if (!built) return <p className="loading">{busy ? "Building…" : ""}</p>;
   const s = built.summary;
   return (
@@ -396,12 +396,12 @@ function PromptCard({ title, text }: { title: string; text: string }) {
     <section className="prompt-card">
       <div className="prompt-head">
         <strong>{title}</strong>
-        <button type="button" className="btn small"
+        <button type="button" className="btn btn-primary btn-sm"
           onClick={() => copyText(text).then((ok) => setCopied(ok ? "ok" : "fail"))}>
           {copied === "ok" ? "Copied ✓" : "Copy"}
         </button>
       </div>
-      {copied === "fail" && <p className="alert small">Copy failed: select the text and copy it by hand.</p>}
+      {copied === "fail" && <p className="alert alert-error small">Copy failed: select the text and copy it by hand.</p>}
       <pre className="prompt-text">{text}</pre>
     </section>
   );

@@ -56,9 +56,9 @@ function Overview({ overview, due }: { overview: StudyOverview; due: number }) {
           <strong>{due}</strong> card{due === 1 ? "" : "s"} due · {overview.questions} in total
         </span>
         <span className="row tight">
-          {due > 0 && <a className="btn small" href={href.study({ due: true })}>Review all due</a>}
-          <a className="btn small ghost" href={href.time}>⏱ Study time</a>
-          <a className="btn small ghost" href={href.plan}>Catch-up plan</a>
+          {due > 0 && <a className="btn btn-primary btn-sm" href={href.study({ due: true })}>Review all due</a>}
+          <a className="btn btn-sm btn-ghost" href={href.time}>⏱ Study time</a>
+          <a className="btn btn-sm btn-ghost" href={href.plan}>Catch-up plan</a>
         </span>
       </div>
       {!overview.courses.length && (
@@ -81,9 +81,9 @@ function Overview({ overview, due }: { overview: StudyOverview; due: number }) {
             </div>
             <div className="row tight end">
               {c.due > 0 ? (
-                <a className="btn small" href={href.study({ course: c.id })}>Review {c.due}</a>
+                <a className="btn btn-primary btn-sm" href={href.study({ course: c.id })}>Review {c.due}</a>
               ) : c.questions > 0 ? (
-                <a className="btn small ghost" href={href.study({ course: c.id, all: true })}>Practise all</a>
+                <a className="btn btn-sm btn-ghost" href={href.study({ course: c.id, all: true })}>Practise all</a>
               ) : null}
             </div>
           </li>
@@ -178,9 +178,9 @@ function Session({ cards, course, section, all, onRestart }: {
           )}
         </div>
         <div className="row">
-          {!all && <a className="btn" href={href.study({ course, section, all: true })}>Practise all cards</a>}
-          {all && done > 0 && <button className="btn" onClick={onRestart}>Again</button>}
-          <a className="btn ghost" href={href.study()}>Study overview</a>
+          {!all && <a className="btn btn-primary" href={href.study({ course, section, all: true })}>Practise all cards</a>}
+          {all && done > 0 && <button className="btn btn-primary" onClick={onRestart}>Again</button>}
+          <a className="btn btn-ghost" href={href.study()}>Study overview</a>
         </div>
       </>
     );
@@ -225,10 +225,10 @@ function Session({ cards, course, section, all, onRestart }: {
             {card.explanation && <Markdown text={card.explanation} className="muted small" />}
           </div>
         ) : (
-          <button className="btn wide" onClick={() => setShown(true)}>Show answer</button>
+          <button className="btn btn-primary btn-block" onClick={() => setShown(true)}>Show answer</button>
         )}
       </article>
-      {error && <p className="alert">{error}</p>}
+      {error && <p className="alert alert-error">{error}</p>}
       {shown && (
         <div className="grades" role="group" aria-label="How well did you know it?">
           {GRADES.map((g) => (

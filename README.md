@@ -5,8 +5,9 @@ and exposes your course material to Claude (phone, desktop and web) through a re
 connector, so Claude can tutor you, summarise sections and quiz you. The app itself makes no
 LLM API calls; all AI work happens in the Claude apps on your subscription.
 
-It runs as two containers (app + Caddy for automatic HTTPS) on a small VPS, for example an
-Infomaniak VPS Lite in Geneva.
+The app runs behind a shared Caddy for automatic HTTPS on a small VPS, for example an
+Infomaniak VPS Lite in Geneva. Caddy lives in its own Compose project and can also serve
+other applications on the same machine.
 
 ## Status
 
@@ -22,14 +23,9 @@ Infomaniak VPS Lite in Geneva.
 ## Install on a server
 
 See **[docs/server-setup.md](docs/server-setup.md)**: order and harden the VPS, point a
-domain at it, install Docker, then:
-
-```bash
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
-  | tar xz --strip-components=1
-cp .env.example .env && chmod 600 .env   # fill in DOMAIN, APP_PASSWORD, SECRET_KEY
-docker compose up -d
-```
+domain at it and install Docker. Then set `DOMAIN`, `SECRET_KEY` and `APP_PASSWORD` in the
+repository's `production` environment and run the **Deploy** workflow
+([docs/releasing.md](docs/releasing.md#deploy-to-the-vps-from-github-manual)).
 
 Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 **[docs/moodle-token.md](docs/moodle-token.md)** explains how to get the token with
@@ -41,19 +37,19 @@ builder, Claude's notes, study mode (flashcards), study time, reminders and the 
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
 
-Updates: run the **Deploy** workflow from GitHub Actions (see
-[docs/releasing.md](docs/releasing.md)). Manually: `docker compose pull && docker compose up -d`.
+Updates: run the **Deploy** workflow again (see [docs/releasing.md](docs/releasing.md)).
 
 ## Configuration
 
-Server settings come from environment variables (`.env` on the server, never committed).
+Server settings come from environment variables: on the server, the Deploy workflow writes
+them to `.env` from the GitHub `production` environment (never committed).
 Your Moodle site, token and the web UI password are managed on the **Settings** page and
 stored in the database (token encrypted with `SECRET_KEY`, password hashed with scrypt), so
 you never edit `.env` to change them.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DOMAIN` | yes | Public hostname, e.g. `study-companion.ch`. Caddy gets its certificate. |
+| `DOMAIN` | yes | Public hostname, e.g. `study-companion.ch`. Deployment renders it into the shared edge's site file. |
 | `SECRET_KEY` | yes | 32+ characters; `openssl rand -hex 32`. Signs sessions and encrypts the Moodle token: rotating it signs you out and means pasting the token again. |
 | `APP_PASSWORD` | first start | Initial web UI password, 12+ characters. Ignored once set; change it on the Settings page. |
 | `IMAGE_TAG` | no | Image version to run (default `latest`). |
@@ -108,12 +104,12 @@ npm run build   # type-check + bundle into frontend/dist, which the backend then
 
 Without a build, `/` shows the basic server-rendered status page (`/status` always does).
 
-Full stack locally (Caddy issues a local certificate for `localhost`):
+Full stack locally with the published image (Caddy issues a local certificate for `localhost`):
 
 ```bash
-docker build -f docker/Dockerfile -t ghcr.io/tkint/study-companion:latest .
 cp .env.example .env   # set DOMAIN=localhost, APP_PASSWORD, SECRET_KEY
-docker compose up -d && curl -k https://localhost/healthz
+python3 deploy/caddy/deploy.py . docker-compose.yml deploy/study-companion.caddy
+curl -k https://localhost/healthz
 ```
 
 ## Releases
@@ -132,9 +128,10 @@ backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (cli
                     api/ (UI routes, ICS feed, prompt builder)
 backend/tests/      pytest (Moodle responses always mocked)
 frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)
-deploy/Caddyfile    HTTPS reverse proxy
+deploy/caddy/       shared Caddy (separate Compose project) and its deploy script
+deploy/study-companion.caddy  this app's site, added to Caddy through its admin API
 docker/Dockerfile   multi-stage image
-docker-compose.yml  app + Caddy
+docker-compose.yml  app only, on the shared `edge` network
 deploy/backup.sh    nightly restic backup of the data volume
 docs/               server setup, Moodle token, web UI, Claude connector, backups, releasing
 .github/workflows/  ci.yml, release.yml

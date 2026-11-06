@@ -239,7 +239,7 @@ def test_sync_api(client, moodle):
 def test_token_link_is_built_from_the_address(client):
     login(client)
     page = client.get("/settings").text
-    assert 'id="token-link" href="#"' in page and "Enter the Moodle address first" in page
+    assert 'id="token-link" href="#"' in page and "Enter the source site address first" in page
     r = client.post("/settings/moodle", data={"url": "https://icampus.uni.ch/my/", "token": "b" * 32})
     assert ('href="https://icampus.uni.ch/admin/tool/mobile/launch.php?service=moodle_mobile_app'
             '&amp;passport=12345&amp;urlscheme=moodlemobile"') in r.text
