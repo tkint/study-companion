@@ -13,6 +13,7 @@ import { Loading } from "./ui";
 const Calendar = lazy(() => import("./pages/Calendar"));
 const FileViewer = lazy(() => import("./pages/FileViewer"));
 const Prompt = lazy(() => import("./pages/Prompt"));
+const Schedule = lazy(() => import("./pages/Schedule"));
 const Study = lazy(() => import("./pages/Study"));
 const Templates = lazy(() => import("./pages/Templates"));
 const Time = lazy(() => import("./pages/Time"));
@@ -28,6 +29,8 @@ function Page({ route }: { route: Route }) {
       return <Study course={route.course} section={route.section} all={route.all} due={route.due} />;
     case "plan":
       return <Plan />;
+    case "schedule":
+      return <Schedule />;
     case "calendar":
       return <Calendar />;
     case "time":
@@ -167,7 +170,7 @@ const Spacer = styled.span`
 
 export default function App() {
   const route = useRoute();
-  const active = route.name === "course" ? "courses" : route.name === "plan" ? "dashboard"
+  const active = route.name === "course" ? "courses" : route.name === "plan" || route.name === "schedule" ? "dashboard"
     : route.name === "time" ? "study"
     : route.name === "templates" ? "prompt" : route.name;
   if (route.name === "file") {

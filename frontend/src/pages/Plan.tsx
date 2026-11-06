@@ -9,7 +9,7 @@ import { PrefsMenu } from "../components/Prefs";
 import { courseColor, sourceLabel, when } from "../format";
 import { href } from "../router";
 import {
-  Alert, Badge, Button, Check, Crumbs, Empty, Field, Fold, Late, Lead, List, Meta, Muted, ProgressBar, Select, Small, Stat,
+  Alert, Badge, Button, Check, Crumbs, Empty, Field, Fold, Late, Lead, List, Meta, Muted, ProgressBar, Row, Select, Small, Stat,
   StatGrid, Swatch, Toggles,
 } from "../ui";
 
@@ -42,7 +42,7 @@ const Controls = styled.div`
   & > ${Field} { margin-top: 0; }
 `;
 
-const DayHead = styled.h2`
+export const DayHead = styled.h2`
   display: flex;
   justify-content: space-between;
   align-items: baseline;
@@ -172,6 +172,9 @@ export default function Plan() {
         missed to reach your goal. You don't have to catch up on everything. Times are estimates from page counts;
         use ⋯ to mark something optional or let it go.
       </Lead>
+      <Row $tight>
+        <Button as="a" $variant="soft" $size="sm" href={href.schedule}>Timed schedule and .ics export →</Button>
+      </Row>
       <Controls>
         <Field>
           Hours per day

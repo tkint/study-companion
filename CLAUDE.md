@@ -39,7 +39,9 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   FTS5 `search_index`, run after each sync)
 - `backend/app/materials.py` course read model (period -> sections) shared by MCP tools and prompts
 - `backend/app/study.py` study loop: Claude's notes, questions (SM-2 spaced repetition), quiz results,
-  sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan
+  sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan, `planner/schedule.py`
+  timed study schedule (capacity, unavailabilities, course weights, recall blocks; `ScheduleSettings`), `api/schedule.py`
+  its API and `.ics` download (editor: `#/schedule`)
 - `backend/app/study_time.py` study sessions (web timer, manual, Claude's `log_study_time`), totals, streak;
   `backend/app/reminders.py` reminder settings, deadline alarms + daily study event in the ICS feed, `/api/reminders`
 - `backend/app/mcp_tools.py` read and write tools as plain text functions (`TOOL_NAMES`); `mcp_server.py`
