@@ -393,6 +393,23 @@ class ReminderPrefs(SQLModel, table=True):
     updated_at: int = 0
 
 
+class CourseImage(SQLModel, table=True):
+    """A course's header image from Moodle (its "course image" / overview file), kept under
+    ``DATA_DIR/course-images/`` (a separate table so existing databases need no migration).
+    ``source_url`` is stored without any token."""
+
+    course_id: int = Field(primary_key=True)
+    source_url: str = ""
+    filename: str = ""
+    timemodified: int = 0
+    filesize: int = 0
+    mimetype: str = ""  # detected from the downloaded bytes, not trusted from Moodle
+    local_path: str = ""  # relative to DATA_DIR
+    status: str = "pending"  # pending, ok, unsupported, error
+    error: str = ""
+    updated_at: int = 0
+
+
 class ScheduleSettings(SQLModel, table=True):
     """Settings of the timed study schedule (``app.planner.schedule``) as one JSON object:
     daily cap, rest hours, focus block length, buffer days, course weights and your

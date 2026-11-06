@@ -1,0 +1,10 @@
+{
+  "courses": [
+    {
+      "id": 303, "fullname": "Historia de América Latina", "shortname": "HIS-303",
+      "categoryid": 9, "summary": "", "summaryformat": 1, "format": "topics",
+      "courseimage": "https://moodle.example.ch/pluginfile.php/530/course/overviewfiles/mapa.jpg?forcedownload=0"
+    }
+  ],
+  "warnings": []
+}

@@ -6,7 +6,7 @@ with a retention policy. `deploy/backup.sh` runs restic from its official Docker
 nothing extra is installed on the server.
 
 What is backed up: a consistent copy of the database (`backup/app.db`, taken with SQLite's
-backup API while the app runs) and everything under `/data/courses`. The Moodle token in the
+backup API while the app runs) and everything under `/data/courses` and `/data/course-images`. The Moodle token in the
 database is encrypted with `SECRET_KEY`, so **keep a copy of `SECRET_KEY`**
 (the GitHub secret) somewhere safe as well; restoring without it means pasting the token again.
 

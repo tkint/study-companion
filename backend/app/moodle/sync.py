@@ -22,7 +22,7 @@ from app import accounts
 from app.config import Settings
 from app.db import session as db_session
 from app.extract.index import extract_files, index_structure
-from app.models import Course, Deadline, File, Module, Section, Site, SyncRun
+from app.models import Course, CourseImage, Deadline, File, Module, Section, Site, SyncRun
 from app.moodle import api
 from app.moodle.client import MoodleAuthError, MoodleClient, MoodleError, strip_secrets
 from app.moodle.names import safe_join, safe_name, safe_relpath
@@ -31,6 +31,8 @@ from app.moodle.text import clean_text, detect_lang, normalise_lang
 logger = logging.getLogger("app.moodle.sync")
 
 COURSES_DIR = "courses"
+IMAGES_DIR = "course-images"
+IMAGE_MAX_BYTES = 10 * 1024 * 1024
 EVENTS_PAST_DAYS = 120
 EVENTS_FUTURE_DAYS = 365
 # Modules whose files go straight into the section folder (one file per module, usually).
@@ -127,6 +129,7 @@ class SyncService:
                     client, [c["id"] for c in courses], site, problems
                 )
                 await self._download_files(client, run, problems)
+                await self._sync_images(client, courses, site)
             await self._extract(problems)
             run.status = "partial" if problems else "ok"
             run.message = "; ".join(problems[:20])
@@ -478,6 +481,84 @@ class SyncService:
         if failures:
             problems.append(f"{failures} file(s) failed to download")
 
+    # ---------------------------------------------------------------- course images
+
+    async def _sync_images(self, client: MoodleClient, courses: list[dict], site: dict) -> None:
+        """Download each course's header image. A missing or broken image never makes the
+        run partial: the UI then draws its own placeholder."""
+        images = {c["id"]: c["image"] for c in courses if c.get("image") is not None}
+        unknown = [c["id"] for c in courses if c.get("image") is None]
+        if unknown and _available(site, "core_course_get_courses_by_field"):
+            try:
+                found = await api.get_course_images(client, unknown)
+            except MoodleAuthError:
+                raise
+            except MoodleError as exc:
+                logger.info("No course images from core_course_get_courses_by_field (%s)",
+                            exc.errorcode)
+            else:
+                images.update({cid: found.get(cid, {}) for cid in unknown})
+        data_dir = self.settings.data_dir
+        for cid, image in images.items():
+            with db_session(self.engine) as s:
+                row = s.get(CourseImage, cid)
+            if not image or not client.is_moodle_url(image["fileurl"]):
+                if row is not None:  # the course no longer has an image
+                    self._remove_image(row)
+                continue
+            source = strip_secrets(image["fileurl"])
+            row = row or CourseImage(course_id=cid)
+            current = safe_join(data_dir, row.local_path) if row.local_path else None
+            if (
+                row.status in {"ok", "unsupported"}
+                and row.source_url == source
+                and row.timemodified == image["timemodified"]
+                and row.filesize == image["filesize"]
+                and (row.status != "ok" or (current is not None and current.is_file()))
+            ):
+                continue
+            row.source_url, row.filename = source, image["filename"]
+            row.timemodified, row.filesize = image["timemodified"], image["filesize"]
+            row.updated_at = int(self.clock())
+            tmp = safe_join(data_dir, f"{IMAGES_DIR}/{cid}.download")
+            try:
+                await client.download(image["fileurl"], tmp, max_bytes=IMAGE_MAX_BYTES)
+            except MoodleAuthError:
+                raise
+            except MoodleError as exc:
+                tmp.unlink(missing_ok=True)
+                row.status, row.error = "error", str(exc)[:300]
+                self._save(row)
+                logger.warning("Course image failed for course %s: %s", cid, exc)
+                continue
+            mimetype = image_type(tmp)
+            if mimetype is None:
+                tmp.unlink(missing_ok=True)
+                if current is not None:
+                    current.unlink(missing_ok=True)
+                row.status, row.error, row.mimetype, row.local_path = "unsupported", "", "", ""
+                self._save(row)
+                continue
+            rel = f"{IMAGES_DIR}/{cid}{IMAGE_EXTS[mimetype]}"
+            dest = safe_join(data_dir, rel)
+            if current is not None and current != dest:
+                current.unlink(missing_ok=True)
+            tmp.replace(dest)
+            row.mimetype, row.local_path, row.status, row.error = mimetype, rel, "ok", ""
+            self._save(row)
+
+    def _remove_image(self, row: CourseImage) -> None:
+        if row.local_path:
+            try:
+                safe_join(self.settings.data_dir, row.local_path).unlink(missing_ok=True)
+            except ValueError:
+                pass
+        with db_session(self.engine) as s:
+            existing = s.get(CourseImage, row.course_id)
+            if existing is not None:
+                s.delete(existing)
+                s.commit()
+
     # ---------------------------------------------------------------- text and search
 
     async def _extract(self, problems: list[str]) -> None:
@@ -506,6 +587,28 @@ class SyncService:
 def _available(site: dict, wsfunction: str) -> bool:
     functions = site.get("functions") or set()
     return not functions or wsfunction in functions
+
+
+IMAGE_EXTS = {"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp"}
+
+
+def image_type(path: Path) -> str | None:
+    """The raster image type of ``path`` from its first bytes, or None (SVG, HTML, anything
+    else is refused: served from this origin it could run scripts)."""
+    try:
+        with path.open("rb") as fh:
+            head = fh.read(12)
+    except OSError:
+        return None
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head[:6] in {b"GIF87a", b"GIF89a"}:
+        return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def _view_url(base: str, modname: str, cmid: int | None) -> str:

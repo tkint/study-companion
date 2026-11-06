@@ -14,6 +14,7 @@ import {
 import styled from "styled-components";
 import { Status, useLoad } from "../components/common";
 import { celebrate } from "../components/Confetti";
+import { CourseCover } from "../components/CourseCover";
 import { DeadlineList } from "../components/DeadlineList";
 import { PrefsMenu, PrefTags } from "../components/Prefs";
 import { Markdown } from "../components/Markdown";
@@ -392,6 +393,7 @@ export default function Course({ id, section }: { id: number; section?: number }
       <Crumbs>
         <a href={href.courses}>← Courses</a>
       </Crumbs>
+      <CourseCover id={data.id} shortname={data.shortname} fullname={data.fullname} imageUrl={data.image_url} variant="banner" />
       <h1>{data.fullname}</h1>
       <Lead>
         {data.shortname}

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import styled from "styled-components";
 import type { CourseSummary } from "../api";
 import { href } from "../router";
+import { CourseCover } from "./CourseCover";
 import { Card, Empty, List, ProgressBar } from "../ui";
 
 // Case- and accent-insensitive: "algebre" finds "Algèbre linéaire".
@@ -82,6 +83,14 @@ export const CourseMeta = styled.div`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
+const CourseIdentity = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  & > div:last-child { min-width: 0; }
+`;
+
 const CourseProgress = styled.div<{ $stack?: boolean }>`
   display: grid;
   gap: 6px;
@@ -108,14 +117,17 @@ export function CourseList({ courses, search = true, stack = false }: {
         {shown.map((c) => (
           <li key={c.id}>
             <CourseRow as="a" href={href.course(c.id)} $interactive $stack={stack}>
-              <div>
-                <CourseName>{c.fullname}</CourseName>
-                <CourseMeta>
-                  <span>{c.shortname}</span>
-                  {c.overdue > 0 && <span>{c.overdue} to catch up</span>}
-                  {c.upcoming > 0 && <span>{c.upcoming} upcoming</span>}
-                </CourseMeta>
-              </div>
+              <CourseIdentity>
+                <CourseCover id={c.id} shortname={c.shortname} fullname={c.fullname} imageUrl={c.image_url} variant="thumb" />
+                <div>
+                  <CourseName>{c.fullname}</CourseName>
+                  <CourseMeta>
+                    <span>{c.shortname}</span>
+                    {c.overdue > 0 && <span>{c.overdue} to catch up</span>}
+                    {c.upcoming > 0 && <span>{c.upcoming} upcoming</span>}
+                  </CourseMeta>
+                </div>
+              </CourseIdentity>
               <CourseProgress $stack={stack}>
                 {c.progress != null ? (
                   <>

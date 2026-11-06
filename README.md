@@ -69,7 +69,10 @@ you never edit `.env` to change them.
 The sync runs every 6 hours, a couple of minutes after start-up, and when you press
 **Sync now**. It stores courses (with their language: English, French, Spanish…), sections,
 activities, completion and deadlines in SQLite, and downloads files to
-`/data/courses/<course>/<NN section>/`, skipping files Moodle reports as unchanged. From the
+`/data/courses/<course>/<NN section>/`, skipping files Moodle reports as unchanged. Each
+course's header image (its "course image" in Moodle) goes to `/data/course-images/` and is
+shown in the course list and at the top of the course page; courses without one get a
+coloured placeholder with their initials. From the
 server you can also run:
 
 ```bash

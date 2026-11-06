@@ -41,6 +41,47 @@ def test_core_enrol_get_users_courses():
     assert moodle.calls[0][1]["userid"] == "42"
 
 
+def test_core_enrol_get_users_courses_images():
+    math, cs, his = call(FakeMoodle(), api.get_user_courses, 42)
+    # overviewfiles wins over courseimage (it has size and timemodified)
+    assert math["image"] == {
+        "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/500/course/overviewfiles/banniere.png",
+        "filename": "banniere.png", "timemodified": 1756000100, "filesize": 12,
+    }
+    assert cs["image"] == {}  # only Moodle's generated data: pattern
+    assert his["image"] is None  # older Moodle: the response says nothing
+
+
+def test_course_image_variants():
+    assert api.course_image({"overviewfiles": "nope"}) is None
+    assert api.course_image({"courseimage": None}) == {}
+    # Non-image overview files (a PDF syllabus) are skipped.
+    pdf = {"filename": "plan.pdf", "fileurl": "https://m/x/plan.pdf", "mimetype": "application/pdf"}
+    assert api.course_image({"overviewfiles": [pdf]}) == {}
+    # No mimetype: the extension decides; missing size/time default to 0.
+    bare = {"filename": "Cover.JPG", "fileurl": "https://m/x/Cover.JPG"}
+    assert api.course_image({"overviewfiles": [pdf, bare]}) == {
+        "fileurl": "https://m/x/Cover.JPG", "filename": "Cover.JPG", "timemodified": 0, "filesize": 0,
+    }
+    url = api.course_image({"courseimage": "https://m/pluginfile.php/5/course/overviewfiles/a.webp?x=1"})
+    assert url == {"fileurl": "https://m/pluginfile.php/5/course/overviewfiles/a.webp?x=1",
+                   "filename": "a.webp", "timemodified": 0, "filesize": 0}
+    assert api.course_image({"courseimage": "javascript:alert(1)"}) == {}
+
+
+def test_core_course_get_courses_by_field():
+    moodle = FakeMoodle()
+    images = call(moodle, api.get_course_images, [303, 404])
+    assert images == {303: {
+        "fileurl": "https://moodle.example.ch/pluginfile.php/530/course/overviewfiles/mapa.jpg?forcedownload=0",
+        "filename": "mapa.jpg", "timemodified": 0, "filesize": 0,
+    }}
+    assert moodle.calls[0][1] == {**moodle.calls[0][1], "field": "ids", "value": "303,404"}
+    assert call(moodle, api.get_course_images, []) == {}
+    moodle.responses["core_course_get_courses_by_field"] = {"courses": [{"id": 9}, {"x": 1}]}
+    assert call(moodle, api.get_course_images, [9]) == {9: {}}
+
+
 def test_core_course_get_contents():
     sections = call(FakeMoodle(), api.get_course_contents, 101)
     assert [s["number"] for s in sections] == [0, 1]

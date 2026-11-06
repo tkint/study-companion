@@ -19,7 +19,7 @@ from sqlmodel import col, select
 from app import teacher_pages
 from app.catchup import auto_mandatory, prefs, resolve
 from app.db import session
-from app.models import Course, Deadline, DeadlineMark, File, ItemPref, Module, Section
+from app.models import Course, CourseImage, Deadline, DeadlineMark, File, ItemPref, Module, Section
 
 OVERDUE_DAYS = 120
 WEEK = 7 * 86400
@@ -140,6 +140,7 @@ def course_progress(engine: Engine) -> list[dict]:
                 Module.removed == False, Module.completion_state != None  # noqa: E711,E712
             )
         ).all()
+        images = image_urls(s)
     tracked: dict[int, list[int]] = {}
     for course_id, state in mods:
         t = tracked.setdefault(course_id, [0, 0])
@@ -160,6 +161,7 @@ def course_progress(engine: Engine) -> list[dict]:
             "activities_done": done,
             "activities_tracked": total,
             "synced_at": c.synced_at,
+            "image_url": images.get(c.id),
         })
     return out
 
@@ -182,6 +184,7 @@ def course_detail(engine: Engine, course_id: int, now: int | None = None) -> dic
             .where(File.course_id == course_id, File.status != "removed")
             .order_by(File.filepath, File.filename)
         ).all()
+        image_url = image_urls(s, course_id).get(course_id)
     section_prefs = prefs(engine, "section", [sec.id for sec in sections])
     names = teacher_pages.titles(engine, list(files))
     files_by_module: dict[int, list[dict]] = {}
@@ -208,6 +211,7 @@ def course_detail(engine: Engine, course_id: int, now: int | None = None) -> dic
         "enrolled": course.enrolled,
         "progress": course.progress,
         "synced_at": course.synced_at,
+        "image_url": image_url,
         "sections": [
             {
                 "id": sec.id,
@@ -221,6 +225,18 @@ def course_detail(engine: Engine, course_id: int, now: int | None = None) -> dic
             for sec in sections
         ],
         "deadlines": deadlines(engine, course_id=course_id, now=now),
+    }
+
+
+def image_urls(s, course_id: int | None = None) -> dict[int, str]:
+    """``/course-images/<id>?v=<version>`` for courses with a downloaded header image."""
+    query = select(CourseImage).where(CourseImage.status == "ok")
+    if course_id is not None:
+        query = query.where(CourseImage.course_id == course_id)
+    return {
+        img.course_id: f"/course-images/{img.course_id}?v={img.updated_at}"
+        for img in s.exec(query).all()
+        if img.local_path
     }
 
 

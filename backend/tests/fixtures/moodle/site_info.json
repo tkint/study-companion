@@ -12,6 +12,7 @@
     {"name": "core_webservice_get_site_info", "version": "2022112800"},
     {"name": "core_enrol_get_users_courses", "version": "2022112800"},
     {"name": "core_course_get_contents", "version": "2022112800"},
+    {"name": "core_course_get_courses_by_field", "version": "2022112800"},
     {"name": "mod_assign_get_assignments", "version": "2022112800"},
     {"name": "mod_quiz_get_quizzes_by_courses", "version": "2022112800"},
     {"name": "core_calendar_get_action_events_by_timesort", "version": "2022112800"},

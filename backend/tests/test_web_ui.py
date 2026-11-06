@@ -11,7 +11,7 @@ from uvicorn.logging import AccessFormatter
 from app.api import ics
 from app.db import session
 from app.main import RedactTokens, create_app
-from app.models import Course, Deadline, File, Module, Section
+from app.models import Course, CourseImage, Deadline, File, Module, Section
 
 from .conftest import PASSWORD
 
@@ -83,6 +83,16 @@ def seed(engine, data_dir):
     folder.mkdir(parents=True)
     (folder / "slides.pdf").write_bytes(b"%PDF-1.4")
     (folder / "page.html").write_text("<script>alert(1)</script>")
+    images = data_dir / "course-images"
+    images.mkdir()
+    (images / "10.png").write_bytes(b"\x89PNG\r\n\x1a\n....")
+    with session(engine) as s:
+        s.add(CourseImage(course_id=10, status="ok", mimetype="image/png", updated_at=77,
+                          local_path="course-images/10.png"))
+        s.add(CourseImage(course_id=11, status="unsupported"))
+        s.add(CourseImage(course_id=12, status="ok", mimetype="image/png",
+                          local_path="../../etc/passwd"))
+        s.commit()
 
 
 @pytest.fixture
@@ -105,7 +115,7 @@ def login(client):
 @pytest.mark.parametrize(
     "path",
     ["/api/dashboard", "/api/courses/10", "/api/deadlines?from=0&to=1", "/files/1",
-     "/api/calendar/feed"],
+     "/api/calendar/feed", "/course-images/10"],
 )
 def test_requires_login(client, path):
     assert client.get(path).status_code == 401
@@ -127,6 +137,20 @@ def test_dashboard_groups_deadlines(client):
     assert course["activities_done"] == 2 and course["activities_tracked"] == 3
     assert course["progress"] == pytest.approx(66.7)
     assert data["stats"]["streak"] == 0 and len(data["stats"]["week"]) == 7
+
+
+def test_course_images(client):
+    login(client)
+    assert client.get("/api/dashboard").json()["courses"][0]["image_url"] == "/course-images/10?v=77"
+    assert client.get("/api/courses/10").json()["image_url"] == "/course-images/10?v=77"
+    assert client.get("/api/courses/11").json()["image_url"] is None
+    r = client.get("/course-images/10?v=77")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert r.content.startswith(b"\x89PNG")
+    assert "sandbox" in r.headers["content-security-policy"]
+    assert r.headers["x-content-type-options"] == "nosniff"
+    for cid in (11, 12, 99):
+        assert client.get(f"/course-images/{cid}").status_code == 404
 
 
 def test_mark_done_moves_item_off_overdue(client):

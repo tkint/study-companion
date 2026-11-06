@@ -7,10 +7,10 @@ from sqlmodel import select
 from app import accounts
 from app.config import Settings
 from app.db import make_engine, session, snapshot
-from app.models import Course, Deadline, File, Module, Section, Site
+from app.models import Course, CourseImage, Deadline, File, Module, Section, Site
 from app.moodle.sync import SyncAlreadyRunning, SyncService
 
-from .fake_moodle import BASE, TOKEN, FakeMoodle
+from .fake_moodle import BASE, JPEG, PNG, TOKEN, FakeMoodle
 
 NOW = 1761500000  # 2025-10-26, between the quiz opening and the assignment due date
 
@@ -314,3 +314,93 @@ def test_sync_extracts_text_and_indexes(service, settings):
     # Section and activity names are searchable right after the sync.
     hits, total = search(service.engine, "vecteurs")
     assert total >= 1
+
+
+# ------------------------------------------------------------------ course images
+
+
+def images(service):
+    return {i.course_id: i for i in rows(service, CourseImage)}
+
+
+def test_course_images_are_downloaded(service, moodle, settings, caplog):
+    with caplog.at_level(logging.DEBUG):
+        run = sync(service)
+    assert run.status == "ok"
+    got = images(service)
+    assert set(got) == {101, 303}  # 202 only has Moodle's generated pattern
+    math, his = got[101], got[303]
+    assert math.status == "ok" and math.mimetype == "image/png"
+    assert math.local_path == "course-images/101.png"
+    assert (settings.data_dir / math.local_path).read_bytes() == PNG
+    # 303 came from core_course_get_courses_by_field (plain pluginfile.php URL)
+    assert his.mimetype == "image/jpeg" and his.local_path == "course-images/303.jpg"
+    assert (settings.data_dir / his.local_path).read_bytes() == JPEG
+    # Only the course the enrolment call said nothing about is asked for.
+    by_field = [p for f, p in moodle.calls if f == "core_course_get_courses_by_field"]
+    assert [p["value"] for p in by_field] == ["303"]
+    # Images are not course files.
+    assert run.files_downloaded == 6
+    assert TOKEN not in caplog.text
+    assert all(TOKEN not in i.source_url for i in got.values())
+
+
+def test_course_images_unchanged_are_not_downloaded_again(service, moodle):
+    sync(service)
+    moodle.downloads.clear()
+    sync(service)
+    assert moodle.downloads == []
+
+
+def test_course_image_changed_removed_and_unsupported(service, moodle, settings):
+    sync(service)
+    courses = moodle.responses["core_enrol_get_users_courses"]
+    # A new image for 101
+    courses[0]["overviewfiles"][0]["timemodified"] = 1756000200
+    moodle.images["/webservice/pluginfile.php/500/course/overviewfiles/banniere.png"] = JPEG
+    # 303's image becomes an SVG (refused: could run scripts)
+    moodle.images["/webservice/pluginfile.php/530/course/overviewfiles/mapa.jpg"] = b"<svg onload=x>"
+    moodle.responses["core_course_get_courses_by_field"]["courses"][0]["courseimage"] += "&v=2"
+    sync(service)
+    got = images(service)
+    assert got[101].mimetype == "image/jpeg" and got[101].local_path == "course-images/101.jpg"
+    assert not (settings.data_dir / "course-images" / "101.png").exists()
+    assert got[303].status == "unsupported" and got[303].local_path == ""
+    assert not (settings.data_dir / "course-images" / "303.jpg").exists()
+    assert not list((settings.data_dir / "course-images").glob("*.download"))
+
+    # The teacher removes 101's image.
+    courses[0]["overviewfiles"] = []
+    courses[0]["courseimage"] = "data:image/svg+xml;base64,AAAA"
+    sync(service)
+    assert 101 not in images(service)
+    assert not (settings.data_dir / "course-images" / "101.jpg").exists()
+
+
+def test_course_image_failure_does_not_fail_sync(service, moodle):
+    moodle.fail_next["/webservice/pluginfile.php/500/course/overviewfiles/banniere.png"] = [404]
+    moodle.responses["core_course_get_courses_by_field"] = {
+        "exception": "x", "errorcode": "invalidrecord", "message": "nope"}
+    run = sync(service)
+    assert run.status == "ok"
+    got = images(service)
+    assert got[101].status == "error" and 303 not in got
+    run = sync(service)  # retried next time
+    assert images(service)[101].status == "ok"
+
+
+def test_course_images_skip_fallback_when_function_missing(service, moodle):
+    site = moodle.responses["core_webservice_get_site_info"]
+    site["functions"] = [f for f in site["functions"]
+                         if f["name"] != "core_course_get_courses_by_field"]
+    sync(service)
+    assert "core_course_get_courses_by_field" not in [f for f, _ in moodle.calls]
+    assert set(images(service)) == {101}
+
+
+def test_course_image_from_other_host_is_ignored(service, moodle):
+    moodle.responses["core_enrol_get_users_courses"][0]["overviewfiles"][0]["fileurl"] = (
+        "https://evil.example/banniere.png")
+    sync(service)
+    assert 101 not in images(service)
+    assert all(r.url.host == "moodle.example.ch" for r in moodle.requests)

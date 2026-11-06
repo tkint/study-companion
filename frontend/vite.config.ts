@@ -18,7 +18,7 @@ function pdfjsAssets(): Plugin {
 // Dev: run the backend on :8000 and `npm run dev`; API, files and the server-rendered
 // pages (login, settings) are proxied so the session cookie works on one origin.
 const backend = "http://127.0.0.1:8000";
-const proxied = ["/api", "/files", "/login", "/logout", "/settings", "/status", "/calendar.ics", "/healthz"];
+const proxied = ["/api", "/files", "/course-images", "/login", "/logout", "/settings", "/status", "/calendar.ics", "/healthz"];
 
 export default defineConfig({
   plugins: [react(), pdfjsAssets()],
