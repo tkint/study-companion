@@ -15,6 +15,8 @@ from app.moodle.client import MoodleClient
 FIXTURES = Path(__file__).parent / "fixtures" / "moodle"
 BASE = "https://moodle.example.ch"
 TOKEN = "0123456789abcdef0123456789abcdef"
+PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 4
+JPEG = b"\xff\xd8\xff\xe0" + b"\0" * 8
 
 
 def load(name: str):
@@ -33,6 +35,7 @@ class FakeMoodle:
             "mod_assign_get_assignments": load("assignments.json"),
             "mod_quiz_get_quizzes_by_courses": load("quizzes.json"),
             "core_calendar_get_action_events_by_timesort": load("action_events.json"),
+            "core_course_get_courses_by_field": load("courses_by_field.json"),
         }
         self.contents = {101: load("contents_101.json"), 202: load("contents_202.json"),
                          303: load("contents_303.json")}
@@ -44,6 +47,11 @@ class FakeMoodle:
             "/webservice/pluginfile.php/1200/mod_resource/content/3/notes.pdf": b"%PDF-note",
             "/webservice/pluginfile.php/1201/mod_page/content/index.html": b"<h1>Sorting</h1>",
             "/webservice/pluginfile.php/1300/mod_resource/content/1/lectura.pdf": b"%PDF-",
+        }
+        # Course header images, kept apart from course files (they aren't counted as files).
+        self.images: dict[str, bytes] = {
+            "/webservice/pluginfile.php/500/course/overviewfiles/banniere.png": PNG,
+            "/webservice/pluginfile.php/530/course/overviewfiles/mapa.jpg": JPEG,
         }
         self.fail_next: dict[str, list[int]] = {}  # path or wsfunction -> status codes to return
 
@@ -83,10 +91,11 @@ class FakeMoodle:
                 return httpx.Response(self.fail_next[path].pop(0))
             if request.url.params.get("token") != self.token:
                 return httpx.Response(200, json=load("error_invalidtoken.json"))
-            if path not in self.files:
+            body = self.files.get(path, self.images.get(path))
+            if body is None:
                 return httpx.Response(404)
             return httpx.Response(
-                200, content=self.files[path], headers={"content-type": "application/octet-stream"}
+                200, content=body, headers={"content-type": "application/octet-stream"}
             )
         return httpx.Response(404)
 

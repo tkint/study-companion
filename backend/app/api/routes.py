@@ -20,7 +20,7 @@ from app import reminders, stats, study
 from app.api import ics, ui
 from app.config import Settings
 from app.db import session
-from app.models import File
+from app.models import CourseImage, File
 from app.moodle.names import UnsafePathError, safe_join
 from app.planner import Planner
 
@@ -157,6 +157,32 @@ def register(
             filename=f.filename,
             content_disposition_type="inline" if inline else "attachment",
             headers=headers,
+        )
+
+    @app.get("/course-images/{course_id}")
+    async def course_image(request: Request, course_id: int) -> Response:
+        if not is_authenticated(request):
+            return unauthorized()
+        with session(engine) as s:
+            img = s.get(CourseImage, course_id)
+        # Only raster types checked from the bytes at sync time (never SVG or HTML).
+        if img is None or img.status != "ok" or img.mimetype not in INLINE_TYPES or not img.local_path:
+            return not_found()
+        try:
+            path = safe_join(settings.data_dir, img.local_path)
+        except UnsafePathError:
+            return not_found()
+        if not path.is_file():
+            return not_found()
+        return FileResponse(
+            path,
+            media_type=img.mimetype,
+            headers={
+                "Content-Security-Policy": "sandbox; default-src 'none'",
+                "X-Content-Type-Options": "nosniff",
+                # The URL carries a version (?v=), so it can be cached for long.
+                "Cache-Control": "private, max-age=604800",
+            },
         )
 
     # ------------------------------------------------------------------ calendar

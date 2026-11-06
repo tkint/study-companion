@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { CourseSummary } from "../api";
 import { href } from "../router";
 import { Progress } from "./common";
+import { CourseCover } from "./CourseCover";
 
 // Case- and accent-insensitive: "algebre" finds "Algèbre linéaire".
 export function normalise(text: string): string {
@@ -35,6 +36,7 @@ export function CourseList({ courses, search = true }: { courses: CourseSummary[
         {shown.map((c) => (
           <li key={c.id}>
             <a className="course-row" href={href.course(c.id)}>
+              <CourseCover id={c.id} shortname={c.shortname} fullname={c.fullname} imageUrl={c.image_url} variant="thumb" />
               <div>
                 <div className="course-name">{c.fullname}</div>
                 <div className="course-meta">

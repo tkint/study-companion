@@ -7,13 +7,21 @@
     "enablecompletion": true, "completionhascriteria": false, "completionusertracked": true,
     "category": 7, "progress": 25.5, "completed": false, "startdate": 1756684800,
     "enddate": 1767139200, "marker": 0, "lastaccess": 1759000000, "isfavourite": false,
-    "hidden": false, "overviewfiles": [], "showactivitydates": true,
+    "hidden": false,
+    "overviewfiles": [
+      {"filename": "banniere.png", "filepath": "/", "filesize": 12, "mimetype": "image/png",
+       "fileurl": "https://moodle.example.ch/webservice/pluginfile.php/500/course/overviewfiles/banniere.png",
+       "timemodified": 1756000100}
+    ],
+    "courseimage": "https://moodle.example.ch/pluginfile.php/500/course/overviewfiles/banniere.png", "showactivitydates": true,
     "showcompletionconditions": true, "timemodified": 1756000000
   },
   {
     "id": 202, "shortname": "CS 202/Algorithms", "fullname": "Algorithms and Data Structures",
     "visible": 1, "summary": "<p>An introduction to the design and analysis of algorithms.</p>",
-    "lang": "", "category": 3, "startdate": 1756684800, "enddate": 0
+    "lang": "", "category": 3, "startdate": 1756684800, "enddate": 0,
+    "overviewfiles": [],
+    "courseimage": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4="
   },
   {
     "id": 303, "shortname": "HIS-303", "fullname": "<span lang=\"es\" class=\"multilang\">Historia de América Latina</span><span lang=\"en\" class=\"multilang\">Latin American History</span>",

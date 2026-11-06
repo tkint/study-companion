@@ -61,6 +61,7 @@ export interface CourseSummary {
   activities_done: number;
   activities_tracked: number;
   synced_at: number | null;
+  image_url: string | null;
   overdue: number;
   upcoming: number;
 }
@@ -346,6 +347,7 @@ export interface CourseDetail {
   enrolled: boolean;
   progress: number | null;
   synced_at: number | null;
+  image_url: string | null;
   sections: SectionInfo[];
   deadlines: Deadline[];
 }

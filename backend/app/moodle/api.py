@@ -91,9 +91,61 @@ async def get_user_courses(client: MoodleClient, userid: int) -> list[dict]:
                 "enddate": ts(c.get("enddate")),
                 "visible": as_bool(c.get("visible")),
                 "progress": as_float(c.get("progress")),
+                # None: this Moodle didn't say (older versions); {} : no image.
+                "image": course_image(c),
             }
         )
     return courses
+
+
+IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+
+def course_image(c: dict) -> dict | None:
+    """The course's header image from a course record of ``core_enrol_get_users_courses``
+    or ``core_course_get_courses_by_field``.
+
+    Prefers ``overviewfiles`` (Moodle 3.2+, with size and timemodified) over ``courseimage``
+    (newer sites: a URL, or a generated ``data:`` SVG pattern when the course has none, which
+    we ignore and draw our own fallback). Returns ``None`` when the record has neither field
+    (the site didn't say), ``{}`` when it has no usable image.
+    """
+    has_overview = isinstance(c.get("overviewfiles"), list)
+    has_image = "courseimage" in c
+    if not has_overview and not has_image:
+        return None
+    for item in _list(c.get("overviewfiles")):
+        f = _parse_file(item)
+        if not f:
+            continue
+        mimetype = f["mimetype"].lower()
+        if mimetype in IMAGE_TYPES or (
+            not mimetype and f["filename"].lower().endswith(_IMAGE_EXTS)
+        ):
+            return {k: f[k] for k in ("fileurl", "filename", "timemodified", "filesize")}
+    url = as_str(c.get("courseimage")).strip()
+    if url.lower().startswith(("https://", "http://")):
+        name = url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+        return {"fileurl": url, "filename": name, "timemodified": 0, "filesize": 0}
+    return {}
+
+
+async def get_course_images(client: MoodleClient, courseids: list[int]) -> dict[int, dict]:
+    """Header images via ``core_course_get_courses_by_field`` (Moodle 3.3+), for sites whose
+    enrolment call doesn't include them. Courses without one map to ``{}``."""
+    if not courseids:
+        return {}
+    data = await client.call(
+        "core_course_get_courses_by_field", field="ids", value=",".join(map(str, courseids))
+    )
+    courses = _list((data or {}).get("courses") if isinstance(data, dict) else None)
+    out: dict[int, dict] = {}
+    for c in courses:
+        cid = as_int(c.get("id"))
+        if cid is not None:
+            out[cid] = course_image(c) or {}
+    return out
 
 
 def _parse_file(item: dict) -> dict | None:

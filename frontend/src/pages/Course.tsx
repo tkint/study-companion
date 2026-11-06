@@ -13,6 +13,7 @@ import {
 } from "../api";
 import { Progress, Status, useLoad } from "../components/common";
 import { celebrate } from "../components/Confetti";
+import { CourseCover } from "../components/CourseCover";
 import { DeadlineList } from "../components/DeadlineList";
 import { PrefsMenu, PrefTags } from "../components/Prefs";
 import { Markdown } from "../components/Markdown";
@@ -273,6 +274,7 @@ export default function Course({ id, section }: { id: number; section?: number }
       <p className="crumbs">
         <a href={href.courses}>← Courses</a>
       </p>
+      <CourseCover id={data.id} shortname={data.shortname} fullname={data.fullname} imageUrl={data.image_url} variant="banner" />
       <h1>{data.fullname}</h1>
       <p className="muted">
         {data.shortname}
