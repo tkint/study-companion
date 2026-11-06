@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Alert, Loading, ProgressBar } from "../ui";
 
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   const [data, setData] = useState<T | null>(null);
@@ -18,17 +19,11 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
 }
 
 export function Status({ error, loading }: { error: string | null; loading: boolean }) {
-  if (error) return <p className="alert alert-error" role="alert">Could not load: {error}</p>;
-  if (loading) return <p className="loading">Loading…</p>;
+  if (error) return <Alert role="alert">Could not load: {error}</Alert>;
+  if (loading) return <Loading>Loading…</Loading>;
   return null;
 }
 
-export function Progress({ value }: { value: number | null }) {
-  if (value == null) return null;
-  const v = Math.max(0, Math.min(100, value));
-  return (
-    <div className="progress" role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}>
-      <span style={{ width: `${v}%` }} />
-    </div>
-  );
+export function Progress({ value, label = "Progress" }: { value: number | null; label?: string }) {
+  return <ProgressBar value={value} label={label} />;
 }

@@ -1,7 +1,25 @@
 # Using the web UI
 
 Open `https://<DOMAIN>` and sign in with your app password. The UI is built for phones first:
-on a narrow screen the tabs (**Today**, **Courses**, **Calendar**, **Prompt**, **Settings**) sit at the bottom.
+on a narrow screen the tabs (**Today**, **Courses**, **Study**, **Calendar**, **Ask AI**, **Settings**)
+sit at the bottom.
+
+## Finding your way
+
+Each tab is a section. When a section has more than one page, its pages show as a row of pills
+at the top of the page, with the current one highlighted:
+
+| Tab | Pages |
+| --- | --- |
+| Today | Overview · Catch-up plan · Schedule |
+| Courses | All courses (a course and its files open from there) |
+| Study | Flashcards · Study time |
+| Calendar | Calendar, reminders and the phone subscription |
+| Ask AI | Prompt builder · Templates |
+
+The browser tab shows where you are too ("Schedule · Today · Study Companion"). On your first
+visit a short **tour** walks through the sections; the **?** button in the top bar plays it
+again at any time.
 
 The sun / screen / moon buttons in the top bar pick a light theme, the device's theme
 (default) or a dark theme. The choice is remembered on each device and also applies to the
@@ -27,7 +45,7 @@ The home page leads with what you did, not with what is left:
 
 - **Greeting and week strip**: one dot per day of the last 7, filled on the days you studied.
   A *study day* is any day you marked a deadline done, marked a section studied, reviewed a
-  flashcard, took a quiz (in Claude or here) or Claude saved a summary for you (days follow
+  flashcard, took a quiz (with your AI or here) or your AI saved a summary for you (days follow
   `TIMEZONE`). The ring shows your average course progress.
 - **Wins**: your streak (study days in a row; a streak that ended yesterday still counts until
   the end of today), what you got done this week, cards reviewed and your quiz average.
@@ -65,12 +83,12 @@ earlier ones, **Show ignored** for what you let go), then its sections with acti
 Each course also has a **Study** box (its summaries, questions and quiz results) and, in every
 section:
 
-- **Claude's notes**: the summary Claude saved with `save_summary`, rendered from Markdown
+- **AI notes**: the summary your AI assistant saved with `save_summary`, rendered from Markdown
   (headings, lists, tables). Long notes fold; **Delete** removes one. Notes of a section that
   disappeared from Moodle are kept at the bottom of the page.
 - **Review N cards** opens the section's flashcards; **Mark as studied** takes the section off
   the catch-up plan (tap again to undo).
-- **Quiz results**: the scores Claude recorded with `record_quiz_result` and your flashcard
+- **Quiz results**: the scores your AI assistant recorded with `record_quiz_result` and your flashcard
   sessions, newest first.
 
 ## Study (flashcards)
@@ -88,7 +106,7 @@ choice, tap your choice), then grade yourself:
 
 This is a simple form of spaced repetition (SM-2): cards you know come back less and less often,
 cards you miss come back soon. When a session ends, its score is saved as a quiz result.
-**Practise all** goes through every card of the course or section, due or not. When Claude
+**Practise all** goes through every card of the course or section, due or not. When your AI assistant
 quizzes you and calls `record_quiz_result` with the question ids, those cards are rescheduled
 the same way (right = *Good*, wrong = *Again*).
 
@@ -97,7 +115,7 @@ the same way (right = *Good*, wrong = *Again*).
 Open it from **Study › Study time** (`#/time`). Tap **Start the timer** when you sit down
 (pick a course or leave *General study*) and **Stop and save** when you're done; the timer
 keeps running if you close the app or lock your phone, since only its start time is kept on
-the device. Forgot the timer? **Add time by hand**. When Claude runs a study session or a
+the device. Forgot the timer? **Add time by hand**. When your AI assistant runs a study session or a
 quiz from the prompt builder, it asks how long you studied and logs it with `log_study_time`.
 
 The page shows today against your daily goal (the catch-up plan's **hours per day**), this
@@ -132,7 +150,7 @@ Open it from **Today › Full plan**. It is built by rules, without AI:
    earliest open deadline in it or in a later section of the same course), then by grade
    weight, then section order, so courses without deadlines take turns.
 4. **Days**: the items are laid out from today within your **hours per day** (saved, and used
-   by Claude's `get_catch_up_plan` too). Long items are split over days. Items that only fit
+   by the `get_catch_up_plan` tool too). Long items are split over days. Items that only fit
    after their deadline are marked *late*; what doesn't fit in the chosen days is listed at the
    end.
 
@@ -162,7 +180,36 @@ where you are and the mark is your goal.
 The plan always keeps the work upcoming deadlines need, then adds the backlog (overdue items
 and sections no upcoming deadline needs) in priority order until it reaches your goal. The rest
 is listed under **Beyond your goal** (only if you have time); tick **Plan beyond my goal** to
-schedule it anyway. Claude's `get_catch_up_plan` and the prompts use the same goal.
+schedule it anyway. The `get_catch_up_plan` tool and the prompts use the same goal.
+
+## Study schedule (timed blocks and .ics)
+
+**Catch-up plan › Timed schedule** turns the plan into focus blocks with start and end times,
+built by rules, without AI. Every change saves on its own and the schedule is generated again.
+
+- **Workload and rest:** hours per day (the same setting as the plan), a **daily maximum**
+  (up to 8 h, only used when a deadline would be missed otherwise), **rest kept each day**
+  (free time inside your study window), the length of a focus block, the break between blocks,
+  and a **buffer** of days before deadlines (work is planned to finish that many days early).
+  **Study from / until** sets the window blocks go in.
+- **Course weights:** a course with weight 2 gets about twice the time of one with weight 1;
+  0 leaves it out. The slider shows the share you asked for and the share planned. Courses
+  take turns (never the same course twice in a row when another has work), and work for a
+  close deadline comes first.
+- **When you can't study:** weekly slots (classes, work, training) and specific days or hours
+  (appointments, travel, all-day off). Blocks never overlap them.
+- **Activities:** *Deep work* blocks for sections (with their files), *Practice* blocks for
+  assignments and quizzes, two short *Active recall* blocks one and four days after you finish
+  a section (spaced repetition; untick **Spaced active recall** to drop them), and a short
+  *Flashcards* block each day once you have flashcards.
+
+**Download .ics** saves the blocks as a calendar file for Google Calendar (*Settings › Import*),
+Apple Calendar (*File › Import*) or Outlook (*Add calendar › Upload from file*). Each event is
+called like `[Study] LA: Matrices (Deep work)`, with what to do, the files (links into the app)
+and the Moodle link in the description. Events keep the same ids per day and position, so
+some apps update them when you import a newer schedule; others add copies, so delete the old
+import first there. Times use the
+server's `TIMEZONE`.
 
 ## Calendar and ICS export
 
@@ -185,9 +232,9 @@ else). If it leaks, tap **New link**: the old one stops working at once and you 
 again with the new one. The token is stripped from Caddy's and the app's logs.
 **Download .ics** gives a one-off file instead, if you'd rather import than subscribe.
 
-## Prompt
+## Ask AI (prompt builder)
 
-Builds a ready-to-paste prompt for Claude (with the connector from
+Builds a ready-to-paste prompt for your AI assistant (Claude, ChatGPT, Gemini…, with the connector from
 [connector.md](connector.md) turned on):
 
 - **Course**: one or more. **Period**: last 2 months, last 4 weeks, until the next deadline,
@@ -199,10 +246,10 @@ Builds a ready-to-paste prompt for Claude (with the connector from
   style, with hints). **Depth**, **time available** and the **language** of the answers
   (by default the course's language).
 - **Save results to the app** (on by default) adds the write tool calls to the prompt, so
-  Claude saves its summaries, questions and quiz scores where the course page and the Study tab
+  Your AI assistant saves its summaries, questions and quiz scores where the course page and the Study tab
   show them.
 - The preview counts the sections, files and pages that match. Large periods are split into
-  several prompts so Claude stays within its limits; copy and paste them one after the other.
+  several prompts so the AI stays within its limits; copy and paste them one after the other.
 
 ### Editing the prompt templates
 

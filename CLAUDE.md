@@ -42,7 +42,9 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   with `src/components/HtmlContent.tsx` (second allow-list, React elements, no innerHTML)
 - `backend/app/materials.py` course read model (period -> sections) shared by MCP tools and prompts
 - `backend/app/study.py` study loop: Claude's notes, questions (SM-2 spaced repetition), quiz results,
-  sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan
+  sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan, `planner/schedule.py`
+  timed study schedule (capacity, unavailabilities, course weights, recall blocks; `ScheduleSettings`), `api/schedule.py`
+  its API and `.ics` download (editor: `#/schedule`)
 - `backend/app/study_time.py` study sessions (web timer, manual, Claude's `log_study_time`), totals, streak;
   `backend/app/reminders.py` reminder settings, deadline alarms + daily study event in the ICS feed, `/api/reminders`
 - `backend/app/mcp_tools.py` read and write tools as plain text functions (`TOOL_NAMES`); `mcp_server.py`
@@ -54,8 +56,14 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   `ics.py` (ICS + feed token), `status.py`
 - `frontend/` React + Vite + TS PWA (hash routes in `src/router.ts`, API types in `src/api.ts`);
   `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
+  Navigation map in `src/nav.ts` (sections = tabs, their pages, page titles): a new page needs a line there.
+  `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
   Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
   Claude's Markdown is rendered by `src/components/Markdown.tsx` into React elements (no innerHTML).
+  Styling: styled-components only (no CSS files, no utility classes). Tokens in `src/styles/theme.ts`
+  (colours resolve to CSS variables so the light/dark switch in `src/colorScheme.ts` needs no re-render),
+  base styles in `src/styles/GlobalStyle.ts`, typed primitives in `src/ui/` (Button, Card, Badge,
+  ProgressBar, Modal, Dropdown, form fields, layout). Transient `$props` for style-only props.
 - `backend/app/cli.py` `python -m app.cli check|sync|snapshot-db`
 - `deploy/backup.sh` restic backup of the data volume (docs/backups.md)
 - `backend/tests/` pytest; `conftest.py` builds an app with test settings

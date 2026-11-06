@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import styled from "styled-components";
 
 // A small Markdown renderer for Claude's notes and questions: headings, paragraphs, lists
 // (nested by indentation), quotes, code, tables, bold/italic/code/links. It builds React
@@ -121,9 +122,47 @@ function lineBreaks(text: string, key: number): ReactNode[] {
   return text.split("\n").flatMap((part, i) => (i ? [<br key={`${key}-${i}`} />, part] : [part]));
 }
 
+const Body = styled.div`
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  overflow-wrap: anywhere;
+  & > :first-child { margin-top: 6px; }
+  p, ul, ol, blockquote, pre { margin: 6px 0; }
+  ul, ol { padding-left: 1.3em; }
+  li { margin: 2px 0; }
+  h3, h4, h5, h6 { font-size: 1rem; margin: 14px 0 4px; }
+  h4, h5, h6 { font-size: .95rem; }
+  code {
+    font-size: .88em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: ${({ theme }) => theme.colors.surfaceSunken};
+  }
+  pre {
+    overflow-x: auto;
+    padding: 10px 12px;
+    border-radius: ${({ theme }) => theme.radii.sm};
+    background: ${({ theme }) => theme.colors.surfaceSunken};
+    code { padding: 0; background: none; }
+  }
+  blockquote {
+    padding-left: 12px;
+    border-left: 3px solid ${({ theme }) => theme.colors.accent};
+    color: ${({ theme }) => theme.colors.textMuted};
+  }
+  hr { border: 0; border-top: 1px solid ${({ theme }) => theme.colors.border}; }
+  table { border-collapse: collapse; font-size: ${({ theme }) => theme.fontSizes.sm}; min-width: 100%; }
+  th, td { border: 1px solid ${({ theme }) => theme.colors.border}; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { background: ${({ theme }) => theme.colors.surfaceSunken}; }
+`;
+
+const TableWrap = styled.div`
+  overflow-x: auto;
+  margin: 6px 0;
+`;
+
 export function Markdown({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={`md${className ? ` ${className}` : ""}`}>
+    <Body className={className}>
       {parse(text).map((b, i) => {
         switch (b.t) {
           case "h": {
@@ -141,7 +180,7 @@ export function Markdown({ text, className }: { text: string; className?: string
             return <hr key={i} />;
           case "table":
             return (
-              <div key={i} className="md-table">
+              <TableWrap key={i}>
                 <table>
                   <thead><tr>{b.head.map((c, j) => <th key={j}>{inline(c)}</th>)}</tr></thead>
                   <tbody>
@@ -150,7 +189,7 @@ export function Markdown({ text, className }: { text: string; className?: string
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableWrap>
             );
           case "list": {
             const Tag = b.ordered ? "ol" : "ul";
@@ -166,6 +205,6 @@ export function Markdown({ text, className }: { text: string; className?: string
           }
         }
       })}
-    </div>
+    </Body>
   );
 }

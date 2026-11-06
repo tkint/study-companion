@@ -1,4 +1,5 @@
 import { createElement, type ReactNode } from "react";
+import styled from "styled-components";
 
 // Renders a teacher page (HTML already sanitised by the server) as React elements, with a
 // second allow-list here: unknown tags keep only their text, attributes are rebuilt from
@@ -18,6 +19,61 @@ const VOID = new Set(["br", "hr", "img"]);
 const HEADING: Record<string, string> = { h1: "h2", h2: "h3", h3: "h3", h4: "h4", h5: "h5", h6: "h6" };
 // React warns about whitespace text directly inside these.
 const TABLE_PARTS = new Set(["table", "thead", "tbody", "tfoot", "tr"]);
+
+const Body = styled.div`
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  h2, h3, h4, h5, h6 { font-weight: 700; line-height: 1.3; }
+  h2 { font-size: ${({ theme }) => theme.fontSizes.lg}; margin: 20px 0 8px; }
+  h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+  h4, h5, h6 { font-size: ${({ theme }) => theme.fontSizes.base}; margin: 14px 0 4px; }
+  p, ul, ol, blockquote, pre, figure, dl { margin: 8px 0; }
+  ul, ol { padding-left: 1.4em; }
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
+  li { margin: 2px 0; }
+  strong, b { font-weight: 700; }
+  em, i { font-style: italic; }
+  u { text-decoration: underline; }
+  a { color: ${({ theme }) => theme.colors.primaryStrong}; text-decoration: underline; }
+  img { max-width: 100%; height: auto; border-radius: ${({ theme }) => theme.radii.sm}; display: inline-block; }
+  blockquote {
+    margin-left: 0;
+    padding: 2px 0 2px 12px;
+    border-left: 3px solid ${({ theme }) => theme.colors.accent};
+    color: ${({ theme }) => theme.colors.textMuted};
+  }
+  code {
+    font-family: ${({ theme }) => theme.fonts.mono};
+    font-size: .9em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: ${({ theme }) => theme.colors.surfaceSunken};
+  }
+  pre {
+    overflow-x: auto;
+    padding: 10px 12px;
+    border-radius: ${({ theme }) => theme.radii.sm};
+    background: ${({ theme }) => theme.colors.surfaceSunken};
+    code { padding: 0; background: none; }
+  }
+  hr { border: 0; border-top: 1px solid ${({ theme }) => theme.colors.border}; margin: 16px 0; }
+`;
+
+const TableWrap = styled.div`
+  overflow-x: auto;
+  margin: 10px 0;
+  -webkit-overflow-scrolling: touch;
+  table { border-collapse: collapse; min-width: 100%; font-size: ${({ theme }) => theme.fontSizes.md}; }
+  th, td {
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: normal;
+  }
+  th { background: ${({ theme }) => theme.colors.surfaceSunken}; }
+`;
 
 function safeHref(href: string): { href: string; external: boolean } | null {
   if (/^#\/file\/\d+(\?course=\d+)?$/.test(href)) return { href, external: false };
@@ -76,9 +132,9 @@ function convert(node: Node, key: number, parentTag = ""): ReactNode {
   if (VOID.has(tag)) return createElement(name, props);
   if (tag === "table") {
     return (
-      <div key={key} className="page-table">
+      <TableWrap key={key}>
         {createElement("table", null, kids())}
-      </div>
+      </TableWrap>
     );
   }
   return createElement(name, props, kids());
@@ -86,5 +142,5 @@ function convert(node: Node, key: number, parentTag = ""): ReactNode {
 
 export function HtmlContent({ html }: { html: string }) {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  return <div className="page-content">{Array.from(doc.body.childNodes).map((n, i) => convert(n, i))}</div>;
+  return <Body>{Array.from(doc.body.childNodes).map((n, i) => convert(n, i))}</Body>;
 }

@@ -3,7 +3,8 @@
 // then the canvas is removed. With "reduce motion" on, nothing flies; the caller's own
 // feedback (the button turning into "Done") is enough.
 
-const COLORS = ["#6d5dfc", "#ff6b9a", "#ffb547", "#3ccf91", "#4cc3ff", "#b07cff"];
+// The palette's accents (src/styles/theme.ts).
+const COLORS = ["#3B82F6", "#F59E0B", "#10B981", "#0EA5E9", "#F97316", "#FBBF24"];
 
 interface Particle {
   x: number;
@@ -22,14 +23,14 @@ function reducedMotion(): boolean {
 }
 
 /** Burst from an element (its centre) or from the middle of the screen. */
-export function celebrate(from?: Element | null, amount = 80): void {
+export function celebrate(from?: Element | null, amount = 50): void {
   if (reducedMotion() || typeof document === "undefined") return;
   const rect = from?.getBoundingClientRect();
   const ox = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
   const oy = rect ? rect.top + rect.height / 2 : window.innerHeight / 3;
 
   const canvas = document.createElement("canvas");
-  canvas.className = "confetti";
+  canvas.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:100";
   canvas.setAttribute("aria-hidden", "true");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = window.innerWidth * dpr;

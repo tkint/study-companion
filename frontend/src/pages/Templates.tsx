@@ -3,6 +3,51 @@ import { request, ApiError } from "../api";
 import { Status, useLoad } from "../components/common";
 import { when } from "../format";
 import { href } from "../router";
+import styled from "styled-components";
+import { Alert, Badge, Button, Card, Crumbs, DetailsCard, Lead, List, Muted, Pre, Row, Small, Textarea } from "../ui";
+
+const TemplateRow = styled(Card)`
+  display: grid;
+  gap: 2px;
+`;
+
+const Name = styled.span`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+`;
+
+const Editor_ = styled.div`
+  code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: ${({ theme }) => theme.colors.surfaceSunken};
+  }
+  ${DetailsCard} { margin-top: 12px; }
+`;
+
+const TemplateText = styled(Textarea)`
+  min-height: 55vh;
+  margin: 12px 0 8px;
+  font-family: ${({ theme }) => theme.fonts.mono};
+  tab-size: 2;
+  ${({ theme }) => theme.media.notPhone} { font-size: .9rem; }
+`;
+
+const Actions = styled(Row)`
+  & > button { flex: 1 1 auto; }
+  ${({ theme }) => theme.media.notPhone} { & > button { flex: 0 0 auto; } }
+`;
+
+const Codes = styled.p`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
 
 // Types of /api/prompt/templates (backend: app/prompts/store.py and app/api/prompts.py).
 interface PromptTemplate {
@@ -37,27 +82,26 @@ export default function Templates({ id }: { id?: string }) {
   if (id && current) return <Editor key={current.id} template={current} list={data} onSaved={update} />;
   return (
     <>
-      <p className="crumbs"><a href={href.prompt()}>Prompt builder</a></p>
       <h1>Prompt templates</h1>
-      <p className="muted small">
+      <Lead $small>
         Each goal of the prompt builder comes from one of these templates. Edit one to change the
         prompts it builds; reset it to go back to the built-in version.
-      </p>
-      {id && !current && <p className="alert alert-error" role="alert">There is no template called “{id}”.</p>}
-      <ul className="template-list">
+      </Lead>
+      {id && !current && <Alert role="alert">There is no template called “{id}”.</Alert>}
+      <List>
         {data.templates.map((t) => (
           <li key={t.id}>
-            <a className="template-row" href={href.templates(t.id)}>
-              <span className="template-name">
+            <TemplateRow as="a" href={href.templates(t.id)} $interactive>
+              <Name>
                 {t.title}
-                {t.edited && <span className="tag ai">Edited</span>}
-                {t.default_changed && <span className="tag warn">Built-in updated</span>}
-              </span>
-              <span className="muted small">{t.description}</span>
-            </a>
+                {t.edited && <Badge $tone="primary">Edited</Badge>}
+                {t.default_changed && <Badge $tone="warning">Built-in updated</Badge>}
+              </Name>
+              <Muted $small>{t.description}</Muted>
+            </TemplateRow>
           </li>
         ))}
-      </ul>
+      </List>
     </>
   );
 }
@@ -123,24 +167,23 @@ function Editor({ template, list, onSaved }: {
   };
 
   return (
-    <div className="template-editor">
-      <p className="crumbs"><a href={href.templates()} onClick={back}>Prompt templates</a></p>
+    <Editor_>
+      <Crumbs><a href={href.templates()} onClick={back}>← Prompt templates</a></Crumbs>
       <h1>{template.title}</h1>
-      <p className="muted small">
+      <Lead $small>
         {template.edited
           ? `Your version${template.updated_at ? `, saved ${when(template.updated_at)}` : ""}.`
           : "Built-in version."}
-      </p>
+      </Lead>
       {template.default_changed && (
-        <p className="banner warn small">
+        <Alert $tone="warning">
           An app update changed the built-in version since you edited this one. Compare it below,
           or reset to take the new one.
-        </p>
+        </Alert>
       )}
 
-      <textarea
+      <TemplateText
         aria-label="Template text"
-        className="template-text"
         value={text}
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
@@ -149,57 +192,55 @@ function Editor({ template, list, onSaved }: {
       />
 
       {problems.length > 0 && (
-        <ul className="alert alert-error template-problems" role="alert">
-          {problems.map((p) => <li key={p}>{p}</li>)}
-        </ul>
+        <Alert role="alert"><ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></Alert>
       )}
-      {saveError && problems.length === 0 && <p className="alert alert-error" role="alert">{saveError}</p>}
-      {message && !dirty && <p className="muted small" role="status">{message}</p>}
+      {saveError && problems.length === 0 && <Alert role="alert">{saveError}</Alert>}
+      {message && !dirty && <Small $muted role="status">{message}</Small>}
 
-      <div className="row template-actions">
-        <button className="btn btn-primary" type="button" disabled={busy || !dirty || problems.length > 0} onClick={save}>
+      <Actions>
+        <Button $variant="primary" type="button" disabled={busy || !dirty || problems.length > 0} onClick={save}>
           Save
-        </button>
-        <button className="btn btn-ghost" type="button" disabled={busy || !dirty} onClick={() => setText(template.text)}>
+        </Button>
+        <Button $variant="outline" type="button" disabled={busy || !dirty} onClick={() => setText(template.text)}>
           Undo changes
-        </button>
-        <button className="btn btn-ghost" type="button" disabled={busy || !template.edited} onClick={reset}>
+        </Button>
+        <Button $variant="ghost" type="button" disabled={busy || !template.edited} onClick={reset}>
           Reset to built-in
-        </button>
-      </div>
+        </Button>
+      </Actions>
 
-      <details className="section">
+      <DetailsCard>
         <summary>How templates work</summary>
-        <p className="small">
+        <Small>
           The lines between the two <code>---</code> at the top set the goal’s <code>title</code>,{" "}
           <code>description</code>, <code>order</code> in the list and whether it asks for
           a <code>topic</code> (<code>required</code>, <code>optional</code> or <code>none</code>).
-        </p>
-        <p className="small">Placeholders the builder fills in:</p>
-        <p className="small template-chips">{list.variables.map((v) => <code key={v}>{`{{${v}}}`}</code>)}</p>
-        <p className="small">
+        </Small>
+        <Small>Placeholders the builder fills in:</Small>
+        <Codes>{list.variables.map((v) => <code key={v}>{`{{${v}}}`}</code>)}</Codes>
+        <Small>
           <code>{"{{#name}}…{{/name}}"}</code> keeps its text only when the option is on,{" "}
           <code>{"{{^name}}…{{/name}}"}</code> only when it is off:
-        </p>
-        <p className="small template-chips">{list.flags.map((v) => <code key={v}>{v}</code>)}</p>
-        <p className="small">
+        </Small>
+        <Codes>{list.flags.map((v) => <code key={v}>{v}</code>)}</Codes>
+        <Small>
           Keep <code>{"{{steps}}"}</code>: it lists the tool calls for the chosen courses and period.
           Anything written like a call, <code>name(…)</code>, must be one of the Study Companion tools:
-        </p>
-        <p className="small template-chips">{list.tools.map((v) => <code key={v}>{v}</code>)}</p>
-      </details>
+        </Small>
+        <Codes>{list.tools.map((v) => <code key={v}>{v}</code>)}</Codes>
+      </DetailsCard>
 
       {template.edited && (
-        <details className="section">
+        <DetailsCard>
           <summary>Built-in version</summary>
-          <pre className="prompt-text">{template.default_text}</pre>
-          <div className="row">
-            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setText(template.default_text)}>
+          <Pre>{template.default_text}</Pre>
+          <Row>
+            <Button $variant="soft" $size="sm" type="button" onClick={() => setText(template.default_text)}>
               Copy into the editor
-            </button>
-          </div>
-        </details>
+            </Button>
+          </Row>
+        </DetailsCard>
       )}
-    </div>
+    </Editor_>
   );
 }

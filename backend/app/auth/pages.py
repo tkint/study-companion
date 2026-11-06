@@ -6,19 +6,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html import escape
 
-# Same design tokens as the React UI (frontend/src/styles.css), so these pages match it.
+# Same design tokens as the React UI (frontend/src/styles/theme.ts), so these pages match it.
 _TOKENS_DARK = """
-  --bg: #12111a; --surface: #1c1a27; --text: #ecebf5; --muted: #a19eb5; --border: #2e2b3d;
-  --accent: #a598ff; --accent-text: #12111a; --bad: #ff8a8f; --bad-bg: #2d1619;
-  --warn: #ffc35c; --warn-bg: #2c2312; --ok: #5fd99a;
+  --bg: #0B1220; --surface: #131C2E; --text: #E2E8F0; --muted: #94A3B8; --border: #24324A;
+  --accent: #60A5FA; --accent-text: #0B1220; --bad: #FDA4AF; --bad-bg: #3B1220;
+  --warn: #FCD34D; --warn-bg: #33270F; --ok: #6EE7B7;
 """
 
 _STYLE = (
     """
-:root { color-scheme: light; --bg: #f6f5fb; --surface: #ffffff; --text: #1f1d2b;
-  --muted: #6b6880; --border: #e8e5f2; --accent: #6d5dfc; --accent-text: #ffffff;
-  --bad: #d9454f; --bad-bg: #fff1f2; --warn: #b86200; --warn-bg: #fff7eb; --ok: #14935a;
-  --radius: 16px; --topbar: 56px; --tabbar: 60px;
+:root { color-scheme: light; --bg: #F8FAFC; --surface: #FFFFFF; --text: #0F172A;
+  --muted: #475569; --border: #E2E8F0; --accent: #2563EB; --accent-text: #FFFFFF;
+  --bad: #BE123C; --bad-bg: #FFF1F2; --warn: #B45309; --warn-bg: #FFFBEB; --ok: #047857;
+  --radius: 16px; --topbar: 60px; --tabbar: 64px;
   font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; """
     + _TOKENS_DARK
@@ -109,7 +109,7 @@ _THEME_JS = """<script>
     if (t === "system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
     var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-      m.setAttribute("content", dark ? "#1c1a27" : "#ffffff");
+      m.setAttribute("content", dark ? "#131C2E" : "#ffffff");
     });
     // Android takes the system bars' colour from the manifest, which reads this cookie.
     try {
@@ -152,10 +152,10 @@ def _svg(name: str) -> str:
 
 
 def _topbar(active: str) -> str:
-    # Same tabs, in the same order, as the React UI (frontend/src/App.tsx).
+    # Same tabs, in the same order, as the React UI (frontend/src/nav.ts).
     tabs = [("today", "Today", "/#/"), ("courses", "Courses", "/#/courses"),
             ("study", "Study", "/#/study"), ("calendar", "Calendar", "/#/calendar"),
-            ("prompt", "Prompt", "/#/prompt"), ("settings", "Settings", "/settings")]
+            ("prompt", "Ask AI", "/#/prompt"), ("settings", "Settings", "/settings")]
     links = "".join(
         f'<a href="{href}"{" aria-current=\"page\"" if key == active else ""}>{_svg(key)}<span>{label}</span></a>'
         for key, label, href in tabs
@@ -183,7 +183,7 @@ def _page(title: str, body: str, wide: bool = False, nav: str | None = None) -> 
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1c1a27" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#131C2E" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
@@ -340,12 +340,12 @@ def _connector_card(mcp_url: str, connections: list[dict]) -> str:
     else:
         state, button = '<p class="muted">Not connected yet.</p>', ""
     return f"""<div class="card">
-<h2>Claude connector</h2>
+<h2>AI connector</h2>
 <p>On claude.ai open <em>Settings › Connectors › Add custom connector</em> and enter:</p>
 <p><code>{escape(mcp_url)}</code></p>
 {state}
 <div class="row">{button}</div>
-<p class="muted">Changing the password below also disconnects Claude. Guide: docs/connector.md.</p>
+<p class="muted">Changing the password below also disconnects your AI assistant. Guide: docs/connector.md.</p>
 </div>"""
 
 
@@ -513,5 +513,5 @@ def oauth_error_page(message: str) -> str:
         f"""
 <h1>Can't connect</h1>
 <p class="error" role="alert">{escape(message)}</p>
-<p>Remove the connector in Claude and add it again. See docs/connector.md in the repository.</p>""",
+<p>Remove the connector in your AI assistant and add it again. See docs/connector.md in the repository.</p>""",
     )

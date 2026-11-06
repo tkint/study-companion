@@ -163,3 +163,64 @@ def build_ics(items: list[dict], now: int | None = None, name: str = "Study dead
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+SCHEDULE_PRODID = "-//Study Companion//Study schedule//EN"
+
+
+def build_schedule_ics(blocks: list[dict], base_url: str, now: int | None = None,
+                       name: str = "Study schedule") -> str:
+    """One busy VEVENT per study block of ``app.planner.schedule`` (``Block.to_dict``), with
+    the course material and what to do in the description. UIDs are stable per day and
+    position, so importing a newer schedule updates the same events."""
+    stamp = _dt(int(now if now is not None else time.time()))
+    base = base_url.rstrip("/")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        f"PRODID:{SCHEDULE_PRODID}",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{_escape(name)}",
+    ]
+    position: dict[str, int] = {}
+    for b in blocks:
+        n = position[b["date"]] = position.get(b["date"], 0) + 1
+        desc = []
+        if b.get("course_name"):
+            desc.append(b["course_name"])
+        if b.get("detail"):
+            desc.append(b["detail"])
+        files = b.get("files") or []
+        if files:
+            desc.append("Material:")
+            for f in files:
+                pages = f" ({f['pages']} p.)" if f.get("pages") else ""
+                desc.append(f"- {f['name']}{pages}: {base}/#/file/{f['id']}"
+                            + (f"?course={b['course_id']}" if b.get("course_id") else ""))
+        url = ""
+        if b.get("course_id"):
+            url = f"{base}/#/course/{b['course_id']}" + (
+                f"?section={b['section_id']}" if b.get("section_id") else "")
+        elif b["kind"] == "flashcards":
+            url = f"{base}/#/study?due=1"
+        if url:
+            desc.append(f"Open in Study Companion: {url}")
+        if b.get("url"):
+            desc.append(f"On Moodle: {b['url']}")
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:schedule-{b['date']}-{n}@study-companion",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART:{_dt(b['start'])}",
+            f"DTEND:{_dt(b['end'])}",
+            f"SUMMARY:{_escape(b['summary'])}",
+            f"DESCRIPTION:{_escape(chr(10).join(desc))}",
+            "TRANSP:OPAQUE",
+            f"CATEGORIES:{_escape(b.get('course_name') or 'Study Companion')}",
+        ]
+        if url:
+            lines.append(f"URL:{url}")
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(_fold(line) for line in lines) + "\r\n"

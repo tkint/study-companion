@@ -265,15 +265,15 @@ def test_settings_page_uses_the_app_layout(client):
 
 
 def test_settings_nav_matches_the_web_ui(client):
-    """The server-rendered pages show the same tabs, in the same order, as App.tsx."""
+    """The server-rendered pages show the same tabs, in the same order, as nav.ts."""
     import re
     from pathlib import Path
 
-    app_tsx = Path(__file__).resolve().parents[2] / "frontend" / "src" / "App.tsx"
-    if not app_tsx.is_file():
+    nav_ts = Path(__file__).resolve().parents[2] / "frontend" / "src" / "nav.ts"
+    if not nav_ts.is_file():
         pytest.skip("frontend sources not present")
-    src = app_tsx.read_text()
-    labels = re.findall(r'label: "([^"]+)"', src) + ["Settings"]
+    src = nav_ts.read_text()
+    labels = re.findall(r'label: "([^"]+)",\s*short:', src) + ["Settings"]
     login(client)
     html = client.get("/settings").text
     nav = html[html.index('<nav class="tabs"'):html.index("</nav>")]

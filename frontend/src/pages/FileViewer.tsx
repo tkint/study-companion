@@ -5,6 +5,102 @@ import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist/legacy/build/pdf.m
 import { api, fileUrl, type FileDetail, type TeacherPage } from "../api";
 import { HtmlContent } from "../components/HtmlContent";
 import { href } from "../router";
+import styled from "styled-components";
+import { Alert, Button, IconButton } from "../ui";
+
+const Viewer = styled.div`
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #4b5563;
+`;
+
+const Bar = styled.header`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  padding-top: max(6px, env(safe-area-inset-top));
+  background: ${({ theme }) => theme.colors.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const Name = styled.span`
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const PageNo = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  font-variant-numeric: tabular-nums;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const Pages = styled.div`
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+  & > p { color: #fff; text-align: center; }
+`;
+
+const Page = styled.div`
+  margin: 0 auto 8px;
+  max-width: none;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+  canvas { display: block; width: 100%; height: 100%; }
+`;
+
+// Teacher pages (Moodle page and book chapters): a reading view on the app's own background.
+const Reading = styled(Pages)`
+  background: ${({ theme }) => theme.colors.background};
+  padding: 12px;
+  & > p { color: ${({ theme }) => theme.colors.textMain}; }
+`;
+
+const Sheet = styled.article`
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 16px 32px;
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textMain};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  overflow-wrap: anywhere;
+  & > h1 { font-size: 1.35rem; font-weight: 700; line-height: 1.3; margin: 0 0 12px; }
+  ${({ theme }) => theme.media.phone} { padding: 14px 14px 28px; border-radius: ${({ theme }) => theme.radii.md}; }
+`;
+
+const Kicker = styled.p`
+  margin: 0 0 4px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const Attachments = styled.section`
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  h2 { font-size: 1rem; font-weight: 700; margin: 0 0 6px; }
+  ul { padding-left: 1.3em; list-style: disc; }
+`;
+
+const ChapterNav = styled.nav`
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  a { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
 
 // The legacy build supports older phone browsers (Safari 15+).
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -21,22 +117,21 @@ export default function FileViewer({ id, course }: { id: number; course?: number
   }, [id]);
   const back = course ? href.course(course) : href.dashboard;
   if (file?.page) return <PageViewer file={file} back={back} />;
-  if (error) {
+  if (!file) {
     return (
-      <div className="viewer">
-        <header className="viewer-bar">
-          <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
-          <span className="viewer-title">File</span>
-        </header>
-        <div className="viewer-pages"><p className="alert">Could not open this file: {error}</p></div>
-      </div>
+      <Viewer>
+        <Bar>
+          <IconButton as="a" href={back} aria-label="Back">←</IconButton>
+          <Name>{error ? "File" : "Loading…"}</Name>
+        </Bar>
+        <Pages>{error ? <Alert>Could not open this file: {error}</Alert> : <p>Loading…</p>}</Pages>
+      </Viewer>
     );
   }
-  if (!file) return <div className="viewer"><div className="viewer-pages"><p className="loading">Loading…</p></div></div>;
   return <PdfViewer file={file} back={back} />;
 }
 
-// A teacher page (Moodle page or book chapter), shown like a reading view.
+// A teacher page (Moodle page or book chapter), shown as a reading view.
 function PageViewer({ file, back }: { file: FileDetail; back: string }) {
   const [page, setPage] = useState<TeacherPage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,47 +141,49 @@ function PageViewer({ file, back }: { file: FileDetail; back: string }) {
     api.page(file.id).then(setPage, (e: Error) => setError(e.message));
   }, [file.id]);
   const at = page ? page.chapters.findIndex((c) => c.id === page.id) : -1;
-  const prev = at > 0 ? page!.chapters[at - 1] : null;
-  const next = at >= 0 && at < page!.chapters.length - 1 ? page!.chapters[at + 1] : null;
+  const prev = page && at > 0 ? page.chapters[at - 1] : null;
+  const next = page && at >= 0 && at < page.chapters.length - 1 ? page.chapters[at + 1] : null;
   const title = page?.title ?? file.title;
   return (
-    <div className="viewer page-viewer">
-      <header className="viewer-bar">
-        <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
-        <span className="viewer-title" title={title}>{title}</span>
-        {page && page.chapters.length > 1 && (
-          <span className="viewer-page">{at + 1}/{page.chapters.length}</span>
-        )}
-        <a className="btn btn-sm btn-ghost" href={fileUrl(file, true)} aria-label="Download" title="Download">⤓</a>
-      </header>
-      <div className="viewer-pages">
-        {error && <p className="alert">Could not open this page: {error}</p>}
-        {!page && !error && <p className="loading">Loading…</p>}
+    <Viewer>
+      <Bar>
+        <IconButton as="a" href={back} aria-label="Back">←</IconButton>
+        <Name title={title}>{title}</Name>
+        {page && page.chapters.length > 1 && <PageNo>{at + 1}/{page.chapters.length}</PageNo>}
+        <IconButton as="a" href={fileUrl(file, true)} aria-label="Download" title="Download">⤓</IconButton>
+      </Bar>
+      <Reading>
+        {error && <Alert>Could not open this page: {error}</Alert>}
+        {!page && !error && <p>Loading…</p>}
         {page && (
-          <article className="page-sheet">
-            {page.module && page.chapters.length > 1 && <p className="muted page-kicker">{page.module.name}</p>}
+          <Sheet>
+            {page.module && page.chapters.length > 1 && <Kicker>{page.module.name}</Kicker>}
             <h1>{page.title}</h1>
             <HtmlContent html={page.html} />
             {page.attachments.length > 0 && (
-              <section className="page-attachments">
+              <Attachments>
                 <h2>Attached files</h2>
                 <ul>
                   {page.attachments.map((a) => (
                     <li key={a.id}>{a.href ? <a href={a.href}>{a.filename}</a> : a.filename}</li>
                   ))}
                 </ul>
-              </section>
+              </Attachments>
             )}
             {(prev || next) && (
-              <nav className="page-nav" aria-label="Chapters">
-                {prev ? <a className="btn btn-outline btn-sm" href={href.file(prev.id, page.course_id)}>← {prev.title}</a> : <span />}
-                {next && <a className="btn btn-outline btn-sm" href={href.file(next.id, page.course_id)}>{next.title} →</a>}
-              </nav>
+              <ChapterNav aria-label="Chapters">
+                {prev ? (
+                  <Button as="a" href={href.file(prev.id, page.course_id)} $variant="outline" $size="sm">← {prev.title}</Button>
+                ) : <span />}
+                {next && (
+                  <Button as="a" href={href.file(next.id, page.course_id)} $variant="outline" $size="sm">{next.title} →</Button>
+                )}
+              </ChapterNav>
             )}
-          </article>
+          </Sheet>
         )}
-      </div>
-    </div>
+      </Reading>
+    </Viewer>
   );
 }
 
@@ -125,30 +222,28 @@ function PdfViewer({ file, back }: { file: FileDetail; back: string }) {
   }, [file]);
 
   return (
-    <div className="viewer">
-      <header className="viewer-bar">
-        <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
-        <span className="viewer-title" title={file.filename}>{file.filename}</span>
+    <Viewer>
+      <Bar>
+        <IconButton as="a" href={back} aria-label="Back">←</IconButton>
+        <Name title={file.filename}>{file.filename}</Name>
         {doc && (
-          <span className="viewer-page" aria-live="polite">
+          <PageNo aria-live="polite">
             {page}/{doc.numPages}
-          </span>
+          </PageNo>
         )}
-        <button className="btn btn-sm btn-ghost" onClick={() => setZoom(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out">−</button>
-        <button className="btn btn-sm btn-ghost" onClick={() => setZoom(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in">+</button>
-        {file && (
-          <a className="btn btn-sm btn-ghost" href={fileUrl(file, true)} aria-label="Download">⤓</a>
-        )}
-      </header>
-      <div className="viewer-pages" ref={scroller}>
-        {error && <p className="alert alert-error">Could not open this file: {error}</p>}
-        {!doc && !error && <p className="loading">Loading PDF…</p>}
+        <IconButton onClick={() => setZoom(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out">−</IconButton>
+        <IconButton onClick={() => setZoom(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in">+</IconButton>
+        <IconButton as="a" href={fileUrl(file, true)} aria-label="Download">⤓</IconButton>
+      </Bar>
+      <Pages ref={scroller}>
+        {error && <Alert>Could not open this file: {error}</Alert>}
+        {!doc && !error && <p>Loading PDF…</p>}
         {doc &&
           Array.from({ length: doc.numPages }, (_, i) => (
             <PdfPage key={i} doc={doc} number={i + 1} zoom={ZOOMS[zoom]} ratio={ratio} root={scroller} onVisible={setPage} />
           ))}
-      </div>
-    </div>
+      </Pages>
+    </Viewer>
   );
 }
 
@@ -218,13 +313,12 @@ function PdfPage({
   }, [near, doc, number, zoom]);
 
   return (
-    <div
+    <Page
       ref={box}
-      className="pdf-page"
       style={{ width: `calc(${zoom} * min(100%, 900px))`, aspectRatio: `1 / ${pageRatio}` }}
       aria-label={`Page ${number}`}
     >
       <canvas ref={canvas} />
-    </div>
+    </Page>
   );
 }
