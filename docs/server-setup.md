@@ -82,21 +82,29 @@ sudo dpkg-reconfigure -f noninteractive unattended-upgrades
 
 > **Docker and ufw:** ports published by Docker bypass ufw rules. That is fine here because only
 > Caddy publishes ports (80 and 443); the app container publishes none and is reachable only
-> through Caddy on the internal Docker network. Keep the Infomaniak firewall from step 1 as a
+> through Caddy on the shared edge network. Keep the Infomaniak firewall from step 1 as a
 > second layer.
 
 ## 4. Install Docker
+
+Use Docker Compose 2.24.4 or newer.
 
 ```bash
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER   # log out and back in afterwards
 docker compose version
+sudo apt install -y python3
 ```
 
 ## 5. Install the app
 
+For an existing installation, keep its `.env` and data volume. The Compose project name
+remains `study` so the existing app volume is reused in `~/study-companion`.
+The deployment command below also handles upgrades and automatically migrates an
+app-owned Caddy; see [migration details](#automatic-caddy-migration).
+
 ```bash
-mkdir -p ~/study && cd ~/study
+mkdir -p ~/study-companion && cd ~/study-companion
 curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
   | tar xz --strip-components=1
 cp .env.example .env
@@ -111,12 +119,37 @@ Fill in `.env`:
 - `SECRET_KEY`: output of `openssl rand -hex 32`
 - `MOODLE_URL`, `MOODLE_TOKEN`: leave them out; you connect Moodle on the Settings page
 
-Start it:
+### Deploy the app and shared Caddy
 
 ```bash
-docker compose up -d
-docker compose logs -f caddy   # watch for "certificate obtained successfully", then Ctrl+C
+cd ~/study-companion
+python3 deploy/edge/deploy.py --app-dir . \
+  --compose-file docker-compose.yml --site-file deploy/study-companion.caddy
 ```
+
+The app's Compose file runs only the app. Deployment creates the external `edge` network,
+renders `DOMAIN` into its own site file, validates the proposed route against Caddy's current config, pulls
+the images and starts the app and Caddy projects. Caddy lives independently in `~/caddy` and
+is started if absent or stopped, regardless of whether the app already exists.
+
+Existing site files and a customized edge `Caddyfile` are preserved. Repeated deployments
+validate the proposed site against Caddy's current config, then create or replace only the
+site's identified route through Caddy's admin REST API. Caddy persists accepted API updates
+to its `/config` volume and resumes that saved config after a restart. The admin API stays
+bound to Caddy's localhost; deployment invokes it from inside the container. A host-level
+lock serializes changes from independent deployments. All deployments sharing Caddy must use the same edge
+directory, Compose project and external network.
+
+The deployment workflow installs the app in `~/study-companion` and Caddy in `~/caddy`.
+Keep those paths consistent for both apps. `EDGE_NETWORK` in the
+app's `.env` defaults to `edge`; if customized, the edge's network must match.
+Do not combine the edge and app Compose files into one project. `docker compose down`
+in the app directory leaves Caddy running. The shared network is for trusted apps;
+containers on it can reach each other's app ports.
+
+The site retains the security headers and query-string secret redaction and proxies to
+the unique alias `study-companion-app:8000`. Check `cd ~/caddy && docker compose logs caddy`
+if HTTPS does not become available.
 
 Open `https://study-companion.ch` on your phone and sign in. Then open **Settings**, enter
 your Moodle address and paste your token ([docs/moodle-token.md](moodle-token.md) explains how
@@ -133,37 +166,67 @@ Follow [docs/backups.md](backups.md) to back up the data volume with restic ever
 ## Update
 
 **From GitHub:** run the **Deploy** workflow in GitHub Actions; it SSHes into this server and
-updates it, with no cron or extra service. Setup: [docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual).
+uploads the deployment files, updates the app and reconciles the shared Caddy.
+Setup: [docs/releasing.md](releasing.md#deploy-to-the-vps-from-github-manual).
 
 **Manual:**
 
-`docker compose pull` fetches the image named by `IMAGE_TAG` in `.env`. With
-`IMAGE_TAG=latest` it follows new releases; with a version number (e.g. `0.1.0`) it stays on
-that version.
+Refresh the bundle in a staging directory so the running installation remains available
+for automatic migration. Keep the existing app directory/project name and `.env`:
 
 ```bash
-cd ~/study
-grep IMAGE_TAG .env                                       # should print IMAGE_TAG=latest
-sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=latest/' .env           # if it shows a version number
-docker compose pull && docker compose up -d
+mkdir -p ~/study-companion-deploy && cd ~/study-companion-deploy
+curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
+  | tar xz --strip-components=1
+python3 deploy/edge/deploy.py --app-dir ~/study-companion \
+  --compose-file docker-compose.yml --site-file deploy/study-companion.caddy --version latest
+cd ~/study-companion
 docker compose exec app python -c "import app; print(app.__version__)"   # running version
 ```
 
-Releases can also add deploy files (for example `deploy/backup.sh` in 0.2.0). Refresh them
-without touching `.env` or your data:
+Omit `--version` to use `IMAGE_TAG` from `.env`, or pass a version to pin that deployment.
+The workflow uses deployment files from its checked-out ref and the selected image tag.
+It never overwrites `.env` or other apps' site files. To change the hostname or the site's
+configuration, update `.env` or the source site template and redeploy; the same path
+handles a running, stopped or absent Caddy.
+
+For direct edge inspection, include the migration override when present:
 
 ```bash
-cd ~/study
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
-  | tar xz --strip-components=1 --exclude=.env.example
-docker compose up -d
+cd ~/caddy
+docker compose -f compose.yaml -f migration.compose.json ps
 ```
 
-To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run the same
-`pull` and `up -d`.
+Omit `-f migration.compose.json` if no migration took place; also include
+`-f compose.override.yaml` if you customized the edge. Deployment supplies these
+automatically. `generated/bootstrap.json` is only used for the first start when no saved
+Caddy config exists. After that, Caddy runs `caddy run --resume` from its persistent
+`caddy-config` volume. Do not edit the bootstrap file by hand.
 
-> The v0.1.0 release bundle shipped `.env.example` with `IMAGE_TAG=0.1.0`, so an `.env`
-> copied from it stays on 0.1.0 until you change that line as shown above.
+## Automatic Caddy migration
+
+Back up [app data](backups.md) and `.env` first. The deployer discovers a Docker Caddy
+owning host ports 80/443, including a stopped container. It adapts the mounted Caddyfile
+with the old container's environment, retains existing sites and network connectivity,
+and reuses its named `/data` certificate volume. The shared edge gets a new `/config`
+volume so the old autosaved config cannot override the bootstrap. It rewrites Docker upstream aliases
+to unique container names so a new service cannot shadow an existing upstream.
+
+The legacy config is used only to bootstrap the new Caddy. The redeployed hostname's
+legacy route is removed before bootstrap and recreated through the REST API with a stable
+`@id`. Other legacy routes remain. Legacy networks are detached once no legacy proxy
+routes remain. The API-autosaved config in `caddy-config`, `migration.compose.json` and
+the original certificate volume are active state; keep them.
+
+The swap briefly interrupts HTTPS. Bootstrap and the new site are validated before
+stopping the old Caddy. If starting the new edge fails, deployment restores the saved edge files and
+restarts the original Caddy. An application update may already have completed; a failed
+deployment reports this rather than claiming the entire application was rolled back.
+
+Ambiguous port owners, non-Caddy containers, custom legacy mounts/config paths, and
+conflicting Caddy settings fail explicitly without stopping the existing proxy. A
+host-installed Caddy needs explicit manual migration. Never use `docker compose down -v`
+to clean up a migrated stack.
 
 ## Troubleshooting
 
@@ -171,6 +234,10 @@ To pin a version instead, set `IMAGE_TAG=0.2.0` (for example) in `.env` and run 
   old version; set it to `latest` (see Update above).
 - **Certificate errors / Caddy keeps retrying:** the DNS record does not point to this server yet,
   or ports 80/443 are blocked (check both ufw and the Infomaniak firewall).
+  Check `cd ~/caddy && docker compose logs caddy`.
+- **Network `edge` not found:** create it once with `docker network create edge`.
+- **502 from Caddy:** check the app is running and attached to `edge`; the site's upstream
+  must be `study-companion-app:8000`, not the ambiguous name `app:8000`.
 - **App container restarting:** `docker compose logs app`. A missing or too short
   `SECRET_KEY`, or no `APP_PASSWORD` on the very first start, stops the app with a clear message.
 - **Sync says the token is invalid or expired:** get a new one ([docs/moodle-token.md](moodle-token.md))

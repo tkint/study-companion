@@ -1,5 +1,4 @@
-# Caddy obtains and renews the HTTPS certificate for {$DOMAIN} automatically.
-# DOMAIN must point (DNS A/AAAA record) to this server, and ports 80 and 443 must be open.
+# deploy.py renders DOMAIN from the app's .env into the shared edge's sites/ folder.
 
 {$DOMAIN} {
 	encode zstd gzip
@@ -29,5 +28,5 @@
 		}
 	}
 
-	reverse_proxy app:8000
+	reverse_proxy study-companion-app:8000
 }

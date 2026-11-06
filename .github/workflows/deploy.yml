@@ -12,49 +12,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - uses: actions/checkout@v4
       - name: Update the VPS
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           HOST: ${{ vars.DEPLOY_HOST || secrets.DEPLOY_HOST }}
           SSH_USER: ${{ vars.DEPLOY_USER || secrets.DEPLOY_USER }}
           SSH_PORT: ${{ vars.DEPLOY_PORT || secrets.DEPLOY_PORT || '22' }}
-          DEPLOY_DIR: ${{ vars.DEPLOY_DIR || secrets.DEPLOY_DIR || '~/study' }}
+          DEPLOY_DIR: ~/study-companion
+          EDGE_DIR: ~/caddy
           HOST_KEY: ${{ vars.DEPLOY_HOST_KEY || secrets.DEPLOY_HOST_KEY }}
           VERSION: ${{ inputs.version }}
-        run: |
-          missing=0
-          if [ -z "$SSH_KEY" ]; then
-            echo "::error::Missing DEPLOY_SSH_KEY. Add it as an Actions secret."
-            missing=1
-          fi
-          if [ -z "$HOST" ]; then
-            echo "::error::Missing DEPLOY_HOST. Add it as an Actions variable or secret."
-            missing=1
-          fi
-          if [ -z "$SSH_USER" ]; then
-            echo "::error::Missing DEPLOY_USER. Add it as an Actions variable or secret."
-            missing=1
-          fi
-          if [ -z "$HOST_KEY" ]; then
-            echo "::error::Missing DEPLOY_HOST_KEY. Add it as an Actions variable or secret."
-            missing=1
-          fi
-          if [ "$missing" -ne 0 ]; then
-            echo "::error::Use repository settings or the production environment; deployment has not started."
-            exit 1
-          fi
-          if ! printf '%s' "$VERSION" | grep -Eq '^[A-Za-z0-9._-]+$'; then
-            echo "::error::Invalid version"; exit 1
-          fi
-          install -m 700 -d ~/.ssh
-          install -m 600 /dev/null ~/.ssh/id_deploy
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
-          # Pin the server's host key (output of `ssh-keyscan -t ed25519 HOST`).
-          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$HOST" "cd $DEPLOY_DIR && export IMAGE_TAG=$VERSION && docker compose pull && docker compose up -d && docker image prune -f"
+        run: bash deploy/edge/remote-deploy.sh docker-compose.yml deploy/study-companion.caddy

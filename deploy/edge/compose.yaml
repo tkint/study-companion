@@ -1,0 +1,39 @@
+# The edge: one Caddy that owns ports 80 and 443 and serves applications over HTTPS.
+# Install only one copy in ~/caddy, independently of any application project.
+# Applications join the `edge` network and use Caddy's local admin API to manage their sites.
+# Use deploy.py from an application's deployment bundle to install/update it.
+
+name: edge
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - 'if [ -s /config/caddy/autosave.json ]; then exec caddy run --resume; else exec caddy run --config /etc/caddy/generated/bootstrap.json; fi'
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./generated:/etc/caddy/generated:ro
+      # Certificates and keys: keep this volume, or Caddy asks for new certificates.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  # Created once with `docker network create edge`, so no project owns it and restarting one
+  # never cuts the others off.
+  edge:
+    external: true
+    name: edge
+
+volumes:
+  caddy-data:
+  caddy-config:
