@@ -23,15 +23,9 @@ other applications on the same machine.
 ## Install on a server
 
 See **[docs/server-setup.md](docs/server-setup.md)**: order and harden the VPS, point a
-domain at it, install Docker, then:
-
-```bash
-curl -fsSL https://github.com/tkint/study-companion/releases/latest/download/study-companion-deploy.tar.gz \
-  | tar xz --strip-components=1
-cp .env.example .env && chmod 600 .env   # fill in DOMAIN, APP_PASSWORD, SECRET_KEY
-python3 deploy/edge/deploy.py --app-dir . \
-  --compose-file docker-compose.yml --site-file deploy/study-companion.caddy
-```
+domain at it and install Docker. Then set `DOMAIN`, `SECRET_KEY` and `APP_PASSWORD` in the
+repository's `production` environment and run the **Deploy** workflow
+([docs/releasing.md](docs/releasing.md#deploy-to-the-vps-from-github-manual)).
 
 Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 **[docs/moodle-token.md](docs/moodle-token.md)** explains how to get the token with
@@ -43,19 +37,12 @@ builder, Claude's notes, study mode (flashcards), study time, reminders and the 
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
 
-Already deployed with an app-owned Caddy? The deployer
-[migrates it automatically](docs/server-setup.md#automatic-caddy-migration),
-preserving sites and certificate volumes.
-
-Updates: run the **Deploy** workflow from GitHub Actions (see
-[docs/releasing.md](docs/releasing.md)). It uploads current deployment files, updates the
-app's site through Caddy's local admin API, and starts Caddy if needed. Caddy persists API
-changes and resumes the saved configuration after restart. The same deployer handles manual
-updates.
+Updates: run the **Deploy** workflow again (see [docs/releasing.md](docs/releasing.md)).
 
 ## Configuration
 
-Server settings come from environment variables (`.env` on the server, never committed).
+Server settings come from environment variables: on the server, the Deploy workflow writes
+them to `.env` from the GitHub `production` environment (never committed).
 Your Moodle site, token and the web UI password are managed on the **Settings** page and
 stored in the database (token encrypted with `SECRET_KEY`, password hashed with scrypt), so
 you never edit `.env` to change them.
@@ -117,18 +104,13 @@ npm run build   # type-check + bundle into frontend/dist, which the backend then
 
 Without a build, `/` shows the basic server-rendered status page (`/status` always does).
 
-Full stack locally (Caddy issues a local certificate for `localhost`):
+Full stack locally with the published image (Caddy issues a local certificate for `localhost`):
 
 ```bash
-docker build -f docker/Dockerfile -t ghcr.io/tkint/study-companion:latest .
 cp .env.example .env   # set DOMAIN=localhost, APP_PASSWORD, SECRET_KEY
-docker pull caddy:2
-python3 deploy/edge/deploy.py --app-dir . --no-pull \
-  --compose-file docker-compose.yml --site-file deploy/study-companion.caddy
+python3 deploy/caddy/deploy.py . docker-compose.yml deploy/study-companion.caddy
 curl -k https://localhost/healthz
 ```
-
-Run only one edge project per host. The deployer reuses it and preserves other sites.
 
 ## Releases
 
@@ -146,10 +128,10 @@ backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (cli
                     api/ (UI routes, ICS feed, prompt builder)
 backend/tests/      pytest (Moodle responses always mocked)
 frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)
-deploy/edge/        shared HTTPS reverse proxy (separate Compose project)
-deploy/study-companion.caddy  site for the edge's sites/ folder
+deploy/caddy/       shared Caddy (separate Compose project) and its deploy script
+deploy/study-companion.caddy  this app's site, added to Caddy through its admin API
 docker/Dockerfile   multi-stage image
-docker-compose.yml  app only, on the shared edge network
+docker-compose.yml  app only, on the shared `edge` network
 deploy/backup.sh    nightly restic backup of the data volume
 docs/               server setup, Moodle token, web UI, Claude connector, backups, releasing
 .github/workflows/  ci.yml, release.yml

@@ -48,7 +48,7 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config --quiet
-          docker compose -f deploy/edge/compose.yaml config --quiet
+          docker compose -f deploy/caddy/compose.yaml config --quiet
       - name: Validate Caddy site
         run: |
           docker run --rm -e DOMAIN=study.example.ch -v "$PWD/deploy/study-companion.caddy:/etc/caddy/site.caddy:ro" \

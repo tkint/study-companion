@@ -1,4 +1,4 @@
-# deploy.py renders DOMAIN from the app's .env into the shared edge's sites/ folder.
+# The site served by the shared Caddy; deploy/caddy/deploy.py fills in DOMAIN from the app's .env.
 
 {$DOMAIN} {
 	encode zstd gzip
@@ -14,7 +14,8 @@
 
 	# Strip secrets from access-log query strings. Cookies and Authorization headers are
 	# already redacted by Caddy by default.
-	log {
+	# Named so it never collides with another site's access log on the shared Caddy.
+	log study-companion {
 		output stdout
 		format filter {
 			wrap json

@@ -1,7 +1,0 @@
-# Global Caddy options used to create the initial bootstrap configuration.
-# Site configurations are managed individually through Caddy's admin API.
-
-{
-	# An address for the certificate authority's expiry notices.
-	# email ops@example.com
-}

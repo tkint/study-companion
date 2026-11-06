@@ -7,8 +7,8 @@ nothing extra is installed on the server.
 
 What is backed up: a consistent copy of the database (`backup/app.db`, taken with SQLite's
 backup API while the app runs) and everything under `/data/courses`. The Moodle token in the
-database is encrypted with `SECRET_KEY`, so **keep a copy of your `.env`** (or at least
-`SECRET_KEY`) somewhere safe as well; restoring without it means pasting the token again.
+database is encrypted with `SECRET_KEY`, so **keep a copy of `SECRET_KEY`**
+(the GitHub secret) somewhere safe as well; restoring without it means pasting the token again.
 
 ## 1. Choose where backups go
 

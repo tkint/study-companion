@@ -1,7 +1,0 @@
-.deploy.lock
-.deploy-*/
-generated/
-legacy.json
-migration.compose.json
-sites/*.caddy
-__pycache__/
