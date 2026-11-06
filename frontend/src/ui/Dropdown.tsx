@@ -8,6 +8,8 @@ import { IconButton } from "./Button";
 // list items, cards and their animations can never paint over it (the old stacking bug).
 // Closes on Escape, a tap outside, or picking an item.
 
+const BOTTOM_BAR = 72; // the phone tab bar (theme.layout.tabbar plus a little air)
+
 const Pop = styled.div`
   position: fixed;
   z-index: 60;
@@ -62,8 +64,11 @@ export function Dropdown({ label, trigger = "⋯", children, open: controlled, o
     if (!button.current) return;
     const r = button.current.getBoundingClientRect();
     const height = menu.current?.offsetHeight ?? 100;
-    const below = r.bottom + 4 + height < window.innerHeight;
-    setPos({ top: below ? r.bottom + 4 : Math.max(8, r.top - 4 - height), right: Math.max(8, window.innerWidth - r.right) });
+    const width = menu.current?.offsetWidth ?? 200;
+    // Keep clear of the phone tab bar at the bottom (harmless on wide screens).
+    const below = r.bottom + 4 + height <= window.innerHeight - BOTTOM_BAR - 8;
+    const right = Math.min(Math.max(8, window.innerWidth - r.right), window.innerWidth - width - 8);
+    setPos({ top: below ? r.bottom + 4 : Math.max(8, r.top - 4 - height), right: Math.max(8, right) });
   }, []);
 
   useLayoutEffect(() => {
