@@ -1,7 +1,25 @@
 # Using the web UI
 
 Open `https://<DOMAIN>` and sign in with your app password. The UI is built for phones first:
-on a narrow screen the tabs (**Today**, **Courses**, **Calendar**, **Prompt**, **Settings**) sit at the bottom.
+on a narrow screen the tabs (**Today**, **Courses**, **Study**, **Calendar**, **Ask Claude**, **Settings**)
+sit at the bottom.
+
+## Finding your way
+
+Each tab is a section. When a section has more than one page, its pages show as a row of pills
+at the top of the page, with the current one highlighted:
+
+| Tab | Pages |
+| --- | --- |
+| Today | Overview · Catch-up plan · Schedule |
+| Courses | All courses (a course and its files open from there) |
+| Study | Flashcards · Study time |
+| Calendar | Calendar, reminders and the phone subscription |
+| Ask Claude | Prompt builder · Templates |
+
+The browser tab shows where you are too ("Schedule · Today · Study Companion"). On your first
+visit a short **tour** walks through the sections; the **?** button in the top bar plays it
+again at any time.
 
 The sun / screen / moon buttons in the top bar pick a light theme, the device's theme
 (default) or a dark theme. The choice is remembered on each device and also applies to the
@@ -214,7 +232,7 @@ else). If it leaks, tap **New link**: the old one stops working at once and you 
 again with the new one. The token is stripped from Caddy's and the app's logs.
 **Download .ics** gives a one-off file instead, if you'd rather import than subscribe.
 
-## Prompt
+## Ask Claude (prompt builder)
 
 Builds a ready-to-paste prompt for Claude (with the connector from
 [connector.md](connector.md) turned on):

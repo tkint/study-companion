@@ -11,7 +11,7 @@ import { DayHead, minutes, PlanRow } from "./Plan";
 import { WorkMain, WorkRow, WorkTitle } from "../components/DeadlineList";
 import type { Tone } from "../styles/theme";
 import {
-  Alert, Badge, Button, Check, Crumbs, DetailsCard, Empty, Field, IconButton, Input, Late, Lead, List, Meta, Muted,
+  Alert, Badge, Button, Check, DetailsCard, Empty, Field, IconButton, Input, Late, Lead, List, Meta, Muted,
   Row, Select, Small, Stat, StatGrid, Swatch, Toggles,
 } from "../ui";
 
@@ -215,7 +215,6 @@ export default function Schedule() {
 
   return (
     <>
-      <Crumbs><a href={href.plan}>← Catch-up plan</a></Crumbs>
       <h1>Study schedule</h1>
       <Lead $small>
         Your catch-up plan with times: focus blocks around your classes and commitments, short breaks in between,

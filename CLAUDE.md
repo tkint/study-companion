@@ -53,6 +53,8 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   `ics.py` (ICS + feed token), `status.py`
 - `frontend/` React + Vite + TS PWA (hash routes in `src/router.ts`, API types in `src/api.ts`);
   `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
+  Navigation map in `src/nav.ts` (sections = tabs, their pages, page titles): a new page needs a line there.
+  `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
   Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
   Claude's Markdown is rendered by `src/components/Markdown.tsx` into React elements (no innerHTML).
   Styling: styled-components only (no CSS files, no utility classes). Tokens in `src/styles/theme.ts`

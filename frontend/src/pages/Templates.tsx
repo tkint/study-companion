@@ -82,7 +82,6 @@ export default function Templates({ id }: { id?: string }) {
   if (id && current) return <Editor key={current.id} template={current} list={data} onSaved={update} />;
   return (
     <>
-      <Crumbs><a href={href.prompt()}>← Prompt builder</a></Crumbs>
       <h1>Prompt templates</h1>
       <Lead $small>
         Each goal of the prompt builder comes from one of these templates. Edit one to change the

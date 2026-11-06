@@ -9,7 +9,7 @@ import { PrefsMenu } from "../components/Prefs";
 import { courseColor, sourceLabel, when } from "../format";
 import { href } from "../router";
 import {
-  Alert, Badge, Button, Check, Crumbs, Empty, Field, Fold, Late, Lead, List, Meta, Muted, ProgressBar, Row, Select, Small, Stat,
+  Alert, Badge, Button, Check, Empty, Field, Fold, Late, Lead, List, Meta, Muted, ProgressBar, Row, Select, Small, Stat,
   StatGrid, Swatch, Toggles,
 } from "../ui";
 
@@ -165,7 +165,6 @@ export default function Plan() {
 
   return (
     <>
-      <Crumbs><a href={href.dashboard}>← Today</a></Crumbs>
       <h1>Catch-up plan</h1>
       <Lead $small>
         The mandatory work ahead of you, ordered by the deadline each piece is needed for, plus enough of what you

@@ -24,7 +24,7 @@ The Settings page of the app shows the exact URL to paste and which clients are 
 
 ## Use it
 
-The easiest way is the **Prompt** tab of the web UI: choose a course, a period and a goal
+The easiest way is the **Ask Claude** tab of the web UI: choose a course, a period and a goal
 (catch-up summary, study plan, explain a topic, quiz, flashcards, exam prep, assignment, review
 saved questions) and press **Copy**, then paste the prompt into a new Claude chat. The prompt names the exact tool
 calls, so Claude reads only that material. Large periods are split into several prompts; paste

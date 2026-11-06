@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import styled, { css } from "styled-components";
 import { href, useRoute, type Route } from "./router";
 import Dashboard from "./pages/Dashboard";
@@ -6,6 +6,9 @@ import Courses from "./pages/Courses";
 import Course from "./pages/Course";
 import Plan from "./pages/Plan"; // shares its rows with the dashboard
 import ThemeSwitch from "./components/ThemeSwitch";
+import { SectionNav } from "./components/SectionNav";
+import { startTour, Tour } from "./components/Tour";
+import { documentTitle, SECTIONS, sectionOf } from "./nav";
 import { hop } from "./styles/motion";
 import { Loading } from "./ui";
 
@@ -46,13 +49,6 @@ function Page({ route }: { route: Route }) {
   }
 }
 
-const TABS = [
-  { route: "dashboard", label: "Today", href: href.dashboard, icon: "M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10" },
-  { route: "courses", label: "Courses", href: href.courses, icon: "M4 5h7a3 3 0 013 3v12a2 2 0 00-2-2H4zM20 5h-5a3 3 0 00-3 3" },
-  { route: "study", label: "Study", href: href.study(), icon: "M4 7l8-4 8 4-8 4zM8 9v5c0 1.5 2 3 4 3s4-1.5 4-3V9M20 7v6" },
-  { route: "calendar", label: "Calendar", href: href.calendar, icon: "M4 6h16v14H4zM4 10h16M9 3v5M15 3v5" },
-  { route: "prompt", label: "Prompt", href: href.prompt(), icon: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5" },
-] as const;
 
 // ---- shell: top bar on wide screens, bottom tab bar on phones
 
@@ -82,7 +78,9 @@ const Brand = styled.a`
   color: ${({ theme }) => theme.colors.textMain};
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: nowrap;
   &:hover { text-decoration: none; }
+  @media (max-width: 360px) { span { display: none; } }
   img { transition: transform ${({ theme }) => theme.motion.base} ${({ theme }) => theme.motion.spring}; }
   &:hover img { transform: rotate(-8deg) scale(1.05); }
 `;
@@ -153,6 +151,30 @@ const Tab = styled.a<{ $active?: boolean }>`
   }
 `;
 
+// On a phone the tab shows the short label ("Claude" for "Ask Claude").
+const TabLabel = styled.span<{ $short: string }>`
+  ${({ theme }) => theme.media.phone} {
+    font-size: 0;
+    &::after { content: "${({ $short }) => $short}"; font-size: .68rem; }
+  }
+`;
+
+const HelpButton = styled.button`
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-weight: 800;
+  font-size: 1rem;
+  transition: color ${({ theme }) => theme.motion.base}, border-color ${({ theme }) => theme.motion.base},
+    transform ${({ theme }) => theme.motion.fast};
+  &:hover { color: ${({ theme }) => theme.colors.primaryStrong}; border-color: ${({ theme }) => theme.colors.primary}; }
+  &:active { transform: scale(.94); }
+`;
+
 const Content = styled.main`
   max-width: ${({ theme }) => theme.layout.content};
   margin: 0 auto;
@@ -170,9 +192,10 @@ const Spacer = styled.span`
 
 export default function App() {
   const route = useRoute();
-  const active = route.name === "course" ? "courses" : route.name === "plan" || route.name === "schedule" ? "dashboard"
-    : route.name === "time" ? "study"
-    : route.name === "templates" ? "prompt" : route.name;
+  const active = sectionOf(route.name).id;
+  useEffect(() => {
+    document.title = documentTitle(route);
+  }, [route]);
   if (route.name === "file") {
     return (
       <Suspense fallback={<Loading>Loading viewer…</Loading>}>
@@ -188,10 +211,11 @@ export default function App() {
           <span>Study Companion</span>
         </Brand>
         <Tabs aria-label="Main">
-          {TABS.map((t) => (
-            <Tab key={t.route} href={t.href} $active={active === t.route} aria-current={active === t.route ? "page" : undefined}>
+          {SECTIONS.map((t) => (
+            <Tab key={t.id} href={t.pages[0].href} $active={active === t.id} aria-current={active === t.id ? "page" : undefined}
+              data-tour={`tab-${t.id}`} title={t.pages.map((p) => p.label).join(" · ")}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
-              <span>{t.label}</span>
+              <TabLabel $short={t.short}>{t.label}</TabLabel>
             </Tab>
           ))}
           <Tab href="/settings">
@@ -203,13 +227,18 @@ export default function App() {
           </Tab>
         </Tabs>
         <Spacer />
+        <HelpButton type="button" onClick={startTour} aria-label="Show the tour" title="Show the tour" data-tour="help">
+          ?
+        </HelpButton>
         <ThemeSwitch />
       </TopBar>
       <Content>
+        <SectionNav route={route} />
         <Suspense fallback={<Loading>Loading…</Loading>}>
           <Page route={route} />
         </Suspense>
       </Content>
+      <Tour />
     </div>
   );
 }
