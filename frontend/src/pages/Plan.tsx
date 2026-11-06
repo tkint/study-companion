@@ -1,11 +1,17 @@
 import { useState } from "react";
+import styled from "styled-components";
 import { api, type Plan as PlanData, type PlanItem, type PlanSlot } from "../api";
-import { Progress, Status, useLoad } from "../components/common";
+import { Status, useLoad } from "../components/common";
 import { celebrate } from "../components/Confetti";
+import { WorkActions, WorkMain, WorkRow, WorkTitle } from "../components/DeadlineList";
 import { Icon } from "../components/Icon";
 import { PrefsMenu } from "../components/Prefs";
 import { courseColor, sourceLabel, when } from "../format";
 import { href } from "../router";
+import {
+  Alert, Badge, Button, Check, Crumbs, Empty, Field, Fold, Late, Lead, List, Meta, Muted, ProgressBar, Select, Small, Stat,
+  StatGrid, Swatch, Toggles,
+} from "../ui";
 
 // The rule-based catch-up plan (app/planner): the mandatory sections left to study and open
 // deadlines, ordered by urgency and spread over the days at your hours per day. Backlog
@@ -19,6 +25,38 @@ export function minutes(m: number): string {
   if (!h) return `${r} min`;
   return r ? `${h} h ${String(r).padStart(2, "0")}` : `${h} h`;
 }
+
+const Side = styled(WorkActions)`
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  & > strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+`;
+
+const Controls = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  max-width: 660px;
+  gap: 12px;
+  margin: 12px 0 8px;
+  & > ${Field} { margin-top: 0; }
+`;
+
+const DayHead = styled.h2`
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  & > span:last-child {
+    font-size: ${({ theme }) => theme.fontSizes.sm};
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.textMuted};
+  }
+`;
+
+const Target = styled.div`
+  margin: 12px 0 16px;
+`;
 
 function dayLabel(iso: string, today: string): string {
   if (iso === today) return "Today";
@@ -42,7 +80,7 @@ export function PlanRow({ item, onStudied, onPrefs }: {
     setBusy(true);
     try {
       await api.setStudied(item.section_id, true);
-      celebrate(button, 60);
+      celebrate(button, 40);
       onStudied?.(item.section_id);
     } finally {
       setBusy(false);
@@ -52,43 +90,44 @@ export function PlanRow({ item, onStudied, onPrefs }: {
     ? href.course(item.course_id, item.section_id ?? undefined)
     : item.course_id ? href.course(item.course_id) : undefined;
   return (
-    <li className={`plan-item${slot?.late ? " late-item" : ""}${item.overdue ? " overdue" : ""}`}>
-      <span className="swatch" style={{ background: courseColor(item.course_id) }} aria-hidden="true" />
-      <div className="plan-main">
-        <div className="plan-title">
+    <WorkRow as="li" $late={!!slot?.late || item.overdue}>
+      <Swatch style={{ background: courseColor(item.course_id) }} aria-hidden="true" />
+      <WorkMain>
+        <WorkTitle>
           {link ? <a href={link}>{item.title}</a> : item.title}
-          {slot && slot.parts > 1 && <span className="muted"> · part {slot.part}/{slot.parts}</span>}
-        </div>
-        <div className="deadline-meta">
-          <span className="course-link">{item.course_short || item.course_name}</span>
-          <span className="tag">{isSection ? `Section ${item.section_number}` : sourceLabel(item.kind)}</span>
-          {isSection && item.pages > 0 && <span className="muted">{item.pages} p.</span>}
-          {!item.mandatory && <span className="tag muted-tag">optional</span>}
-          {item.has_summary && <span className="tag ai">notes</span>}
-          {item.questions > 0 && <span className="tag">{item.questions} cards</span>}
-          {slot?.late && <span className="tag warn">late</span>}
-        </div>
+          {slot && slot.parts > 1 && <Muted> · part {slot.part}/{slot.parts}</Muted>}
+        </WorkTitle>
+        <Meta>
+          <strong>{item.course_short || item.course_name}</strong>
+          <Badge>{isSection ? `Section ${item.section_number}` : sourceLabel(item.kind)}</Badge>
+          {isSection && item.pages > 0 && <span>{item.pages} p.</span>}
+          {!item.mandatory && <Badge $dashed>optional</Badge>}
+          {item.has_summary && <Badge $tone="primary">notes</Badge>}
+          {item.questions > 0 && <Badge $tone="sky">{item.questions} cards</Badge>}
+          {slot?.late && <Badge $tone="warning">late</Badge>}
+        </Meta>
         {item.needed_by && (
-          <div className={`small ${item.overdue ? "late" : "muted"}`}>
-            {item.overdue ? "Overdue since " : isSection ? `Needed for “${item.needed_for}” by ` : "Due "}
-            {when(item.needed_by)}
-          </div>
+          <Small $muted={!item.overdue}>
+            {item.overdue ? <Late>Overdue since {when(item.needed_by)}</Late> : (
+              <>{isSection ? `Needed for “${item.needed_for}” by ` : "Due "}{when(item.needed_by)}</>
+            )}
+          </Small>
         )}
-      </div>
-      <div className="plan-side">
+      </WorkMain>
+      <Side>
         <strong>{minutes(slot ? slot.minutes_today : item.minutes)}</strong>
         {isSection && onStudied && (
-          <button className="btn btn-sm btn-success" onClick={studied} disabled={busy}><Icon name="check" /> Studied</button>
+          <Button $size="sm" $variant="success" onClick={studied} disabled={busy}><Icon name="check" /> Studied</Button>
         )}
         {!isSection && item.url && (
-          <a className="btn btn-sm btn-ghost" href={item.url} target="_blank" rel="noopener noreferrer">Source ↗</a>
+          <Button as="a" $size="sm" $variant="ghost" href={item.url} target="_blank" rel="noopener noreferrer">Source ↗</Button>
         )}
         {onPrefs && (item.section_id || item.deadline_id) && (
           <PrefsMenu state={{ mandatory: item.mandatory, ignored: false }} label={item.title} onChange={onPrefs}
             save={(p) => (item.section_id ? api.setSectionPrefs(item.section_id, p) : api.setDeadlinePrefs(item.deadline_id!, p))} />
         )}
-      </div>
-    </li>
+      </Side>
+    </WorkRow>
   );
 }
 
@@ -126,82 +165,82 @@ export default function Plan() {
 
   return (
     <>
-      <p className="crumbs"><a href={href.dashboard}>← Today</a></p>
+      <Crumbs><a href={href.dashboard}>← Today</a></Crumbs>
       <h1>Catch-up plan</h1>
-      <p className="muted small">
+      <Lead $small>
         The mandatory work ahead of you, ordered by the deadline each piece is needed for, plus enough of what you
         missed to reach your goal. You don't have to catch up on everything. Times are estimates from page counts;
         use ⋯ to mark something optional or let it go.
-      </p>
-      <div className="plan-controls">
-        <label>
+      </Lead>
+      <Controls>
+        <Field>
           Hours per day
-          <select value={h} disabled={saving} onChange={(e) => saveHours(Number(e.target.value))}>
+          <Select value={h} disabled={saving} onChange={(e) => saveHours(Number(e.target.value))}>
             {[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8].concat(
               [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8].includes(h) ? [] : [h]).sort((a, b) => a - b).map((v) => (
               <option key={v} value={v}>{v}</option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field>
           Days
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[7, 14, 21, 30, 60].map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field>
           Catch-up goal
-          <select value={target} disabled={saving} onChange={(e) => saveTarget(Number(e.target.value))}>
+          <Select value={target} disabled={saving} onChange={(e) => saveTarget(Number(e.target.value))}>
             {TARGETS.concat(TARGETS.includes(target) ? [] : [target]).sort((a, b) => a - b).map((v) => (
               <option key={v} value={v}>{v}%</option>
             ))}
-          </select>
-        </label>
-      </div>
-      <div className="view-toggles">
-        <label><input type="checkbox" checked={optional} onChange={(e) => setOptional(e.target.checked)} />
-          Include optional work</label>
-        <label><input type="checkbox" checked={beyond} onChange={(e) => setBeyond(e.target.checked)} />
-          Plan beyond my goal</label>
-      </div>
+          </Select>
+        </Field>
+      </Controls>
+      <Toggles>
+        <Check><input type="checkbox" checked={optional} onChange={(e) => setOptional(e.target.checked)} />
+          Include optional work</Check>
+        <Check><input type="checkbox" checked={beyond} onChange={(e) => setBeyond(e.target.checked)} />
+          Plan beyond my goal</Check>
+      </Toggles>
       <Summary plan={data} />
       <TargetBar plan={data} />
-      {data.notes.map((n, i) => <p key={i} className="banner warn small">{n}</p>)}
+      {data.notes.map((n, i) => <Alert key={i} $tone="warning">{n}</Alert>)}
       {!data.days.length && !data.unscheduled.length && (
-        <p className="empty">Nothing left to catch up on. 🎉</p>
+        <Empty><Icon name="sparkles" /> Nothing left to catch up on.</Empty>
       )}
       {data.days.map((d) => (
         <section key={d.date}>
-          <h2 className="day-head">
+          <DayHead>
             <span>{dayLabel(d.date, data.today)}</span>
-            <span className="muted small">{minutes(d.minutes)}</span>
-          </h2>
-          <ul className="plan-list">
+            <span>{minutes(d.minutes)}</span>
+          </DayHead>
+          <List $gap="8px">
             {d.items.map((it, i) => <PlanRow key={i} item={it} onStudied={reload} onPrefs={reload} />)}
-          </ul>
+          </List>
         </section>
       ))}
       {data.unscheduled.length > 0 && (
         <section>
-          <h2 className="day-head">
+          <DayHead>
             <span>Doesn't fit in {days} days</span>
-            <span className="muted small">{minutes(data.unscheduled_minutes)}</span>
-          </h2>
-          <ul className="plan-list">
+            <span>{minutes(data.unscheduled_minutes)}</span>
+          </DayHead>
+          <List $gap="8px">
             {data.unscheduled.map((it, i) => <PlanRow key={i} item={it} onStudied={reload} onPrefs={reload} />)}
-          </ul>
+          </List>
         </section>
       )}
       {data.beyond_target.length > 0 && (
-        <details className="past">
+        <Fold>
           <summary>
             Beyond your {target}% goal: {data.beyond_target.length} item{data.beyond_target.length === 1 ? "" : "s"},{" "}
             {minutes(data.beyond_target_minutes)} (only if you have time)
           </summary>
-          <ul className="plan-list">
+          <List $gap="8px">
             {data.beyond_target.map((it, i) => <PlanRow key={i} item={it} onStudied={reload} onPrefs={reload} />)}
-          </ul>
-        </details>
+          </List>
+        </Fold>
       )}
     </>
   );
@@ -210,14 +249,14 @@ export default function Plan() {
 function Summary({ plan }: { plan: PlanData }) {
   const p = plan.progress;
   return (
-    <section className="summary" aria-label="Plan summary">
-      <div className="stat static"><strong>{Math.round(p.percent)}%</strong><span>caught up</span></div>
-      <div className="stat static"><strong>{Math.round(plan.projected_percent)}%</strong><span>with this plan</span></div>
-      <div className={`stat static${plan.late ? " bad" : ""}`}>
+    <StatGrid aria-label="Plan summary">
+      <Stat><strong>{Math.round(p.percent)}%</strong><span>caught up</span></Stat>
+      <Stat $tone="primary"><strong>{Math.round(plan.projected_percent)}%</strong><span>with this plan</span></Stat>
+      <Stat $tone={plan.late ? "danger" : undefined}>
         <strong>{minutes(plan.total_minutes)}</strong>
         <span>{plan.late ? `${plan.late} late` : "planned"}</span>
-      </div>
-    </section>
+      </Stat>
+    </StatGrid>
   );
 }
 
@@ -226,18 +265,16 @@ function TargetBar({ plan }: { plan: PlanData }) {
   const p = plan.progress;
   const left = p.left_minutes_to_target;
   return (
-    <div className="target-bar">
-      <div className="target-progress">
-        <Progress value={p.percent} />
-        <span className="target-mark" style={{ left: `${p.target_percent}%` }} aria-hidden="true" />
-      </div>
-      <p className="small muted">
+    <Target>
+      <ProgressBar value={p.percent} size="lg" tone={p.reached ? "success" : "primary"} marker={p.target_percent}
+        label="Mandatory work done" />
+      <Small $muted>
         {p.reached
           ? `Goal reached: ${Math.round(p.percent)}% of the mandatory work is done (goal ${p.target_percent}%). Anything more is a bonus.`
           : `${p.done_items} of ${p.total_items} mandatory items done. ${minutes(left)} more to reach your ${p.target_percent}% goal.`}
         {plan.ignored > 0 && ` ${plan.ignored} ignored.`}
         {plan.optional_left_out > 0 && ` ${plan.optional_left_out} optional left out.`}
-      </p>
-    </div>
+      </Small>
+    </Target>
   );
 }

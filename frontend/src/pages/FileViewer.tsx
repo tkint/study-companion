@@ -4,6 +4,58 @@ import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { api, fileUrl, type FileDetail } from "../api";
 import { href } from "../router";
+import styled from "styled-components";
+import { Alert, IconButton } from "../ui";
+
+const Viewer = styled.div`
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #4b5563;
+`;
+
+const Bar = styled.header`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  padding-top: max(6px, env(safe-area-inset-top));
+  background: ${({ theme }) => theme.colors.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const Name = styled.span`
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const PageNo = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  font-variant-numeric: tabular-nums;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const Pages = styled.div`
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+  & > p { color: #fff; text-align: center; }
+`;
+
+const Page = styled.div`
+  margin: 0 auto 8px;
+  max-width: none;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+  canvas { display: block; width: 100%; height: 100%; }
+`;
 
 // The legacy build supports older phone browsers (Safari 15+).
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -52,30 +104,30 @@ export default function FileViewer({ id, course }: { id: number; course?: number
 
   const back = course ? href.course(course) : href.dashboard;
   return (
-    <div className="viewer">
-      <header className="viewer-bar">
-        <a className="btn btn-sm btn-ghost" href={back} aria-label="Back">←</a>
-        <span className="viewer-title" title={file?.filename}>{file?.filename ?? "Loading…"}</span>
+    <Viewer>
+      <Bar>
+        <IconButton as="a" href={back} aria-label="Back">←</IconButton>
+        <Name title={file?.filename}>{file?.filename ?? "Loading…"}</Name>
         {doc && (
-          <span className="viewer-page" aria-live="polite">
+          <PageNo aria-live="polite">
             {page}/{doc.numPages}
-          </span>
+          </PageNo>
         )}
-        <button className="btn btn-sm btn-ghost" onClick={() => setZoom(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out">−</button>
-        <button className="btn btn-sm btn-ghost" onClick={() => setZoom(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in">+</button>
+        <IconButton onClick={() => setZoom(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out">−</IconButton>
+        <IconButton onClick={() => setZoom(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in">+</IconButton>
         {file && (
-          <a className="btn btn-sm btn-ghost" href={fileUrl(file, true)} aria-label="Download">⤓</a>
+          <IconButton as="a" href={fileUrl(file, true)} aria-label="Download">⤓</IconButton>
         )}
-      </header>
-      <div className="viewer-pages" ref={scroller}>
-        {error && <p className="alert alert-error">Could not open this file: {error}</p>}
-        {!doc && !error && <p className="loading">Loading PDF…</p>}
+      </Bar>
+      <Pages ref={scroller}>
+        {error && <Alert>Could not open this file: {error}</Alert>}
+        {!doc && !error && <p>Loading PDF…</p>}
         {doc &&
           Array.from({ length: doc.numPages }, (_, i) => (
             <PdfPage key={i} doc={doc} number={i + 1} zoom={ZOOMS[zoom]} ratio={ratio} root={scroller} onVisible={setPage} />
           ))}
-      </div>
-    </div>
+      </Pages>
+    </Viewer>
   );
 }
 
@@ -145,13 +197,12 @@ function PdfPage({
   }, [near, doc, number, zoom]);
 
   return (
-    <div
+    <Page
       ref={box}
-      className="pdf-page"
       style={{ width: `calc(${zoom} * min(100%, 900px))`, aspectRatio: `1 / ${pageRatio}` }}
       aria-label={`Page ${number}`}
     >
       <canvas ref={canvas} />
-    </div>
+    </Page>
   );
 }
