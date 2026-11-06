@@ -1,10 +1,46 @@
 import { useState } from "react";
+import styled from "styled-components";
 import { api, type Deadline } from "../api";
 import { celebrate } from "./Confetti";
 import { Icon } from "./Icon";
 import { courseColor, fromNow, sourceLabel, when } from "../format";
 import { href } from "../router";
 import { PrefsMenu, PrefTags } from "./Prefs";
+import { Badge, Button, Card, Empty, Late, List, Meta, Muted, Swatch } from "../ui";
+
+/** A row of work: the course stripe, the text, and actions on the right. Shared with the plan. */
+export const WorkRow = styled(Card)<{ $late?: boolean; $done?: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 16px;
+  ${({ $late, theme }) => $late && `border-color: color-mix(in srgb, ${theme.colors.warning} 50%, ${theme.colors.border});`}
+  ${({ $done }) => $done && "opacity: .6;"}
+`;
+
+export const WorkMain = styled.div`
+  flex: 1 1 200px;
+  min-width: 0;
+`;
+
+export const WorkTitle = styled.div<{ $done?: boolean }>`
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  text-decoration: ${({ $done }) => ($done ? "line-through" : "none")};
+  a { color: ${({ theme }) => theme.colors.textMain}; }
+`;
+
+export const WorkActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+`;
+
+const When = styled.div`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
 
 export function DeadlineItem({
   d,
@@ -18,13 +54,14 @@ export function DeadlineItem({
   const [busy, setBusy] = useState(false);
   const now = Date.now() / 1000;
   const overdue = d.due_at < now && !d.done;
+  const late = overdue && d.mandatory && !d.ignored;
 
   async function toggle(e: React.MouseEvent<HTMLButtonElement>) {
     const button = e.currentTarget;
     setBusy(true);
     try {
       await api.setDone(d.id, !d.done);
-      if (!d.done) celebrate(button, 60);
+      if (!d.done) celebrate(button, 40);
       onChange?.({ ...d, done: !d.done, done_by: d.done ? null : "you" });
     } finally {
       setBusy(false);
@@ -32,43 +69,41 @@ export function DeadlineItem({
   }
 
   return (
-    <li className={`deadline${overdue && d.mandatory && !d.ignored ? " overdue" : ""}${d.done ? " done" : ""}${d.ignored ? " ignored" : ""}`}>
-      <span className="swatch" style={{ background: courseColor(d.course_id) }} aria-hidden="true" />
-      <div className="deadline-main">
-        <div className="deadline-title">{d.name}</div>
-        <div className="deadline-meta">
+    <WorkRow as="li" $late={late} $done={d.done || d.ignored}>
+      <Swatch style={{ background: courseColor(d.course_id) }} aria-hidden="true" />
+      <WorkMain>
+        <WorkTitle $done={d.done}>{d.name}</WorkTitle>
+        <Meta>
           {showCourse && d.course_id != null && (
-            <a href={href.course(d.course_id)} className="course-link">
-              {d.course_shortname || d.course_name}
-            </a>
+            <a href={href.course(d.course_id)}>{d.course_shortname || d.course_name}</a>
           )}
-          <span className="tag">{sourceLabel(d.source)}</span>
-          {d.closed && <span className="tag warn">closed</span>}
+          <Badge>{sourceLabel(d.source)}</Badge>
+          {d.closed && <Badge $tone="warning">closed</Badge>}
           <PrefTags state={d} />
-          {d.done && <span className="tag ok pop">done{d.done_by === "moodle" ? " at the source" : ""}</span>}
-        </div>
-        <div className="deadline-when">
+          {d.done && <Badge $tone="success" $pop>done{d.done_by === "moodle" ? " at the source" : ""}</Badge>}
+        </Meta>
+        <When>
           <time dateTime={new Date(d.due_at * 1000).toISOString()}>{when(d.due_at)}</time>
-          <span className={overdue && d.mandatory && !d.ignored ? "late" : "muted"}> · {fromNow(d.due_at)}</span>
-        </div>
-      </div>
-      <div className="deadline-actions">
+          {late ? <Late> · {fromNow(d.due_at)}</Late> : <Muted> · {fromNow(d.due_at)}</Muted>}
+        </When>
+      </WorkMain>
+      <WorkActions>
         {d.url && (
-          <a className="btn btn-sm btn-ghost" href={d.url} target="_blank" rel="noopener noreferrer">
+          <Button as="a" $size="sm" $variant="ghost" href={d.url} target="_blank" rel="noopener noreferrer">
             Source ↗
-          </a>
+          </Button>
         )}
         {d.done_by !== "moodle" && (
-          <button className={`btn btn-sm ${d.done ? "btn-ghost" : "btn-success"}`} onClick={toggle} disabled={busy}>
+          <Button $size="sm" $variant={d.done ? "ghost" : "success"} onClick={toggle} disabled={busy}>
             {d.done ? "Undo" : <><Icon name="check" /> Done</>}
-          </button>
+          </Button>
         )}
         {!d.done && (
           <PrefsMenu state={d} label={d.name} save={(p) => api.setDeadlinePrefs(d.id, p)}
             onChange={(st) => onChange?.({ ...d, ...st, id: d.id })} />
         )}
-      </div>
-    </li>
+      </WorkActions>
+    </WorkRow>
   );
 }
 
@@ -83,12 +118,12 @@ export function DeadlineList({
   onChange?: (d: Deadline) => void;
   showCourse?: boolean;
 }) {
-  if (!items.length) return <p className="empty">{empty}</p>;
+  if (!items.length) return empty ? <Empty>{empty}</Empty> : null;
   return (
-    <ul className="deadlines">
+    <List>
       {items.map((d) => (
         <DeadlineItem key={d.id} d={d} onChange={onChange} showCourse={showCourse} />
       ))}
-    </ul>
+    </List>
   );
 }
