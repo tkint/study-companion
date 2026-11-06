@@ -152,10 +152,10 @@ def _svg(name: str) -> str:
 
 
 def _topbar(active: str) -> str:
-    # Same tabs, in the same order, as the React UI (frontend/src/App.tsx).
+    # Same tabs, in the same order, as the React UI (frontend/src/nav.ts).
     tabs = [("today", "Today", "/#/"), ("courses", "Courses", "/#/courses"),
             ("study", "Study", "/#/study"), ("calendar", "Calendar", "/#/calendar"),
-            ("prompt", "Prompt", "/#/prompt"), ("settings", "Settings", "/settings")]
+            ("prompt", "Ask Claude", "/#/prompt"), ("settings", "Settings", "/settings")]
     links = "".join(
         f'<a href="{href}"{" aria-current=\"page\"" if key == active else ""}>{_svg(key)}<span>{label}</span></a>'
         for key, label, href in tabs
