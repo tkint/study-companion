@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import styled from "styled-components";
 import {
   api, type DatedUnavailability, type Schedule as ScheduleData, type ScheduleBlock, type ScheduleConfig,
   type WeeklyUnavailability,
@@ -6,7 +7,117 @@ import {
 import { Status, useLoad } from "../components/common";
 import { courseColor } from "../format";
 import { href } from "../router";
-import { minutes, PlanRow } from "./Plan";
+import { DayHead, minutes, PlanRow } from "./Plan";
+import { WorkMain, WorkRow, WorkTitle } from "../components/DeadlineList";
+import type { Tone } from "../styles/theme";
+import {
+  Alert, Badge, Button, Check, DetailsCard, Empty, Field, IconButton, Input, Late, Lead, List, Meta, Muted,
+  Row, Select, Small, Stat, StatGrid, Swatch, Toggles,
+} from "../ui";
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px 24px;
+  margin: 10px 0;
+`;
+
+const SliderBox = styled.label`
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  & > span:first-child { display: flex; justify-content: space-between; gap: 8px; }
+  & > span:first-child > strong { font-variant-numeric: tabular-nums; color: ${({ theme }) => theme.colors.primaryStrong}; }
+  input[type="range"] {
+    width: 100%;
+    min-height: 28px;
+    margin: 0;
+    accent-color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const CourseWeight = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  & > ${Swatch} { align-self: stretch; }
+`;
+
+const Inline = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0;
+  & > ${Field} { margin-top: 0; min-width: 130px; }
+`;
+
+const Editor = styled.fieldset`
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  & > legend { padding: 0; font-weight: 700; }
+  & > button { justify-self: start; }
+`;
+
+const Slot = styled.div<{ $past?: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  opacity: ${({ $past }) => ($past ? 0.6 : 1)};
+  & ${Input}, & ${Select} { width: auto; min-height: 40px; }
+  & ${Input}[type="text"] { flex: 1 1 140px; min-width: 0; }
+`;
+
+const Range = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const AllDay = styled(Check)`
+  min-height: 40px;
+  font-size: ${({ theme }) => theme.fontSizes.md};
+`;
+
+const Blocked = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+`;
+
+const Time = styled.div`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const Detail = styled(Small)`
+  white-space: pre-line;
+`;
+
+const Files = styled.p`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
+
+const Minutes = styled.strong`
+  flex: none;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`;
 
 // The timed study schedule (app/planner/schedule.py): the catch-up plan's work as focus blocks
 // with times, around your weekly and dated unavailabilities, within your hours per day, rest
@@ -16,11 +127,11 @@ import { minutes, PlanRow } from "./Plan";
 const WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SAVE_DELAY = 600;
 
-const KIND_TAG: Record<ScheduleBlock["kind"], string> = {
-  deep: "",
-  practice: "warn",
-  recall: "ai",
-  flashcards: "ok",
+const KIND_TONE: Record<ScheduleBlock["kind"], Tone> = {
+  deep: "neutral",
+  practice: "warning",
+  recall: "primary",
+  flashcards: "success",
 };
 
 function hours(h: number): string {
@@ -59,15 +170,15 @@ function Slider({ label, value, min, max, step, format, onChange, hint }: {
   hint?: string;
 }) {
   return (
-    <label className="sched-slider">
-      <span className="sched-slider-head">
+    <SliderBox>
+      <span>
         <span>{label}</span>
         <strong>{format(value)}</strong>
       </span>
-      <input type="range" className="range range-sm range-primary" min={min} max={max} step={step} value={value}
+      <input type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))} />
-      {hint && <span className="muted small">{hint}</span>}
-    </label>
+      {hint && <Muted $small>{hint}</Muted>}
+    </SliderBox>
   );
 }
 
@@ -104,26 +215,25 @@ export default function Schedule() {
 
   return (
     <>
-      <p className="crumbs"><a href={href.plan}>← Catch-up plan</a></p>
       <h1>Study schedule</h1>
-      <p className="muted small">
+      <Lead $small>
         Your catch-up plan with times: focus blocks around your classes and commitments, short breaks in between,
         active recall a day and a few days after each section, and a margin before every deadline. Change anything
         below and the schedule updates.
-      </p>
-      <div className="sched-actions">
-        <a className="btn btn-primary btn-sm" href="/api/schedule.ics" download>Download .ics</a>
-        <span className="muted small" role="status">
-          {saveState.busy ? "Saving…" : saveState.error ? <span className="late">{saveState.error}</span> : "Saved"}
-        </span>
-      </div>
+      </Lead>
+      <Row>
+        <Button as="a" $variant="primary" $size="sm" href="/api/schedule.ics" download>Download .ics</Button>
+        <Muted $small role="status">
+          {saveState.busy ? "Saving…" : saveState.error ? <Late>{saveState.error}</Late> : "Saved"}
+        </Muted>
+      </Row>
 
       <Summary data={data} />
-      {data.notes.map((n, i) => <p key={i} className="banner warn small">{n}</p>)}
+      {data.notes.map((n, i) => <Alert key={i} $tone="warning">{n}</Alert>)}
 
-      <details className="sched-panel" open>
+      <DetailsCard open>
         <summary>Workload and rest</summary>
-        <div className="sched-grid">
+        <Grid>
           <Slider label="Hours per day" value={cfg.daily_hours} min={0.5} max={cfg.max_daily_hours} step={0.25}
             format={hours} onChange={(v) => change({ daily_hours: v })} hint="Your usual study time, shared with the plan." />
           <Slider label="Daily maximum" value={cfg.max_daily_hours} min={1} max={8} step={0.5} format={hours}
@@ -136,111 +246,116 @@ export default function Schedule() {
             format={(v) => (v ? minutes(v) : "none")} onChange={(v) => change({ break_minutes: v })} />
           <Slider label="Buffer before deadlines" value={cfg.buffer_days} min={0} max={7} step={1}
             format={(v) => (v ? `${v} day${v === 1 ? "" : "s"}` : "none")} onChange={(v) => change({ buffer_days: v })} />
-        </div>
-        <div className="sched-row">
-          <label>Study from
-            <input type="time" className="input input-sm" step={900} value={cfg.day_start}
+        </Grid>
+        <Inline>
+          <Field>Study from
+            <Input type="time" step={900} value={cfg.day_start}
               onChange={(e) => /^\d\d:\d\d$/.test(e.target.value) && change({ day_start: e.target.value })} />
-          </label>
-          <label>until
-            <input type="time" className="input input-sm" step={900} value={cfg.day_end === "24:00" ? "23:59" : cfg.day_end}
+          </Field>
+          <Field>until
+            <Input type="time" step={900} value={cfg.day_end === "24:00" ? "23:59" : cfg.day_end}
               onChange={(e) => /^\d\d:\d\d$/.test(e.target.value) && change({ day_end: e.target.value === "23:59" ? "24:00" : e.target.value })} />
-          </label>
-          <label>Plan ahead
-            <select className="select select-sm" value={cfg.days} onChange={(e) => change({ days: Number(e.target.value) })}>
+          </Field>
+          <Field>Plan ahead
+            <Select value={cfg.days} onChange={(e) => change({ days: Number(e.target.value) })}>
               {[7, 14, 21, 30, 45, 60].concat([7, 14, 21, 30, 45, 60].includes(cfg.days) ? [] : [cfg.days])
                 .sort((a, b) => a - b).map((v) => <option key={v} value={v}>{v} days</option>)}
-            </select>
-          </label>
-        </div>
-        <div className="view-toggles">
-          <label><input type="checkbox" checked={cfg.recall} onChange={(e) => change({ recall: e.target.checked })} />
-            Spaced active recall</label>
-          <label><input type="checkbox" checked={cfg.include_optional} onChange={(e) => change({ include_optional: e.target.checked })} />
-            Include optional work</label>
-          <label><input type="checkbox" checked={cfg.beyond_target} onChange={(e) => change({ beyond_target: e.target.checked })} />
-            Plan beyond my goal</label>
-        </div>
-      </details>
+            </Select>
+          </Field>
+        </Inline>
+        <Toggles>
+          <Check><input type="checkbox" checked={cfg.recall} onChange={(e) => change({ recall: e.target.checked })} />
+            Spaced active recall</Check>
+          <Check><input type="checkbox" checked={cfg.include_optional} onChange={(e) => change({ include_optional: e.target.checked })} />
+            Include optional work</Check>
+          <Check><input type="checkbox" checked={cfg.beyond_target} onChange={(e) => change({ beyond_target: e.target.checked })} />
+            Plan beyond my goal</Check>
+        </Toggles>
+      </DetailsCard>
 
-      <details className="sched-panel" open={data.courses.length > 1}>
+      <DetailsCard open={data.courses.length > 1}>
         <summary>Course weights</summary>
-        <p className="muted small">A course with weight 2 gets about twice the time of one with weight 1. 0 leaves it out.
-          Deadlines can still come first.</p>
-        <div className="sched-grid">
+        <Small $muted>A course with weight 2 gets about twice the time of one with weight 1. 0 leaves it out.
+          Deadlines can still come first.</Small>
+        <Grid>
           {data.courses.map((c) => {
             const w = cfg.course_weights[String(c.id)] ?? 1;
             return (
-              <div key={c.id} className="sched-course">
-                <span className="swatch" style={{ background: courseColor(c.id) }} aria-hidden="true" />
+              <CourseWeight key={c.id}>
+                <Swatch style={{ background: courseColor(c.id) }} aria-hidden="true" />
                 <Slider label={c.shortname || c.fullname} value={w} min={0} max={3} step={0.25}
                   format={(v) => (v ? `×${v}` : "off")}
                   onChange={(v) => change({ course_weights: { ...cfg.course_weights, [String(c.id)]: v } })}
                   hint={`${Math.round(c.target_share)}% of the time, ${Math.round(c.planned_share)}% planned (${minutes(c.planned_minutes)})`} />
-              </div>
+              </CourseWeight>
             );
           })}
-        </div>
-      </details>
+        </Grid>
+      </DetailsCard>
 
-      <details className="sched-panel" open={!cfg.weekly.length && !cfg.dates.length}>
+      <DetailsCard open={!cfg.weekly.length && !cfg.dates.length}>
         <summary>When you can't study ({cfg.weekly.length + cfg.dates.length})</summary>
         <WeeklyEditor rows={cfg.weekly} onChange={(weekly) => change({ weekly })} />
         <DatedEditor rows={cfg.dates} today={data.today} onChange={(dates) => change({ dates })} />
-      </details>
+      </DetailsCard>
 
-      {!data.days.length && !data.unscheduled.length && <p className="empty">Nothing to schedule. 🎉</p>}
+      {!data.days.length && !data.unscheduled.length && <Empty>Nothing to schedule.</Empty>}
       {data.days.map((d) => (
         <section key={d.date}>
-          <h2 className="day-head">
+          <DayHead>
             <span>{dayLabel(d.date, data.today)}</span>
-            <span className="muted small">
-              {minutes(d.minutes)}{d.stretched && <span className="tag warn"> extra</span>}
+            <span>
+              {minutes(d.minutes)}{d.stretched && <> <Badge $tone="warning">extra</Badge></>}
             </span>
-          </h2>
+          </DayHead>
           {d.blocked.length > 0 && (
-            <p className="small muted sched-blocked">
+            <Blocked>
               {d.blocked.map((b, i) => (
-                <span key={i} className="tag muted-tag">
+                <Badge key={i} $dashed>
                   {b.start === "00:00" && b.end === "24:00" ? "all day" : `${b.start}–${b.end}`}
                   {b.reason ? ` · ${b.reason}` : ""}
-                </span>
+                </Badge>
               ))}
-            </p>
+            </Blocked>
           )}
           {d.blocks.length ? (
-            <ul className="plan-list">{d.blocks.map((b, i) => <BlockRow key={i} block={b} timeZone={data.timezone} />)}</ul>
+            <List $gap="8px">{d.blocks.map((b, i) => <BlockRow key={i} block={b} timeZone={data.timezone} />)}</List>
           ) : (
-            <p className="muted small">No study blocks.</p>
+            <Small $muted>No study blocks.</Small>
           )}
         </section>
       ))}
       {data.unscheduled.length > 0 && (
         <section>
-          <h2 className="day-head">
+          <DayHead>
             <span>Doesn't fit in {cfg.days} days</span>
-            <span className="muted small">{minutes(data.unscheduled_minutes)}</span>
-          </h2>
-          <ul className="plan-list">
+            <span>{minutes(data.unscheduled_minutes)}</span>
+          </DayHead>
+          <List $gap="8px">
             {data.unscheduled.map((it, i) => <PlanRow key={i} item={it} />)}
-          </ul>
+          </List>
         </section>
       )}
     </>
   );
 }
 
+const SummaryGrid = styled(StatGrid)`
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  @media (max-width: 640px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+`;
+
 function Summary({ data }: { data: ScheduleData }) {
   const k = data.minutes_by_kind;
   return (
-    <section className="summary" aria-label="Schedule summary">
-      <div className="stat static"><strong>{minutes(data.total_minutes)}</strong><span>planned</span></div>
-      <div className="stat static"><strong>{minutes((k.deep ?? 0) + (k.practice ?? 0))}</strong><span>reading and practice</span></div>
-      <div className="stat static"><strong>{minutes((k.recall ?? 0) + (k.flashcards ?? 0))}</strong><span>recall and cards</span></div>
-      <div className={`stat static${data.late ? " bad" : ""}`}>
+    <SummaryGrid aria-label="Schedule summary">
+      <Stat $tone="primary"><strong>{minutes(data.total_minutes)}</strong><span>planned</span></Stat>
+      <Stat><strong>{minutes((k.deep ?? 0) + (k.practice ?? 0))}</strong><span>reading and practice</span></Stat>
+      <Stat><strong>{minutes((k.recall ?? 0) + (k.flashcards ?? 0))}</strong><span>recall and cards</span></Stat>
+      <Stat $tone={data.late ? "danger" : undefined}>
         <strong>{data.late}</strong><span>late</span>
-      </div>
-    </section>
+      </Stat>
+    </SummaryGrid>
   );
 }
 
@@ -248,30 +363,30 @@ function BlockRow({ block: b, timeZone }: { block: ScheduleBlock; timeZone?: str
   const link = b.course_id ? href.course(b.course_id, b.section_id ?? undefined)
     : b.kind === "flashcards" ? href.study({ due: true }) : undefined;
   return (
-    <li className={`plan-item${b.late ? " late-item" : ""}`}>
-      <span className="swatch" style={{ background: b.course_id ? courseColor(b.course_id) : "var(--accent)" }} aria-hidden="true" />
-      <div className="plan-main">
-        <div className="small muted sched-time">{clock(b.start, timeZone)}–{clock(b.end, timeZone)}</div>
-        <div className="plan-title">
+    <WorkRow as="li" $late={b.late}>
+      <Swatch style={{ background: b.course_id ? courseColor(b.course_id) : "var(--c-primary)" }} aria-hidden="true" />
+      <WorkMain>
+        <Time>{clock(b.start, timeZone)}–{clock(b.end, timeZone)}</Time>
+        <WorkTitle>
           {link ? <a href={link}>{b.title}</a> : b.title}
-          {b.parts > 1 && <span className="muted"> · {b.kind === "recall" ? "review" : "part"} {b.part}/{b.parts}</span>}
-        </div>
-        <div className="deadline-meta">
-          {(b.course_short || b.course_name) && <span className="course-link">{b.course_short || b.course_name}</span>}
-          <span className={`tag ${KIND_TAG[b.kind]}`}>{b.label}</span>
-          {b.late && <span className="tag warn">late</span>}
-        </div>
-        {b.detail && <p className="small muted sched-detail">{b.detail}</p>}
+          {b.parts > 1 && <Muted> · {b.kind === "recall" ? "review" : "part"} {b.part}/{b.parts}</Muted>}
+        </WorkTitle>
+        <Meta>
+          {(b.course_short || b.course_name) && <strong>{b.course_short || b.course_name}</strong>}
+          <Badge $tone={KIND_TONE[b.kind]}>{b.label}</Badge>
+          {b.late && <Badge $tone="warning">late</Badge>}
+        </Meta>
+        {b.detail && <Detail $muted>{b.detail}</Detail>}
         {b.files.length > 0 && (
-          <p className="small sched-files">
+          <Files>
             {b.files.map((f) => (
               <a key={f.id} href={href.file(f.id, b.course_id ?? undefined)}>{f.name}{f.pages ? ` (${f.pages} p.)` : ""}</a>
             ))}
-          </p>
+          </Files>
         )}
-      </div>
-      <div className="plan-side"><strong>{minutes(b.minutes)}</strong></div>
-    </li>
+      </WorkMain>
+      <Minutes>{minutes(b.minutes)}</Minutes>
+    </WorkRow>
   );
 }
 
@@ -279,23 +394,23 @@ function WeeklyEditor({ rows, onChange }: { rows: WeeklyUnavailability[]; onChan
   const set = (i: number, patch: Partial<WeeklyUnavailability>) =>
     onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
-    <fieldset className="sched-editor">
+    <Editor>
       <legend>Every week</legend>
-      <p className="muted small">Classes, work shifts, training…</p>
+      <Small $muted>Classes, work shifts, training…</Small>
       {rows.map((r, i) => (
-        <div key={i} className="sched-slot">
-          <select className="select select-sm" aria-label="Day" value={r.day} onChange={(e) => set(i, { day: Number(e.target.value) })}>
+        <Slot key={i}>
+          <Select aria-label="Day" value={r.day} onChange={(e) => set(i, { day: Number(e.target.value) })}>
             {WEEKDAYS_SHORT.map((d, n) => <option key={n} value={n}>{d}</option>)}
-          </select>
+          </Select>
           <TimeRange start={r.start} end={r.end} onChange={(start, end) => set(i, { start, end })} />
-          <input type="text" className="input input-sm" aria-label="Reason" placeholder="Reason" maxLength={80}
+          <Input type="text" aria-label="Reason" placeholder="Reason" maxLength={80}
             value={r.reason} onChange={(e) => set(i, { reason: e.target.value })} />
-          <button type="button" className="btn btn-sm btn-ghost" aria-label="Remove" onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</button>
-        </div>
+          <IconButton type="button" aria-label="Remove" onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</IconButton>
+        </Slot>
       ))}
-      <button type="button" className="btn btn-sm" disabled={rows.length >= 50}
-        onClick={() => onChange([...rows, { day: 0, start: "09:00", end: "12:00", reason: "" }])}>+ Weekly slot</button>
-    </fieldset>
+      <Button type="button" $variant="soft" $size="sm" disabled={rows.length >= 50}
+        onClick={() => onChange([...rows, { day: 0, start: "09:00", end: "12:00", reason: "" }])}>+ Weekly slot</Button>
+    </Editor>
   );
 }
 
@@ -309,42 +424,42 @@ function DatedEditor({ rows, today, onChange }: {
   const tomorrow = isoDate(new Date(new Date(`${today}T12:00:00`).getTime() + 86400000));
   const sorted = rows.map((r, i) => ({ r, i })).sort((a, b) => a.r.date.localeCompare(b.r.date));
   return (
-    <fieldset className="sched-editor">
+    <Editor>
       <legend>On specific days</legend>
-      <p className="muted small">Appointments, travel, days off…</p>
+      <Small $muted>Appointments, travel, days off…</Small>
       {sorted.map(({ r, i }) => {
         const allDay = r.start === "00:00" && r.end === "24:00";
         return (
-          <div key={i} className={`sched-slot${r.date < today ? " sched-past" : ""}`}>
-            <input type="date" className="input input-sm" aria-label="Date" value={r.date}
+          <Slot key={i} $past={r.date < today}>
+            <Input type="date" aria-label="Date" value={r.date}
               onChange={(e) => e.target.value && set(i, { date: e.target.value })} />
-            <label className="sched-allday">
+            <AllDay>
               <input type="checkbox" checked={allDay}
                 onChange={(e) => set(i, e.target.checked ? { start: "00:00", end: "24:00" } : { start: "09:00", end: "12:00" })} />
               all day
-            </label>
+            </AllDay>
             {!allDay && <TimeRange start={r.start} end={r.end} onChange={(start, end) => set(i, { start, end })} />}
-            <input type="text" className="input input-sm" aria-label="Reason" placeholder="Reason" maxLength={80}
+            <Input type="text" aria-label="Reason" placeholder="Reason" maxLength={80}
               value={r.reason} onChange={(e) => set(i, { reason: e.target.value })} />
-            <button type="button" className="btn btn-sm btn-ghost" aria-label="Remove" onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</button>
-          </div>
+            <IconButton type="button" aria-label="Remove" onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</IconButton>
+          </Slot>
         );
       })}
-      <button type="button" className="btn btn-sm" disabled={rows.length >= 100}
-        onClick={() => onChange([...rows, { date: tomorrow, start: "00:00", end: "24:00", reason: "" }])}>+ Day off or appointment</button>
-    </fieldset>
+      <Button type="button" $variant="soft" $size="sm" disabled={rows.length >= 100}
+        onClick={() => onChange([...rows, { date: tomorrow, start: "00:00", end: "24:00", reason: "" }])}>+ Day off or appointment</Button>
+    </Editor>
   );
 }
 
 function TimeRange({ start, end, onChange }: { start: string; end: string; onChange: (start: string, end: string) => void }) {
   const ok = (v: string) => /^\d\d:\d\d$/.test(v);
   return (
-    <span className="sched-range">
-      <input type="time" className="input input-sm" aria-label="From" step={900} value={start}
+    <Range>
+      <Input type="time" aria-label="From" step={900} value={start}
         onChange={(e) => ok(e.target.value) && onChange(e.target.value, end)} />
       <span aria-hidden="true">–</span>
-      <input type="time" className="input input-sm" aria-label="Until" step={900} value={end === "24:00" ? "23:59" : end}
+      <Input type="time" aria-label="Until" step={900} value={end === "24:00" ? "23:59" : end}
         onChange={(e) => ok(e.target.value) && onChange(start, e.target.value === "23:59" ? "24:00" : e.target.value)} />
-    </span>
+    </Range>
   );
 }

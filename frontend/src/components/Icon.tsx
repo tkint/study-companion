@@ -1,3 +1,6 @@
+import styled, { css } from "styled-components";
+import { spin } from "../styles/motion";
+
 // Small hand-made line icons (24x24, stroke = currentColor), so the app needs no icon library.
 
 const PATHS = {
@@ -23,11 +26,30 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, className, size }: { name: IconName; className?: string; size?: number }) {
+const Svg = styled.svg<{ $spin?: boolean }>`
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  ${({ $spin }) => $spin && css`animation: ${spin} 1s linear infinite;`}
+`;
+
+export function Icon({ name, className, size, spinning }: {
+  name: IconName;
+  className?: string;
+  size?: number;
+  spinning?: boolean;
+}) {
   return (
-    <svg viewBox="0 0 24 24" className={`icon${className ? ` ${className}` : ""}`} aria-hidden="true"
-      width={size} height={size}>
+    <Svg viewBox="0 0 24 24" className={className} aria-hidden="true" width={size} height={size} $spin={spinning}
+      style={size ? { width: size, height: size } : undefined}>
       <path d={PATHS[name]} />
-    </svg>
+    </Svg>
   );
 }

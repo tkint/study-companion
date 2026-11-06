@@ -2,6 +2,31 @@ import { useEffect, useState, type ReactElement } from "react";
 import { api, type ReminderPrefs, type Reminders as R } from "../api";
 import { fromNow, minutesLabel } from "../format";
 import { href } from "../router";
+import styled from "styled-components";
+import { rise } from "../styles/motion";
+import { Check, Chip, Chips, Field, Fieldset, Input, Lead, Small } from "../ui";
+
+const Card = styled.section`
+  margin: 12px 0 16px;
+  padding: 12px 16px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-left: 4px solid ${({ theme }) => theme.colors.accent};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  animation: ${rise} .35s ease-out both;
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  li { display: flex; gap: 10px; align-items: baseline; font-size: ${({ theme }) => theme.fontSizes.md}; }
+`;
+
+export const SettingsSection = styled.section`
+  margin-top: 28px;
+  & ${Fieldset} { margin: 10px 0; }
+`;
+
+const TimeField = styled(Field)`
+  max-width: 200px;
+`;
 
 // In-app reminders: a friendly "today" card (cards to review, deadlines in the next 48 h,
 // study time against the goal). The same reminders reach the phone through the calendar
@@ -52,9 +77,9 @@ export function Reminders() {
   }
   if (!lines.length) return null;
   return (
-    <section className="reminders" aria-label="Reminders for today">
+    <Card aria-label="Reminders for today">
       <ul>{lines}</ul>
-    </section>
+    </Card>
   );
 }
 
@@ -90,38 +115,38 @@ export function ReminderSettings() {
   };
 
   return (
-    <section className="subscribe">
+    <SettingsSection>
       <h2>Reminders</h2>
-      <p className="muted">
+      <Lead>
         Reminders come as alarms in the calendar you subscribe to below, so your phone notifies
         you like any other event.
-      </p>
-      <fieldset className="field">
+      </Lead>
+      <Fieldset>
         <legend>Before each deadline</legend>
-        <div className="chips">
+        <Chips>
           {ALARM_CHOICES.map((c) => (
-            <label key={c.minutes} className="chip">
+            <Chip key={c.minutes}>
               <input type="checkbox" checked={prefs.deadline_alarms.includes(c.minutes)} onChange={() => toggle(c.minutes)} />
               <span>{c.label}</span>
-            </label>
+            </Chip>
           ))}
-        </div>
-      </fieldset>
-      <fieldset className="field">
+        </Chips>
+      </Fieldset>
+      <Fieldset>
         <legend>Daily study reminder</legend>
-        <label className="chip">
+        <Check>
           <input type="checkbox" checked={prefs.daily_enabled} onChange={(e) => update({ daily_enabled: e.target.checked })} />
           <span>Remind me to study, with the day's plan and cards to review</span>
-        </label>
+        </Check>
         {prefs.daily_enabled && (
-          <label className="block">
+          <TimeField>
             <span>At</span>
-            <input type="time" value={prefs.daily_time} step={300}
+            <Input type="time" value={prefs.daily_time} step={300}
               onChange={(e) => /^\d\d:\d\d$/.test(e.target.value) && update({ daily_time: e.target.value })} />
-          </label>
+          </TimeField>
         )}
-      </fieldset>
-      {saved && <p className="muted small" role="status">{saved}</p>}
-    </section>
+      </Fieldset>
+      {saved && <Small $muted role="status">{saved}</Small>}
+    </SettingsSection>
   );
 }

@@ -630,7 +630,7 @@ class Generator:
     def _recall_detail(self, r: Recall) -> str:
         when = "the day after" if r.step == 1 else "a few days after"
         return (f"Spaced repetition, {when} you studied it: answer this section's flashcards, "
-                "or ask Claude for a short quiz on it, then fix what you missed.")
+                "or ask your AI assistant for a short quiz on it, then fix what you missed.")
 
     def _finish(self, days: list[Day], left: list[Work], notes: list[str]) -> None:
         """Part numbers, late flags and descriptions once every block is placed."""

@@ -24,7 +24,7 @@ The Settings page of the app shows the exact URL to paste and which clients are 
 
 ## Use it
 
-The easiest way is the **Prompt** tab of the web UI: choose a course, a period and a goal
+The easiest way is the **Ask AI** tab of the web UI: choose a course, a period and a goal
 (catch-up summary, study plan, explain a topic, quiz, flashcards, exam prep, assignment, review
 saved questions) and press **Copy**, then paste the prompt into a new Claude chat. The prompt names the exact tool
 calls, so Claude reads only that material. Large periods are split into several prompts; paste
@@ -119,7 +119,7 @@ OAUTH_REDIRECT_HOSTS=claude.ai,claude.com,localhost,127.0.0.1,oauth-redirect.goo
 Then add a custom connector in that app with the URL `https://<DOMAIN>/mcp`, leave the client ID
 and secret empty (the app registers itself), and approve it on the Study Companion page with your
 password, as for Claude. ChatGPT needs developer mode, where your plan offers it. The prompts in
-the web UI are written for Claude but name the same tools, so they work there too. Remove a host
+the web UI don't assume a particular AI and name the exact tools, so they work the same there. Remove a host
 from the list to stop new connections from that app; **Disconnect all** signs out existing ones.
 
 ## Security
@@ -132,7 +132,7 @@ from the list to stop new connections from that app; **Disconnect all** signs ou
   127.0.0.1`; Gemini and ChatGPT only if you add them), so a code can't be sent elsewhere. Anyone can register a client, but nobody gets a token without your password.
 - Access tokens last one hour (`OAUTH_ACCESS_TTL`), refresh tokens 30 days of inactivity
   (`OAUTH_REFRESH_TTL`). Tokens and codes are stored only as SHA-256 hashes.
-- **Settings › Claude connector › Disconnect all** signs every client out. Changing the web UI
+- **Settings › AI connector › Disconnect all** signs every client out. Changing the web UI
   password does too. Reconnect from Claude's connector settings afterwards.
 - Course text you ask about is sent to Anthropic by Claude (or to Google by Gemini, OpenAI by ChatGPT), like anything
   else you paste in a chat.
