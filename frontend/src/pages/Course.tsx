@@ -11,7 +11,8 @@ import {
   type SectionInfo,
   type StudyNote,
 } from "../api";
-import { Progress, Status, useLoad } from "../components/common";
+import styled from "styled-components";
+import { Status, useLoad } from "../components/common";
 import { celebrate } from "../components/Confetti";
 import { CourseCover } from "../components/CourseCover";
 import { DeadlineList } from "../components/DeadlineList";
@@ -20,6 +21,9 @@ import { Markdown } from "../components/Markdown";
 import { QuizResults } from "../components/QuizResults";
 import { fromNow, size } from "../format";
 import { href } from "../router";
+import {
+  Badge, Banner, Button, Check, Crumbs, DetailsCard, Empty, Lead, ProgressBar, Row, TextButton, Toggles,
+} from "../ui";
 
 const MOD_LABELS: Record<string, string> = {
   resource: "File",
@@ -47,35 +51,147 @@ function isPdf(f: FileInfo) {
   return f.mimetype === "application/pdf" || f.filename.toLowerCase().endsWith(".pdf");
 }
 
-function FileRow({ f, courseId, moduleUrl }: { f: FileInfo; courseId: number; moduleUrl: string }) {
+const Files = styled.ul`
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+`;
+
+const File = styled.li<{ $unavailable?: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 6px 6px 6px 12px;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.surfaceSunken};
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  color: ${({ theme, $unavailable }) => ($unavailable ? theme.colors.textMuted : "inherit")};
+  & > a:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+`;
+
+const Size = styled.span`
+  font-weight: 400;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const Modules = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const Module = styled.li<{ $hidden?: boolean }>`
+  padding: 12px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  opacity: ${({ $hidden }) => ($hidden ? 0.65 : 1)};
+  &:last-child { border-bottom: 0; }
+`;
+
+const ModuleHead = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  & > a { font-size: ${({ theme }) => theme.fontSizes.sm}; white-space: nowrap; }
+`;
+
+const ModuleName = styled.span`
+  flex: 1 1 160px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+`;
+
+const Done = styled.span`
+  color: ${({ theme }) => theme.colors.successText};
+  font-weight: 800;
+`;
+
+const Text = styled.div<{ $clamp?: boolean }>`
+  margin: 4px 0 8px;
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  ${({ $clamp }) => $clamp && "display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;"}
+  & > button { margin-left: 6px; }
+`;
+
+const Note = styled.div`
+  margin: 8px 0 12px;
+  padding: 12px 16px;
+  border-radius: ${({ theme }) => theme.radii.md};
+  border: 1px solid color-mix(in srgb, ${({ theme }) => theme.colors.primary} 30%, ${({ theme }) => theme.colors.border});
+  background: color-mix(in srgb, ${({ theme }) => theme.colors.primarySoft} 60%, ${({ theme }) => theme.colors.surface});
+`;
+
+const NoteHead = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  & > strong { flex: 1 1 160px; overflow-wrap: anywhere; }
+`;
+
+const Fade = styled.div`
+  max-height: 18rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
+`;
+
+const SectionActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 0 14px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const Count = styled.span`
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+function isImage(f: FileInfo) {
+  return f.mimetype.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.filename);
+}
+
+function FileRow({ f, courseId, moduleUrl, moduleName }: {
+  f: FileInfo; courseId: number; moduleUrl: string; moduleName: string;
+}) {
   const label = (
     <>
-      <span className="file-name">{f.filename}</span>
-      <span className="muted"> {size(f.filesize)}</span>
+      <span>{f.page ? (f.title === moduleName ? "Read the page" : f.title) : f.title || f.filename}</span>
+      {!f.page && <Size> {size(f.filesize)}</Size>}
     </>
   );
   if (!f.available) {
     return (
-      <li className="file unavailable">
-        {label}
-        <span className="muted"> · {FILE_STATUS[f.status] ?? f.status}</span>
+      <File $unavailable>
+        <span>{label}<Size> · {FILE_STATUS[f.status] ?? f.status}</Size></span>
         {moduleUrl && (
-          <a href={moduleUrl} target="_blank" rel="noopener noreferrer"> · open in source ↗</a>
+          <a href={moduleUrl} target="_blank" rel="noopener noreferrer">open in source ↗</a>
         )}
-      </li>
+      </File>
     );
   }
   return (
-    <li className="file">
-      {isPdf(f) ? (
+    <File>
+      {isPdf(f) || f.page ? (
         <a href={href.file(f.id, courseId)}>{label}</a>
       ) : (
         <a href={fileUrl(f)} target="_blank" rel="noopener">{label}</a>
       )}
-      <a className="file-dl" href={fileUrl(f, true)} aria-label={`Download ${f.filename}`} title="Download">
-        ⤓
-      </a>
-    </li>
+      {!f.page && (
+        <Button as="a" $variant="ghost" $size="sm" href={fileUrl(f, true)} aria-label={`Download ${f.filename}`} title="Download">
+          ⤓
+        </Button>
+      )}
+    </File>
   );
 }
 
@@ -83,36 +199,41 @@ function ModuleRow({ m, courseId }: { m: ModuleInfo; courseId: number }) {
   const done = m.completion_state === 1 || m.completion_state === 2;
   const [expanded, setExpanded] = useState(false);
   const long = m.description.length > 280;
+  // A teacher page shows its images inside it: list the page first, then its other files.
+  const hasPage = m.files.some((f) => f.page);
+  const files = hasPage
+    ? [...m.files.filter((f) => f.page), ...m.files.filter((f) => !f.page && !isImage(f))]
+    : m.files;
   return (
-    <li className={`module${m.visible ? "" : " hidden"}`}>
-      <div className="module-head">
-        <span className="tag">{MOD_LABELS[m.modname] ?? m.modname}</span>
-        <span className="module-name">{m.name}</span>
-        {done && <span className="check" title="Completed at the source">✓</span>}
+    <Module $hidden={!m.visible}>
+      <ModuleHead>
+        <Badge>{MOD_LABELS[m.modname] ?? m.modname}</Badge>
+        <ModuleName>{m.name}</ModuleName>
+        {done && <Done title="Completed at the source">✓</Done>}
         {m.url && (
-          <a className="module-link" href={m.url} target="_blank" rel="noopener noreferrer">
+          <a href={m.url} target="_blank" rel="noopener noreferrer">
             Source ↗
           </a>
         )}
-      </div>
+      </ModuleHead>
       {m.description && (
-        <div className={`text${long && !expanded ? " clamp" : ""}`}>
+        <Text $clamp={long && !expanded}>
           {m.description}
           {long && (
-            <button className="link" onClick={() => setExpanded(!expanded)}>
+            <TextButton onClick={() => setExpanded(!expanded)}>
               {expanded ? "Show less" : "Show more"}
-            </button>
+            </TextButton>
           )}
-        </div>
+        </Text>
       )}
-      {m.files.length > 0 && (
-        <ul className="files">
-          {m.files.map((f) => (
-            <FileRow key={f.id} f={f} courseId={courseId} moduleUrl={m.url} />
+      {files.length > 0 && (
+        <Files>
+          {files.map((f) => (
+            <FileRow key={f.id} f={f} courseId={courseId} moduleUrl={m.url} moduleName={m.name} />
           ))}
-        </ul>
+        </Files>
       )}
-    </li>
+    </Module>
   );
 }
 
@@ -131,20 +252,20 @@ function Deadlines({ course, onChange }: { course: CourseDetail; onChange: (d: D
       <h2>Deadlines</h2>
       <DeadlineList items={upcoming} empty="Nothing coming up." onChange={onChange} showCourse={false} />
       {(pastCount > 0 || ignoredCount > 0) && (
-        <div className="view-toggles">
+        <Toggles>
           {pastCount > 0 && (
-            <label><input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} />
-              Show past ({pastCount})</label>
+            <Check><input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} />
+              Show past ({pastCount})</Check>
           )}
           {ignoredCount > 0 && (
-            <label><input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} />
-              Show ignored ({ignoredCount})</label>
+            <Check><input type="checkbox" checked={showIgnored} onChange={(e) => setShowIgnored(e.target.checked)} />
+              Show ignored ({ignoredCount})</Check>
           )}
-        </div>
+        </Toggles>
       )}
       {showPast && past.length > 0 && (
         <>
-          <h3 className="small muted">Past</h3>
+          <h3>Past</h3>
           <DeadlineList items={[...past].reverse()} empty="" onChange={onChange} showCourse={false} />
         </>
       )}
@@ -156,20 +277,18 @@ function AiNote({ note, onDelete }: { note: StudyNote; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const long = note.markdown.length > 900;
   return (
-    <div className="ai-note">
-      <div className="ai-note-head">
-        <span className="tag ai">Claude</span>
+    <Note>
+      <NoteHead>
+        <Badge $tone="primary">AI</Badge>
         <strong>{note.title || "Summary"}</strong>
-        <span className="muted small">updated {fromNow(note.updated_at)}</span>
-        <button className="link danger" onClick={onDelete} aria-label="Delete this summary">Delete</button>
-      </div>
-      <div className={long && !open ? "fade" : undefined}>
-        <Markdown text={note.markdown} />
-      </div>
+        <Count>updated {fromNow(note.updated_at)}</Count>
+        <TextButton $danger onClick={onDelete} aria-label="Delete this summary">Delete</TextButton>
+      </NoteHead>
+      {long && !open ? <Fade><Markdown text={note.markdown} /></Fade> : <Markdown text={note.markdown} />}
       {long && (
-        <button className="link" onClick={() => setOpen(!open)}>{open ? "Show less" : "Show the whole summary"}</button>
+        <TextButton onClick={() => setOpen(!open)}>{open ? "Show less" : "Show the whole summary"}</TextButton>
       )}
-    </div>
+    </Note>
   );
 }
 
@@ -187,24 +306,24 @@ function SectionStudy({ section, study, onStudied, onPrefs }: {
     setBusy(true);
     try {
       await api.setStudied(section.id, !studied);
-      if (!studied) celebrate(button, 60);
+      if (!studied) celebrate(button, 40);
       onStudied(!studied);
     } finally {
       setBusy(false);
     }
   }
   return (
-    <div className="section-study">
+    <SectionActions>
       {counts && counts.questions > 0 && (
-        <a className="btn btn-primary btn-sm" href={href.study({ section: section.id, all: counts.due === 0 })}>
+        <Button as="a" $variant="primary" $size="sm" href={href.study({ section: section.id, all: counts.due === 0 })}>
           {counts.due > 0 ? `Review ${counts.due} card${counts.due === 1 ? "" : "s"}` : `Practise ${counts.questions} cards`}
-        </a>
+        </Button>
       )}
-      <button className={`btn btn-sm ${studied ? "btn-success" : "btn-ghost"}`} onClick={toggle} disabled={busy} aria-pressed={studied}>
+      <Button $size="sm" $variant={studied ? "success" : "outline"} onClick={toggle} disabled={busy} aria-pressed={studied}>
         {studied ? "✓ Studied" : "Mark as studied"}
-      </button>
+      </Button>
       <PrefsMenu state={section} label={section.name} save={(p) => api.setSectionPrefs(section.id, p)} onChange={onPrefs} />
-    </div>
+    </SectionActions>
   );
 }
 
@@ -212,26 +331,26 @@ function StudyPanel({ course, study, onChange }: { course: CourseDetail; study: 
   return (
     <section>
       <h2>Study</h2>
-      <div className="study-bar">
+      <Banner $tone="neutral">
         <span>
           {study.notes.length} summar{study.notes.length === 1 ? "y" : "ies"} · {study.questions_total} question
           {study.questions_total === 1 ? "" : "s"}
           {study.questions_due > 0 && <strong> · {study.questions_due} due</strong>}
         </span>
-        <span className="row tight">
+        <Row $tight $gap="6px">
           {study.questions_total > 0 && (
-            <a className="btn btn-primary btn-sm" href={href.study({ course: course.id, all: study.questions_due === 0 })}>
+            <Button as="a" $variant="primary" $size="sm" href={href.study({ course: course.id, all: study.questions_due === 0 })}>
               {study.questions_due > 0 ? "Review due cards" : "Practise all"}
-            </a>
+            </Button>
           )}
-          <a className="btn btn-sm btn-ghost" href={href.prompt(course.id)}>Ask Claude</a>
-        </span>
-      </div>
+          <Button as="a" $variant="soft" $size="sm" href={href.prompt(course.id)}>Ask AI</Button>
+        </Row>
+      </Banner>
       {!study.notes.length && !study.questions_total && (
-        <p className="empty small">
-          Nothing from Claude yet. Build a prompt with “Save results to the app” on, paste it in Claude, and its
+        <Empty>
+          Nothing from your AI assistant yet. Build a prompt with “Save results to the app” on, paste it in your AI assistant, and its
           summaries and questions appear here.
-        </p>
+        </Empty>
       )}
       <QuizResults results={study.results} onDelete={(id) => onChange({ ...study, results: study.results.filter((r) => r.id !== id) })} />
     </section>
@@ -253,7 +372,7 @@ export default function Course({ id, section }: { id: number; section?: number }
   const orphans = (study?.notes ?? []).filter((n) => !sections.some((s) => s.id === n.section_id));
 
   async function deleteNote(note: StudyNote) {
-    if (!study || !window.confirm("Delete Claude's summary of this section?")) return;
+    if (!study || !window.confirm("Delete the AI summary of this section?")) return;
     await api.deleteNote(note.id);
     studyLoad.setData({ ...study, notes: study.notes.filter((n) => n.id !== note.id) });
   }
@@ -271,48 +390,47 @@ export default function Course({ id, section }: { id: number; section?: number }
 
   return (
     <>
-      <p className="crumbs">
+      <Crumbs>
         <a href={href.courses}>← Courses</a>
-      </p>
+      </Crumbs>
       <CourseCover id={data.id} shortname={data.shortname} fullname={data.fullname} imageUrl={data.image_url} variant="banner" />
       <h1>{data.fullname}</h1>
-      <p className="muted">
+      <Lead>
         {data.shortname}
         {data.lang && ` · ${data.lang.toUpperCase()}`}
         {!data.enrolled && " · no longer enrolled"}
-      </p>
-      {data.progress != null && <Progress value={data.progress} />}
+      </Lead>
+      <ProgressBar value={data.progress} size="md" tone="success" label="Course progress" />
       <Deadlines course={data} onChange={onChange} />
       {study && <StudyPanel course={data} study={study} onChange={studyLoad.setData} />}
       <section>
         <h2>Sections</h2>
-        {!sections.length && <p className="empty">No content synced yet.</p>}
+        {!sections.length && <Empty>No content synced yet.</Empty>}
         {sections.map((s, i) => {
           const note = notes.get(s.id);
           const studied = study?.studied.includes(s.id);
           return (
-            <details key={s.id} id={`section-${s.id}`}
-              className={`section${s.visible ? "" : " hidden"}${s.ignored ? " ignored" : ""}`}
+            <DetailsCard key={s.id} id={`section-${s.id}`} $muted={!s.visible || s.ignored}
               open={i < 2 || s.id === section}>
               <summary>
                 <span>{s.name}</span>
-                <span className="muted"> {s.modules.length}</span>
-                {note && <span className="tag ai">notes</span>}
-                {studied && <span className="tag ok">studied</span>}
+                <Count>{s.modules.length}</Count>
+                {note && <Badge $tone="primary">notes</Badge>}
+                {studied && <Badge $tone="success">studied</Badge>}
                 <PrefTags state={s} />
               </summary>
               {note && <AiNote note={note} onDelete={() => deleteNote(note)} />}
-              {s.summary && <div className="text">{s.summary}</div>}
-              <ul className="modules">
+              {s.summary && <Text>{s.summary}</Text>}
+              <Modules>
                 {s.modules.map((m) => (
                   <ModuleRow key={m.id} m={m} courseId={data.id} />
                 ))}
-              </ul>
+              </Modules>
               {study && (
                 <SectionStudy section={s} study={study} onStudied={(v) => setStudied(s.id, v)}
                   onPrefs={(st) => setSectionState(s.id, st)} />
               )}
-            </details>
+            </DetailsCard>
           );
         })}
         {orphans.length > 0 && (

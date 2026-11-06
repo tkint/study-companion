@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
+import styled from "styled-components";
 import type { CourseSummary } from "../api";
 import { href } from "../router";
-import { Progress } from "./common";
 import { CourseCover } from "./CourseCover";
+import { Card, Empty, List, ProgressBar } from "../ui";
 
 // Case- and accent-insensitive: "algebre" finds "Algèbre linéaire".
 export function normalise(text: string): string {
@@ -14,52 +15,136 @@ export function matches(c: CourseSummary, query: string): boolean {
   return normalise(query).split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
 }
 
+const Search = styled.label`
+  display: block;
+  position: relative;
+  margin: 0 0 16px;
+  svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    transform: translateY(-50%);
+    fill: none;
+    stroke: ${({ theme }) => theme.colors.textMuted};
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  input {
+    width: 100%;
+    min-height: ${({ theme }) => theme.layout.tap};
+    padding: 11px 14px 11px 42px;
+    font-size: 16px;
+    color: ${({ theme }) => theme.colors.textMain};
+    background: ${({ theme }) => theme.colors.surface};
+    border: 1px solid ${({ theme }) => theme.colors.borderStrong};
+    border-radius: ${({ theme }) => theme.radii.pill};
+    transition: border-color ${({ theme }) => theme.motion.base}, box-shadow ${({ theme }) => theme.motion.base};
+    &:focus {
+      outline: none;
+      border-color: ${({ theme }) => theme.colors.primary};
+      box-shadow: 0 0 0 3px color-mix(in srgb, ${({ theme }) => theme.colors.primary} 25%, transparent);
+    }
+  }
+`;
+
 export function CourseSearch({ value, onChange, autoFocus }: { value: string; onChange: (v: string) => void; autoFocus?: boolean }) {
   return (
-    <label className="search">
+    <Search>
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
       <input type="search" placeholder="Search courses" aria-label="Search courses" value={value}
         onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} enterKeyHint="search" />
-    </label>
+    </Search>
   );
 }
 
-export function CourseList({ courses, search = true }: { courses: CourseSummary[]; search?: boolean }) {
+/** One course per row: name and counts on the left, progress on the right (stacked on a phone). */
+export const CourseRow = styled(Card)<{ $stack?: boolean }>`
+  display: grid;
+  grid-template-columns: ${({ $stack }) => ($stack ? "1fr" : "minmax(0, 1fr) minmax(140px, 220px)")};
+  align-items: center;
+  gap: 8px 24px;
+  ${({ theme }) => theme.media.phone} { grid-template-columns: 1fr; }
+`;
+
+export const CourseName = styled.div`
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  a& { display: block; color: ${({ theme }) => theme.colors.textMain}; }
+`;
+
+export const CourseMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 2px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const CourseIdentity = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  & > div:last-child { min-width: 0; }
+`;
+
+const CourseProgress = styled.div<{ $stack?: boolean }>`
+  display: grid;
+  gap: 6px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textMuted};
+  text-align: ${({ $stack }) => ($stack ? "left" : "right")};
+  ${({ theme }) => theme.media.phone} { text-align: left; }
+`;
+
+export function CourseList({ courses, search = true, stack = false }: {
+  courses: CourseSummary[];
+  search?: boolean;
+  /** Progress under the name, for a narrow column. */
+  stack?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const shown = useMemo(() => courses.filter((c) => matches(c, query)), [courses, query]);
-  if (!courses.length) return <p className="empty">No courses yet. Run a sync after connecting your source site.</p>;
+  if (!courses.length) return <Empty>No courses yet. Run a sync after connecting your source site.</Empty>;
   return (
     <>
       {search && <CourseSearch value={query} onChange={setQuery} />}
-      {!shown.length && <p className="empty">No course matches “{query}”.</p>}
-      <ul className="course-list">
+      {!shown.length && <Empty>No course matches “{query}”.</Empty>}
+      <List>
         {shown.map((c) => (
           <li key={c.id}>
-            <a className="course-row" href={href.course(c.id)}>
-              <CourseCover id={c.id} shortname={c.shortname} fullname={c.fullname} imageUrl={c.image_url} variant="thumb" />
-              <div>
-                <div className="course-name">{c.fullname}</div>
-                <div className="course-meta">
-                  <span>{c.shortname}</span>
-                  {c.overdue > 0 && <span>{c.overdue} to catch up</span>}
-                  {c.upcoming > 0 && <span>{c.upcoming} upcoming</span>}
+            <CourseRow as="a" href={href.course(c.id)} $interactive $stack={stack}>
+              <CourseIdentity>
+                <CourseCover id={c.id} shortname={c.shortname} fullname={c.fullname} imageUrl={c.image_url} variant="thumb" />
+                <div>
+                  <CourseName>{c.fullname}</CourseName>
+                  <CourseMeta>
+                    <span>{c.shortname}</span>
+                    {c.overdue > 0 && <span>{c.overdue} to catch up</span>}
+                    {c.upcoming > 0 && <span>{c.upcoming} upcoming</span>}
+                  </CourseMeta>
                 </div>
-              </div>
-              <div className="course-progress">
+              </CourseIdentity>
+              <CourseProgress $stack={stack}>
                 {c.progress != null ? (
                   <>
-                    <Progress value={c.progress} />
-                    {Math.round(c.progress)}% complete
-                    {c.activities_tracked > 0 && ` · ${c.activities_done}/${c.activities_tracked} activities`}
+                    <ProgressBar value={c.progress} tone="success" label={`${c.fullname}: progress`} />
+                    <span>
+                      {Math.round(c.progress)}% complete
+                      {c.activities_tracked > 0 && ` · ${c.activities_done}/${c.activities_tracked} activities`}
+                    </span>
                   </>
                 ) : (
                   "No completion tracking"
                 )}
-              </div>
-            </a>
+              </CourseProgress>
+            </CourseRow>
           </li>
         ))}
-      </ul>
+      </List>
     </>
   );
 }

@@ -72,6 +72,11 @@ def _resolve_multilang(text: str, lang: str) -> str:
     return text
 
 
+def resolve_multilang(html: str, lang: str = "") -> str:
+    """Moodle HTML with each multilang run reduced to the variant for ``lang``."""
+    return _resolve_multilang(html or "", normalise_lang(lang))
+
+
 def clean_text(value: str | None, lang: str = "", *, keep_lines: bool = True) -> str:
     """Plain text from a Moodle string (HTML allowed). Never returns None."""
     if not value:

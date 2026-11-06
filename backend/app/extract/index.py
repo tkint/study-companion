@@ -127,8 +127,22 @@ def _forget(engine: Engine, file_id: int) -> None:
         s.commit()
 
 
+def _title(s, f: File, pages: list[str]) -> str:
+    """Search title: teacher pages come from Moodle as ``index.html``; use the activity
+    name (plus the chapter heading for a book chapter) so search hits are readable."""
+    if f.filename.lower() not in {"index.html", "index.htm"}:
+        return f.filename
+    module = s.get(Module, f.module_id)
+    name = module.name if module and module.name else f.filename
+    first = (pages[0] if pages else "").strip().split("\n", 1)[0].strip()
+    if module is not None and module.modname == "book" and first and len(first) <= 120:
+        return f"{name}: {first}"
+    return name
+
+
 def _store(engine: Engine, f: File, state: FileText, pages: list[str]) -> None:
     with session(engine) as s:
+        title = _title(s, f, pages)
         s.exec(delete(FilePage).where(FilePage.file_id == f.id))
         conn = s.connection()
         _drop_file(conn, f.id)
@@ -136,7 +150,7 @@ def _store(engine: Engine, f: File, state: FileText, pages: list[str]) -> None:
         for i, body in enumerate(pages, start=1):
             s.add(FilePage(file_id=f.id, page=i, text=body))
         _insert_rows(conn, [
-            {"title": f.filename, "body": body, "kind": "file", "ref_id": f.id, "page": i,
+            {"title": title, "body": body, "kind": "file", "ref_id": f.id, "page": i,
              "course_id": f.course_id, "section_id": f.section_id}
             for i, body in enumerate(pages, start=1) if body
         ])

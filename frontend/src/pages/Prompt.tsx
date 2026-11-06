@@ -3,6 +3,45 @@ import { request, ApiError } from "../api";
 import { Status, useLoad } from "../components/common";
 import { when } from "../format";
 import { href } from "../router";
+import styled from "styled-components";
+import {
+  Alert, Button, Card, Check, Empty, Field, FieldRow, Fieldset, Input, Lead, Loading, Pre, Segmented, Select, Small,
+  Badge,
+} from "../ui";
+
+const Builder = styled.div`
+  display: grid;
+  gap: 16px;
+  ${({ theme }) => theme.media.tablet} {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+`;
+
+const ResultPane = styled.div`
+  ${({ theme }) => theme.media.tablet} {
+    position: sticky;
+    top: calc(${({ theme }) => theme.layout.topbar} + 16px);
+    max-height: calc(100vh - ${({ theme }) => theme.layout.topbar} - 32px);
+    overflow: auto;
+  }
+`;
+
+const CourseChoices = styled.div`
+  display: grid;
+  gap: 2px;
+  max-height: 240px;
+  overflow: auto;
+  ${Badge} { margin-left: 6px; }
+`;
+
+const PromptHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  & > strong { overflow-wrap: anywhere; }
+`;
 
 // Types of /api/prompt/* (backend: app/prompts and app/api/prompts.py).
 interface PromptCourse {
@@ -84,7 +123,7 @@ export default function Prompt({ course }: { course?: number }) {
     return (
       <>
         <h1>Prompt builder</h1>
-        <p className="empty">No courses yet. Run a sync after connecting your source site.</p>
+        <Empty>No courses yet. Run a sync after connecting your source site.</Empty>
       </>
     );
   }
@@ -194,197 +233,197 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
   }
 
   return (
-    <div className="builder">
-      <div className="builder-form">
+    <Builder>
+      <div>
         <h1>Prompt builder</h1>
-        <p className="muted small">
-          Pick a course, a period and a goal, then copy the prompt into Claude (with the Study Companion
-          connector on). Claude reads only the material the prompt names.{" "}
+        <Lead $small>
+          Pick a course, a period and a goal, then copy the prompt into your AI assistant (with the Study Companion
+          connector on). It reads only the material the prompt names.{" "}
           <a href={href.templates()}>Edit the templates</a>
-        </p>
+        </Lead>
 
-        <fieldset className="field">
+        <Fieldset>
           <legend>Course</legend>
-          <div className="choices">
+          <CourseChoices>
             {options.courses.map((c) => (
-              <label key={c.id} className="choice">
+              <Check key={c.id}>
                 <input type="checkbox" checked={courses.includes(c.id)} onChange={() => toggleCourse(c.id)} />
                 <span>
                   {c.fullname}
-                  {c.lang && <span className="tag">{c.lang}</span>}
+                  {c.lang && <Badge>{c.lang}</Badge>}
                 </span>
-              </label>
+              </Check>
             ))}
-          </div>
-        </fieldset>
+          </CourseChoices>
+        </Fieldset>
 
-        <fieldset className="field">
+        <Fieldset>
           <legend>Period</legend>
-          <div className="segmented wrap">
+          <Segmented $wrap>
             {PERIODS.filter((p) => p.id !== "sections" || single).map((p) => (
               <button key={p.id} type="button" aria-pressed={period === p.id} onClick={() => pick(p.id)}>
                 {p.label}
               </button>
             ))}
-          </div>
+          </Segmented>
           {period === "deadline" && (
-            <p className="muted small">
+            <Small $muted>
               {nextDeadline ? `Next deadline: ${when(nextDeadline)}` : "No upcoming deadline: using today."}
-            </p>
+            </Small>
           )}
           {period !== "all" && period !== "sections" && (
-            <div className="inline">
-              <label>
+            <FieldRow>
+              <Field>
                 From
-                <input type="date" value={from} max={to || undefined}
+                <Input type="date" value={from} max={to || undefined}
                   onChange={(e) => { setFrom(e.target.value); setPeriod("dates"); }} />
-              </label>
-              <label>
+              </Field>
+              <Field>
                 To
-                <input type="date" value={to} min={from || undefined}
+                <Input type="date" value={to} min={from || undefined}
                   onChange={(e) => { setTo(e.target.value); setPeriod("dates"); }} />
-              </label>
-            </div>
+              </Field>
+            </FieldRow>
           )}
           {period === "sections" && single && (
-            <div className="inline">
-              <label>
+            <FieldRow>
+              <Field>
                 From section
-                <select value={secFrom} onChange={(e) => setSecFrom(e.target.value === "" ? "" : Number(e.target.value))}>
+                <Select value={secFrom} onChange={(e) => setSecFrom(e.target.value === "" ? "" : Number(e.target.value))}>
                   <option value="">First</option>
                   {single.sections.map((s) => (
                     <option key={s.id} value={s.number}>{s.number}. {s.name}</option>
                   ))}
-                </select>
-              </label>
-              <label>
+                </Select>
+              </Field>
+              <Field>
                 To section
-                <select value={secTo} onChange={(e) => setSecTo(e.target.value === "" ? "" : Number(e.target.value))}>
+                <Select value={secTo} onChange={(e) => setSecTo(e.target.value === "" ? "" : Number(e.target.value))}>
                   <option value="">Last</option>
                   {single.sections.map((s) => (
                     <option key={s.id} value={s.number}>{s.number}. {s.name}</option>
                   ))}
-                </select>
-              </label>
-            </div>
+                </Select>
+              </Field>
+            </FieldRow>
           )}
-        </fieldset>
+        </Fieldset>
 
-        <fieldset className="field">
+        <Fieldset>
           <legend>Goal</legend>
-          <select value={goal} onChange={(e) => setGoal(e.target.value)} className="full">
+          <Select value={goal} onChange={(e) => setGoal(e.target.value)} aria-label="Goal">
             {options.goals.map((g) => (
               <option key={g.id} value={g.id}>{g.title}</option>
             ))}
-          </select>
-          {goalInfo && <p className="muted small">{goalInfo.description}</p>}
+          </Select>
+          {goalInfo && <Small $muted>{goalInfo.description}</Small>}
           {goalInfo && goalInfo.topic !== "none" && (
-            <label className="block">
+            <Field>
               {goalInfo.topic === "required" ? "Topic" : "Topic (optional)"}
-              <input type="text" value={topic} maxLength={200} className="full"
+              <Input type="text" value={topic} maxLength={200}
                 placeholder={goal === "assignment" ? "Assignment name" : "e.g. eigenvalues"}
                 onChange={(e) => setTopic(e.target.value)} />
-            </label>
+            </Field>
           )}
-        </fieldset>
+        </Fieldset>
 
-        <fieldset className="field">
+        <Fieldset>
           <legend>Depth</legend>
-          <div className="segmented">
+          <Segmented>
             {options.depths.map((d) => (
               <button key={d.id} type="button" aria-pressed={depth === d.id} onClick={() => setDepth(d.id)}>
                 {d.title}
               </button>
             ))}
-          </div>
-        </fieldset>
+          </Segmented>
+        </Fieldset>
 
-        <fieldset className="field">
+        <Fieldset>
           <legend>Time available</legend>
-          <div className="segmented">
+          <Segmented>
             <button type="button" aria-pressed={timeMode === "daily"} onClick={() => setTimeMode("daily")}>Per day</button>
             <button type="button" aria-pressed={timeMode === "total"} onClick={() => setTimeMode("total")}>Total</button>
             <button type="button" aria-pressed={timeMode === "none"} onClick={() => setTimeMode("none")}>Not set</button>
-          </div>
+          </Segmented>
           {timeMode === "daily" && (
-            <div className="inline">
-              <label>
+            <FieldRow>
+              <Field>
                 Hours per day
-                <input type="number" min={0.5} max={24} step={0.5} value={hoursPerDay}
+                <Input type="number" min={0.5} max={24} step={0.5} value={hoursPerDay}
                   onChange={(e) => setHoursPerDay(Number(e.target.value))} />
-              </label>
-              <label>
+              </Field>
+              <Field>
                 Days
-                <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} />
-              </label>
-            </div>
+                <Input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} />
+              </Field>
+            </FieldRow>
           )}
           {timeMode === "total" && (
-            <div className="inline">
-              <label>
+            <FieldRow>
+              <Field>
                 Hours in total
-                <input type="number" min={0.5} max={1000} step={0.5} value={hoursTotal}
+                <Input type="number" min={0.5} max={1000} step={0.5} value={hoursTotal}
                   onChange={(e) => setHoursTotal(Number(e.target.value))} />
-              </label>
-            </div>
+              </Field>
+            </FieldRow>
           )}
-        </fieldset>
+        </Fieldset>
 
-        <fieldset className="field">
+        <Fieldset>
           <legend>Language and options</legend>
-          <label className="block">
+          <Field>
             Answers in
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="full">
+            <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
               <option value="course">The course's language</option>
               {options.languages.map((l) => (
                 <option key={l.id} value={l.id}>{l.title}</option>
               ))}
-            </select>
-          </label>
-          <label className="choice">
+            </Select>
+          </Field>
+          <Check>
             <input type="checkbox" checked={deadlines} onChange={(e) => setDeadlines(e.target.checked)} />
             <span>Include upcoming deadlines</span>
-          </label>
-          <label className="choice">
+          </Check>
+          <Check>
             <input type="checkbox" checked={completion} onChange={(e) => setCompletion(e.target.checked)} />
             <span>Use completion status (skip what is done)</span>
-          </label>
-          <label className="choice">
+          </Check>
+          <Check>
             <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
             <span>Save results to the app (summaries, flashcards, quiz scores)</span>
-          </label>
-        </fieldset>
+          </Check>
+        </Fieldset>
       </div>
 
-      <div className="builder-result" aria-live="polite">
+      <ResultPane aria-live="polite">
         <Result built={built} error={buildError} busy={busy} />
-      </div>
-    </div>
+      </ResultPane>
+    </Builder>
   );
 }
 
 function Result({ built, error, busy }: { built: Built | null; error: string | null; busy: boolean }) {
-  if (error) return <p className="alert alert-error" role="alert">{error}</p>;
-  if (!built) return <p className="loading">{busy ? "Building…" : ""}</p>;
+  if (error) return <Alert role="alert">{error}</Alert>;
+  if (!built) return <Loading>{busy ? "Building…" : ""}</Loading>;
   const s = built.summary;
   return (
     <>
       <h2>Preview</h2>
-      <p className={busy ? "muted" : undefined}>
+      <Small $muted={busy}>
         {s.sections} section{s.sections === 1 ? "" : "s"} · {s.files} file{s.files === 1 ? "" : "s"}
         {" "}({s.readable_files} with text) · about {s.pages} page{s.pages === 1 ? "" : "s"}
-        {s.prompts > 1 && <> · split into {s.prompts} prompts to stay within Claude's limits</>}
-      </p>
+        {s.prompts > 1 && <> · split into {s.prompts} prompts to stay within the AI's limits</>}
+      </Small>
       {built.courses.filter((c) => c.note).map((c) => (
-        <p key={c.id} className="banner warn small">{c.fullname}: {c.note}</p>
+        <Alert key={c.id} $tone="warning">{c.fullname}: {c.note}</Alert>
       ))}
       {built.prompts.map((p, i) => (
         <PromptCard key={i} title={p.title} text={p.text} />
       ))}
-      <p className="muted small">
-        Paste it in a new chat on <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">claude.ai ↗</a> or
-        in the Claude app, with the Study Companion connector enabled.
-      </p>
+      <Small $muted>
+        Paste it in a new chat of any AI assistant that has the Study Companion connector enabled (Claude, ChatGPT,
+        Gemini…). See docs/connector.md to add it.
+      </Small>
     </>
   );
 }
@@ -393,16 +432,16 @@ function PromptCard({ title, text }: { title: string; text: string }) {
   const [copied, setCopied] = useState<"" | "ok" | "fail">("");
   useEffect(() => setCopied(""), [text]);
   return (
-    <section className="prompt-card">
-      <div className="prompt-head">
+    <Card as="section" $pad="sm" style={{ marginBottom: 12 }}>
+      <PromptHead>
         <strong>{title}</strong>
-        <button type="button" className="btn btn-primary btn-sm"
+        <Button type="button" $variant={copied === "ok" ? "success" : "primary"} $size="sm"
           onClick={() => copyText(text).then((ok) => setCopied(ok ? "ok" : "fail"))}>
           {copied === "ok" ? "Copied ✓" : "Copy"}
-        </button>
-      </div>
-      {copied === "fail" && <p className="alert alert-error small">Copy failed: select the text and copy it by hand.</p>}
-      <pre className="prompt-text">{text}</pre>
-    </section>
+        </Button>
+      </PromptHead>
+      {copied === "fail" && <Alert>Copy failed: select the text and copy it by hand.</Alert>}
+      <Pre>{text}</Pre>
+    </Card>
   );
 }

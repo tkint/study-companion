@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import styled from "styled-components";
 import { api, type Dashboard as DashboardData, type Deadline, type Stats, type SyncState } from "../api";
 import { Status, useLoad } from "../components/common";
 import { CourseList } from "../components/CourseList";
@@ -7,6 +8,9 @@ import { Icon, type IconName } from "../components/Icon";
 import { fromNow } from "../format";
 import { href } from "../router";
 import { minutes, PlanRow } from "./Plan";
+import { tone as toneOf, type Tone } from "../styles/theme";
+import { pop, rise } from "../styles/motion";
+import { Alert, Banner, Button, Empty, Footnote, Late, List, Muted, SectionHead, Small, TextButton, Title, VisuallyHidden } from "../ui";
 
 // The home page leads with what you did (streak, this week's wins, progress) and the next few
 // things to do. Past items sit folded away under "catch up", so the page never opens on a
@@ -17,6 +21,23 @@ const UP_NEXT = 5;
 function replace(list: Deadline[], d: Deadline) {
   return list.map((x) => (x.id === d.id ? d : x));
 }
+
+// Two columns on a computer: today's work, and the courses beside it.
+const Columns = styled.div`
+  ${({ theme }) => theme.media.desktop} {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
+    gap: 0 40px;
+    align-items: start;
+  }
+`;
+
+const Side = styled.section`
+  ${({ theme }) => theme.media.desktop} {
+    position: sticky;
+    top: calc(${({ theme }) => theme.layout.topbar} + 16px);
+  }
+`;
 
 export default function Dashboard() {
   const { data, error, reload, setData } = useLoad(api.dashboard, []);
@@ -39,20 +60,20 @@ export default function Dashboard() {
       <Hero data={data} />
       <Wins stats={data.stats} />
 
-      <div className="dash">
+      <Columns>
         <div>
           <StudyToday data={data} onChange={reload} />
           <UpNext data={data} onChange={changed} />
           <CatchUpList items={data.overdue} onChange={changed} />
         </div>
-        <section className="dash-side" id="progress">
-          <h2><Icon name="book" /> Your courses</h2>
-          <CourseList courses={data.courses} search={data.courses.length > 4} />
-        </section>
-      </div>
-      <p className="footnote">
+        <Side id="progress">
+          <Title><Icon name="book" /> Your courses</Title>
+          <CourseList courses={data.courses} search={data.courses.length > 4} stack />
+        </Side>
+      </Columns>
+      <Footnote>
         Study Companion {data.version} · <a href="/status">sync details</a>
-      </p>
+      </Footnote>
     </>
   );
 }
@@ -91,40 +112,135 @@ function overallProgress(data: DashboardData): { value: number; label: string } 
   };
 }
 
+const HeroCard = styled.section`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 24px;
+  border-radius: ${({ theme }) => theme.radii.xl};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  animation: ${rise} .4s ease both;
+  /* A calm tint in one corner: warm, not a glow. */
+  background-image: radial-gradient(120% 140% at 100% 0%, ${({ theme }) => theme.colors.accentSoft} 0%, transparent 45%);
+  ${({ theme }) => theme.media.small} { padding: 16px; gap: 12px; align-items: flex-start; }
+`;
+
+const HeroMain = styled.div`
+  flex: 1;
+  min-width: 0;
+  h1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 1.6rem;
+    ${({ theme }) => theme.media.small} { font-size: 1.3rem; }
+  }
+  h1 > svg { width: 28px; height: 28px; color: ${({ theme }) => theme.colors.accent}; }
+`;
+
+const Cheer = styled.p`
+  margin: 6px 0 16px;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
 function Hero({ data }: { data: DashboardData }) {
   const g = greeting(new Date().getHours());
   const progress = overallProgress(data);
   return (
-    <section className="hero" aria-label="Welcome">
-      <div className="hero-main">
-        <h1><Icon name={g.icon} className="hero-icon" /> {g.text}!</h1>
-        <p className="hero-cheer">{cheer(data.stats)}</p>
+    <HeroCard aria-label="Welcome">
+      <HeroMain>
+        <h1><Icon name={g.icon} /> {g.text}!</h1>
+        <Cheer>{cheer(data.stats)}</Cheer>
         <WeekStrip stats={data.stats} />
-      </div>
+      </HeroMain>
       {progress && <Ring value={progress.value} label={progress.label} />}
-    </section>
+    </HeroCard>
   );
 }
 
+const Week = styled.ol`
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  ${({ theme }) => theme.media.small} { gap: 5px; }
+`;
+
+const Day = styled.li<{ $on: boolean; $today: boolean }>`
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  font-weight: ${({ $today }) => ($today ? 800 : 500)};
+  color: ${({ theme, $today }) => ($today ? theme.colors.primaryStrong : theme.colors.textMuted)};
+  & > span:first-child {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: ${({ theme }) => theme.radii.sm};
+    color: ${({ theme }) => theme.colors.onPrimary};
+    background: ${({ theme, $on }) => ($on ? theme.colors.primary : theme.colors.surfaceSunken)};
+    border: 2px solid ${({ theme, $on, $today }) => ($on ? theme.colors.primary : $today ? theme.colors.primary : theme.colors.border)};
+    ${({ theme }) => theme.media.small} { width: 26px; height: 26px; }
+  }
+  & > span:first-child svg { width: 16px; height: 16px; stroke-width: 3; }
+`;
+
+const PopDot = styled.span`
+  animation: ${pop} .35s ${({ theme }) => theme.motion.spring} both;
+`;
+
 function WeekStrip({ stats }: { stats: Stats }) {
   return (
-    <ol className="week-strip" aria-label="Study days this week">
+    <Week aria-label="Study days this week">
       {stats.week.map((d, i) => {
         const day = new Date(`${d.date}T12:00:00`);
         const today = i === stats.week.length - 1;
         const name = day.toLocaleDateString(undefined, { weekday: "long" });
         return (
-          <li key={d.date} className={`${d.active ? "on" : ""}${today ? " today" : ""}`}
-            title={`${name}: ${d.active ? "studied" : "no study"}`}>
-            <span className="dot">{d.active && <Icon name="check" />}</span>
-            <span className="day">{day.toLocaleDateString(undefined, { weekday: "narrow" })}</span>
-            <span className="sr-only">{name}: {d.active ? "studied" : "no study"}</span>
-          </li>
+          <Day key={d.date} $on={d.active} $today={today} title={`${name}: ${d.active ? "studied" : "no study"}`}>
+            {d.active ? <PopDot><Icon name="check" /></PopDot> : <span />}
+            <span>{day.toLocaleDateString(undefined, { weekday: "narrow" })}</span>
+            <VisuallyHidden>{name}: {d.active ? "studied" : "no study"}</VisuallyHidden>
+          </Day>
         );
       })}
-    </ol>
+    </Week>
   );
 }
+
+const RingBox = styled.div`
+  position: relative;
+  flex: none;
+  width: 116px;
+  height: 116px;
+  ${({ theme }) => theme.media.small} { width: 90px; height: 90px; }
+  svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  circle { fill: none; stroke-width: 8; }
+  circle:first-child { stroke: ${({ theme }) => theme.colors.surfaceSunken}; }
+  circle:last-child {
+    stroke: ${({ theme }) => theme.colors.success};
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.1s ${({ theme }) => theme.motion.ease};
+  }
+`;
+
+const RingText = styled.div`
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 18px;
+  text-align: center;
+  strong { font-size: 1.45rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  span { margin-top: 2px; font-size: .66rem; line-height: 1.2; color: ${({ theme }) => theme.colors.textMuted}; }
+  ${({ theme }) => theme.media.small} { padding: 12px; strong { font-size: 1.15rem; } }
+`;
 
 function Ring({ value, label }: { value: number; label: string }) {
   const r = 34;
@@ -136,17 +252,16 @@ function Ring({ value, label }: { value: number; label: string }) {
   }, [value]);
   const n = useCountUp(Math.round(value));
   return (
-    <div className="ring" role="img" aria-label={`${Math.round(value)}% ${label}`}>
+    <RingBox role="img" aria-label={`${Math.round(value)}% ${label}`}>
       <svg viewBox="0 0 80 80" aria-hidden="true">
-        <circle cx="40" cy="40" r={r} className="ring-track" />
-        <circle cx="40" cy="40" r={r} className="ring-fill" strokeDasharray={c}
-          strokeDashoffset={c * (1 - shown / 100)} />
+        <circle cx="40" cy="40" r={r} />
+        <circle cx="40" cy="40" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - shown / 100)} />
       </svg>
-      <div className="ring-text" aria-hidden="true">
+      <RingText aria-hidden="true">
         <strong>{n}%</strong>
         <span>{label}</span>
-      </div>
-    </div>
+      </RingText>
+    </RingBox>
   );
 }
 
@@ -177,17 +292,51 @@ function useCountUp(target: number, ms = 700): number {
   return n;
 }
 
+const WinList = styled(List)`
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 14px 0 0;
+  @media (max-width: 760px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+`;
+
+const WinTile = styled.li<{ $tone: Tone }>`
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: ${({ theme }) => theme.radii.lg};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  & > span:first-child {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin-bottom: 6px;
+    border-radius: ${({ theme }) => theme.radii.md};
+    color: ${({ $tone }) => toneOf($tone).fg};
+    background: ${({ $tone }) => toneOf($tone).bg};
+  }
+  & > span:first-child svg { width: 20px; height: 20px; }
+  & > strong { font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+`;
+
+const WinLabel = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: 650;
+`;
+
 function Win({ icon, tone, value, suffix = "", label, sub }: {
-  icon: IconName; tone: string; value: number; suffix?: string; label: string; sub?: string;
+  icon: IconName; tone: Tone; value: number; suffix?: string; label: string; sub?: string;
 }) {
   const n = useCountUp(value);
   return (
-    <li className={`win ${tone}`}>
-      <span className="win-icon"><Icon name={icon} /></span>
+    <WinTile $tone={tone}>
+      <span><Icon name={icon} /></span>
       <strong>{n}{suffix}</strong>
-      <span className="win-label">{label}</span>
-      {sub && <span className="win-sub">{sub}</span>}
-    </li>
+      <WinLabel>{label}</WinLabel>
+      {sub && <Muted $small>{sub}</Muted>}
+    </WinTile>
   );
 }
 
@@ -195,21 +344,21 @@ function Wins({ stats }: { stats: Stats }) {
   const w = stats.this_week;
   const done = w.deadlines_done + w.sections_studied;
   return (
-    <ul className="wins" aria-label="Your stats">
-      <Win icon="flame" tone="t-flame" value={stats.streak} label={stats.streak === 1 ? "day streak" : "days streak"}
+    <WinList aria-label="Your stats">
+      <Win icon="flame" tone="coral" value={stats.streak} label={stats.streak === 1 ? "day streak" : "days streak"}
         sub={stats.best_streak > stats.streak ? `best ${stats.best_streak}` : stats.streak > 1 ? "your best yet!" : undefined} />
-      <Win icon="checkCircle" tone="t-ok" value={done} label="done this week"
+      <Win icon="checkCircle" tone="success" value={done} label="done this week"
         sub={`${w.sections_studied} section${w.sections_studied === 1 ? "" : "s"} · ${w.deadlines_done} task${w.deadlines_done === 1 ? "" : "s"}`} />
-      <Win icon="cards" tone="t-sky" value={w.cards_reviewed} label="cards reviewed"
+      <Win icon="cards" tone="sky" value={w.cards_reviewed} label="cards reviewed"
         sub={`${stats.total.cards_learned} learned in total`} />
       {w.quiz_percent != null ? (
-        <Win icon="trophy" tone="t-sun" value={w.quiz_percent} suffix="%" label="quiz average"
+        <Win icon="trophy" tone="accent" value={w.quiz_percent} suffix="%" label="quiz average"
           sub={`${w.quizzes} quiz${w.quizzes === 1 ? "" : "zes"} this week`} />
       ) : (
-        <Win icon="note" tone="t-sun" value={stats.total.summaries} label={stats.total.summaries === 1 ? "summary" : "summaries"}
-          sub="saved by Claude" />
+        <Win icon="note" tone="accent" value={stats.total.summaries} label={stats.total.summaries === 1 ? "summary" : "summaries"}
+          sub="saved by your AI" />
       )}
-    </ul>
+    </WinList>
   );
 }
 
@@ -221,29 +370,29 @@ function StudyToday({ data, onChange }: { data: DashboardData; onChange: () => v
   const due = data.study.due;
   if (!today && !due && !plan.sections_left) return null;
   return (
-    <section id="today" className="panel">
-      <div className="list-head">
-        <h2><Icon name="target" /> Today's plan{today ? ` · ${minutes(today.minutes)}` : ""}</h2>
-        <a href={href.plan} className="small">Full plan <Icon name="arrow" /></a>
-      </div>
+    <section id="today">
+      <SectionHead>
+        <Title><Icon name="target" /> Today's plan{today ? ` · ${minutes(today.minutes)}` : ""}</Title>
+        <a href={href.plan}>Full plan <Icon name="arrow" /></a>
+      </SectionHead>
       {due > 0 && (
-        <div className="banner soft">
-          <span><Icon name="cards" /> <strong>{due}</strong> flashcard{due === 1 ? "" : "s"} ready for review</span>
-          <a className="btn btn-primary btn-sm" href={href.study({ due: true })}>Let's go</a>
-        </div>
+        <Banner>
+          <span><Icon name="cards" /> <span><strong>{due}</strong> flashcard{due === 1 ? "" : "s"} ready for review</span></span>
+          <Button as="a" $variant="primary" $size="sm" href={href.study({ due: true })}>Let's go</Button>
+        </Banner>
       )}
       {today ? (
-        <ul className="plan-list">
+        <List $gap="8px">
           {today.items.map((it, i) => <PlanRow key={i} item={it} onStudied={onChange} />)}
-        </ul>
+        </List>
       ) : (
-        <p className="empty happy"><Icon name="leaf" /> Nothing planned today. Enjoy it!</p>
+        <Empty><Icon name="leaf" /> Nothing planned today. Enjoy it!</Empty>
       )}
       {plan.late > 0 && (
-        <p className="hint small">
+        <Small $muted>
           {plan.late} item{plan.late === 1 ? "" : "s"} this week won't fit before {plan.late === 1 ? "its" : "their"} deadline
           at {plan.hours_per_day} h a day. You can adjust that in the <a href={href.plan}>plan</a>.
-        </p>
+        </Small>
       )}
     </section>
   );
@@ -256,44 +405,92 @@ function UpNext({ data, onChange }: { data: DashboardData; onChange: (d: Deadlin
   const more = items.length - shown.length;
   return (
     <section id="next">
-      <div className="list-head">
-        <h2><Icon name="calendar" /> Coming up</h2>
-        <a href={href.calendar} className="small">Calendar <Icon name="arrow" /></a>
-      </div>
+      <SectionHead>
+        <Title><Icon name="calendar" /> Coming up</Title>
+        <a href={href.calendar}>Calendar <Icon name="arrow" /></a>
+      </SectionHead>
       <DeadlineList items={shown}
         empty={data.later.length ? "Nothing due in the next 7 days. Enjoy the breathing room." : "Nothing scheduled. Enjoy the breathing room."}
         onChange={onChange} />
       {more > 0 && (
-        <button className="btn btn-ghost btn-sm more" onClick={() => setAll(true)}>
+        <More $variant="soft" $size="sm" onClick={() => setAll(true)}>
           Show {more} more
-        </button>
+        </More>
       )}
     </section>
   );
 }
 
+const More = styled(Button)`
+  margin-top: 12px;
+`;
+
+const CatchUp = styled.details`
+  margin-top: 28px;
+  padding: 0 16px;
+  border-radius: ${({ theme }) => theme.radii.lg};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  &[open] { padding-bottom: 16px; }
+  & > summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    list-style: none;
+    &::-webkit-details-marker { display: none; }
+    &::after {
+      content: "›";
+      margin-left: auto;
+      font-size: 1.4rem;
+      color: ${({ theme }) => theme.colors.textMuted};
+      transition: transform ${({ theme }) => theme.motion.base};
+    }
+    & > svg { width: 22px; height: 22px; color: ${({ theme }) => theme.colors.success}; }
+    & > span { display: grid; gap: 2px; }
+  }
+  &[open] > summary::after { transform: rotate(90deg); }
+  li { box-shadow: none; }
+`;
+
+const CaughtUp = styled(Empty)`
+  margin-top: 24px;
+`;
+
 function CatchUpList({ items, onChange }: { items: Deadline[]; onChange: (d: Deadline) => void }) {
   const open = items.filter((d) => !d.done).length;
   if (!items.length) {
     return (
-      <p className="all-caught-up"><Icon name="sparkles" /> You're all caught up on past work.</p>
+      <CaughtUp><Icon name="sparkles" /> You're all caught up on past work.</CaughtUp>
     );
   }
   return (
-    <details className="catchup" id="catch-up">
+    <CatchUp id="catch-up">
       <summary>
         <Icon name="leaf" />
         <span>
           <strong>{open ? `${open} past item${open === 1 ? "" : "s"} to catch up on` : "Past items all handled"}</strong>
-          <span className="muted small">No rush: pick what matters to you and go at your own pace.</span>
+          <Muted $small>No rush: pick what matters to you and go at your own pace.</Muted>
         </span>
       </summary>
       <DeadlineList items={items} empty="" onChange={onChange} />
-    </details>
+    </CatchUp>
   );
 }
 
 // ---------------------------------------------------------------- sync
+
+const SyncPill = styled.div<{ $warn: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -8px 0 12px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme, $warn }) => ($warn ? theme.colors.warningText : theme.colors.textMuted)};
+  & > span { display: inline-flex; align-items: center; gap: 6px; }
+`;
 
 function SyncNotice({ sync: initial, onDone }: { sync: SyncState; onDone: () => void }) {
   const [sync, setSync] = useState(initial);
@@ -326,27 +523,25 @@ function SyncNotice({ sync: initial, onDone }: { sync: SyncState; onDone: () => 
 
   if (!sync.configured) {
     return (
-      <p className="banner warn">
+      <Alert $tone="warning">
         Your source site is not connected yet. <a href="/settings">Open Settings</a> to add its address and token.
-      </p>
+      </Alert>
     );
   }
   const run = sync.last_run;
   const failed = run && run.status !== "ok" && !sync.running;
   return (
-    <div className={`sync-pill${failed ? " warn" : ""}`}>
+    <SyncPill $warn={!!failed}>
       <span>
-        <Icon name="refresh" className={sync.running ? "spin" : undefined} />
+        <Icon name="refresh" spinning={sync.running} />
         {sync.running
           ? "Syncing with the source…"
           : run
             ? `Synced ${fromNow(run.finished_at ?? run.started_at)}${run.status === "ok" ? "" : ` (${run.status})`}`
             : "Not synced yet"}
-        {error && <span className="late"> · {error}</span>}
+        {error && <Late> · {error}</Late>}
       </span>
-      <button className="link" onClick={start} disabled={sync.running}>
-        {sync.running ? "" : "Sync now"}
-      </button>
-    </div>
+      {!sync.running && <TextButton onClick={start}>Sync now</TextButton>}
+    </SyncPill>
   );
 }

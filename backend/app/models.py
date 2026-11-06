@@ -408,3 +408,13 @@ class CourseImage(SQLModel, table=True):
     status: str = "pending"  # pending, ok, unsupported, error
     error: str = ""
     updated_at: int = 0
+
+
+class ScheduleSettings(SQLModel, table=True):
+    """Settings of the timed study schedule (``app.planner.schedule``) as one JSON object:
+    daily cap, rest hours, focus block length, buffer days, course weights and your
+    unavailabilities. Hours per day stay in StudyPrefs, shared with the catch-up plan."""
+
+    user_id: int = Field(primary_key=True)
+    config: str = "{}"
+    updated_at: int = 0

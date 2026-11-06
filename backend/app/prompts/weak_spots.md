@@ -1,6 +1,6 @@
 ---
 title: Work on my weak spots
-description: Claude looks at the questions you missed and helps you fix those gaps
+description: The AI looks at the questions you missed and helps you fix those gaps
 order: 10
 topic: optional
 ---

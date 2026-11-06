@@ -22,6 +22,7 @@ from starlette.routing import Route
 from app import accounts
 from app.api import prompts as prompt_routes
 from app.api import routes
+from app.api import schedule as schedule_routes
 from app.api import study as study_routes
 from app.api.status import course_overview, run_to_dict
 from app.auth import oauth, oauth_routes
@@ -335,7 +336,7 @@ def create_app(
             "moodle": "Source site connection saved. A sync has started.",
             "password": "Password changed. Other devices have been signed out.",
             "forgot": "Token removed.",
-            "connector": "Claude was disconnected. Add the connector again to reconnect.",
+            "connector": "Your AI assistant was disconnected. Add the connector again to reconnect.",
         }.get(saved or "", "")
         return render_settings(request, message=message)
 
@@ -475,6 +476,7 @@ def create_app(
     routes.register(app, settings, engine, is_authenticated, _same_origin)
     prompt_routes.register(app, settings, engine, is_authenticated, _same_origin)
     study_routes.register(app, settings, engine, is_authenticated, _same_origin)
+    schedule_routes.register(app, settings, engine, is_authenticated, _same_origin)
     oauth_routes.register(app, settings, engine, is_authenticated, _same_origin, throttle,
                           _client_key)
     # Claude's connector: OAuth bearer token required (checked in MCPEndpoint).
@@ -507,7 +509,7 @@ def create_app(
 # localStorage). With the device theme, Chrome's dark-mode override applies instead.
 MANIFEST_COLOURS = {
     "light": {"theme_color": "#ffffff", "background_color": "#ffffff"},
-    "dark": {"theme_color": "#1c1a27", "background_color": "#12111a"},
+    "dark": {"theme_color": "#131C2E", "background_color": "#0B1220"},
 }
 
 

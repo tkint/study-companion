@@ -16,6 +16,7 @@ import time
 from sqlalchemy.engine import Engine
 from sqlmodel import col, select
 
+from app import teacher_pages
 from app.catchup import auto_mandatory, prefs, resolve
 from app.db import session
 from app.models import Course, CourseImage, Deadline, DeadlineMark, File, ItemPref, Module, Section
@@ -185,9 +186,10 @@ def course_detail(engine: Engine, course_id: int, now: int | None = None) -> dic
         ).all()
         image_url = image_urls(s, course_id).get(course_id)
     section_prefs = prefs(engine, "section", [sec.id for sec in sections])
+    names = teacher_pages.titles(engine, list(files))
     files_by_module: dict[int, list[dict]] = {}
     for f in files:
-        files_by_module.setdefault(f.module_id, []).append(file_dict(f))
+        files_by_module.setdefault(f.module_id, []).append(file_dict(f, names.get(f.id)))
     mods_by_section: dict[int | None, list[dict]] = {}
     for m in modules:
         mods_by_section.setdefault(m.section_id, []).append({
@@ -238,10 +240,12 @@ def image_urls(s, course_id: int | None = None) -> dict[int, str]:
     }
 
 
-def file_dict(f: File) -> dict:
+def file_dict(f: File, title: str | None = None) -> dict:
     return {
         "id": f.id,
         "filename": f.filename,
+        "title": title or f.filename,
+        "page": teacher_pages.is_page(f),
         "filepath": f.filepath,
         "mimetype": f.mimetype,
         "filesize": f.filesize,

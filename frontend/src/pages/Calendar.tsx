@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import styled from "styled-components";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -6,8 +7,52 @@ import listPlugin from "@fullcalendar/list";
 import type { EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
 import { api, type Deadline, type Feed } from "../api";
 import { DeadlineItem } from "../components/DeadlineList";
-import { ReminderSettings } from "../components/Reminders";
+import { ReminderSettings, SettingsSection } from "../components/Reminders";
 import { courseColor } from "../format";
+import { Alert, Button, Input, Lead, List, Modal, Row, Small } from "../ui";
+
+// FullCalendar's own CSS, re-coloured with the theme.
+const CalendarCard = styled.div`
+  padding: 10px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  --fc-border-color: ${({ theme }) => theme.colors.border};
+  --fc-page-bg-color: ${({ theme }) => theme.colors.surface};
+  --fc-neutral-bg-color: ${({ theme }) => theme.colors.surfaceSunken};
+  --fc-list-event-hover-bg-color: ${({ theme }) => theme.colors.surfaceSunken};
+  --fc-today-bg-color: ${({ theme }) => theme.colors.primarySoft};
+  --fc-now-indicator-color: ${({ theme }) => theme.colors.danger};
+  --fc-button-bg-color: ${({ theme }) => theme.colors.surface};
+  --fc-button-border-color: ${({ theme }) => theme.colors.border};
+  --fc-button-text-color: ${({ theme }) => theme.colors.textMain};
+  --fc-button-hover-bg-color: ${({ theme }) => theme.colors.surfaceSunken};
+  --fc-button-hover-border-color: ${({ theme }) => theme.colors.borderStrong};
+  --fc-button-active-bg-color: ${({ theme }) => theme.colors.primaryStrong};
+  --fc-button-active-border-color: ${({ theme }) => theme.colors.primaryStrong};
+  a { color: inherit; }
+  .fc .fc-button { border-radius: ${({ theme }) => theme.radii.sm}; font-weight: 600; text-transform: none; box-shadow: none; }
+  .fc .fc-button-primary:not(:disabled).fc-button-active { color: ${({ theme }) => theme.colors.onPrimary}; }
+  .fc .fc-toolbar { flex-wrap: wrap; gap: 8px; }
+  .fc .fc-toolbar-title { font-size: 1.15rem; font-weight: 750; }
+  .fc .fc-col-header-cell-cushion { font-weight: 650; color: ${({ theme }) => theme.colors.textMuted}; }
+  .fc-event { cursor: pointer; border-radius: 6px; }
+  .fc-done { opacity: .5; text-decoration: line-through; }
+  .fc-overdue .fc-event-title, .fc-overdue .fc-list-event-title { font-weight: 700; }
+  ${({ theme }) => theme.media.phone} {
+    padding: 6px;
+    .fc .fc-header-toolbar { flex-wrap: wrap; justify-content: space-between; }
+    .fc .fc-toolbar-chunk:nth-child(2) { order: -1; width: 100%; text-align: center; }
+    .fc .fc-toolbar-chunk { display: flex; gap: 4px; }
+    .fc .fc-button { padding: .4em .6em; }
+  }
+`;
+
+const FeedUrl = styled(Input)`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  background: ${({ theme }) => theme.colors.surfaceSunken};
+`;
 
 const narrow = () => window.matchMedia("(max-width: 640px)").matches;
 
@@ -42,6 +87,8 @@ export default function Calendar() {
     }
   }
 
+  const close = useCallback(() => setSelected(null), []);
+
   function onClick(arg: EventClickArg) {
     arg.jsEvent.preventDefault();
     setSelected(arg.event.extendedProps.deadline as Deadline);
@@ -50,8 +97,8 @@ export default function Calendar() {
   return (
     <>
       <h1>Calendar</h1>
-      {error && <p className="alert alert-error">Could not load deadlines: {error}</p>}
-      <div className="calendar">
+      {error && <Alert>Could not load deadlines: {error}</Alert>}
+      <CalendarCard>
         <FullCalendar
           ref={ref}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
@@ -69,25 +116,23 @@ export default function Calendar() {
           events={events}
           eventClick={onClick}
         />
-      </div>
-      {selected && (
-        <div className="sheet-backdrop" onClick={() => setSelected(null)}>
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="Deadline" onClick={(e) => e.stopPropagation()}>
-            <ul className="deadlines">
-              <DeadlineItem
-                d={selected}
-                onChange={(d) => {
-                  setSelected(d);
-                  ref.current?.getApi().refetchEvents();
-                }}
-              />
-            </ul>
-            <button className="btn btn-ghost btn-block" onClick={() => setSelected(null)}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      </CalendarCard>
+      <Modal open={!!selected} onClose={close} label="Deadline">
+        {selected && (
+          <List $animate={false}>
+            <DeadlineItem
+              d={selected}
+              onChange={(d) => {
+                setSelected(d);
+                ref.current?.getApi().refetchEvents();
+              }}
+            />
+          </List>
+        )}
+        <Button $variant="ghost" $block onClick={close}>
+          Close
+        </Button>
+      </Modal>
       <ReminderSettings />
       <Subscribe />
     </>
@@ -124,32 +169,32 @@ function Subscribe() {
   }
 
   return (
-    <section className="subscribe">
+    <SettingsSection>
       <h2>Add to your phone or Outlook calendar</h2>
-      <p className="muted">
+      <Lead>
         Subscribe once and new deadlines, alarms and daily study reminders appear in your
         calendar app after each sync. The link is private: anyone who has it can see your deadlines.
-      </p>
+      </Lead>
       {!feed ? (
-        <div className="row">
-          <button className="btn btn-primary" onClick={show}>Show subscription link</button>
-          <a className="btn btn-ghost" href="/calendar.ics?download=1">Download .ics</a>
-        </div>
+        <Row>
+          <Button $variant="primary" onClick={show}>Show subscription link</Button>
+          <Button as="a" $variant="outline" href="/calendar.ics?download=1">Download .ics</Button>
+        </Row>
       ) : (
         <>
-          <input className="feed-url" readOnly value={feed.url} onFocus={(e) => e.currentTarget.select()} aria-label="Calendar link" />
-          <div className="row">
-            <a className="btn btn-primary" href={feed.webcal}>Subscribe on this device</a>
-            <button className="btn btn-ghost" onClick={copy}>{copied ? "Copied" : "Copy link"}</button>
-            <button className="btn btn-ghost" onClick={rotate}>New link</button>
-          </div>
-          <p className="muted small">
+          <FeedUrl readOnly value={feed.url} onFocus={(e) => e.currentTarget.select()} aria-label="Calendar link" />
+          <Row>
+            <Button as="a" $variant="primary" href={feed.webcal}>Subscribe on this device</Button>
+            <Button $variant="outline" onClick={copy}>{copied ? "Copied ✓" : "Copy link"}</Button>
+            <Button $variant="ghost" onClick={rotate}>New link</Button>
+          </Row>
+          <Small $muted>
             iPhone: tap Subscribe. Google Calendar: Settings → Add calendar → From URL, paste the
             link. Outlook: Add calendar → Subscribe from web.
-          </p>
+          </Small>
         </>
       )}
-      {error && <p className="alert alert-error">{error}</p>}
-    </section>
+      {error && <Alert>{error}</Alert>}
+    </SettingsSection>
   );
 }

@@ -301,6 +301,10 @@ export interface Reminders {
 export interface FileInfo {
   id: number;
   filename: string;
+  /** Readable name: the activity or chapter name for a teacher page, else the file name. */
+  title: string;
+  /** A teacher page (HTML from a Moodle page or book), shown in the app's page viewer. */
+  page: boolean;
   filepath: string;
   mimetype: string;
   filesize: number;
@@ -312,6 +316,17 @@ export interface FileInfo {
 export interface FileDetail extends FileInfo {
   course_id: number;
   module_id: number;
+}
+
+export interface TeacherPage {
+  id: number;
+  title: string;
+  module: { id: number; name: string; modname: string; url: string } | null;
+  course_id: number;
+  /** Sanitised on the server; rendered by HtmlContent with its own allow-list. */
+  html: string;
+  chapters: { id: number; title: string }[];
+  attachments: { id: number; filename: string; href: string | null }[];
 }
 
 export interface ModuleInfo {
@@ -357,6 +372,107 @@ export interface Feed {
   webcal: string;
 }
 
+// ---- timed study schedule (backend: app/planner/schedule.py, app/api/schedule.py)
+
+export interface WeeklyUnavailability {
+  day: number; // 0 Monday .. 6 Sunday
+  start: string; // HH:MM
+  end: string; // HH:MM or 24:00
+  reason: string;
+}
+
+export interface DatedUnavailability {
+  date: string; // YYYY-MM-DD
+  start: string;
+  end: string;
+  reason: string;
+}
+
+export interface ScheduleConfig {
+  days: number;
+  daily_hours: number;
+  max_daily_hours: number;
+  rest_hours: number;
+  day_start: string;
+  day_end: string;
+  session_minutes: number;
+  break_minutes: number;
+  buffer_days: number;
+  recall: boolean;
+  include_optional: boolean;
+  beyond_target: boolean;
+  course_weights: Record<string, number>;
+  weekly: WeeklyUnavailability[];
+  dates: DatedUnavailability[];
+}
+
+export type BlockKind = "deep" | "practice" | "recall" | "flashcards";
+
+export interface ScheduleBlock {
+  date: string;
+  start: number;
+  end: number;
+  minutes: number;
+  kind: BlockKind;
+  label: string;
+  title: string;
+  summary: string;
+  detail: string;
+  part: number;
+  parts: number;
+  late: boolean;
+  item_kind: string | null;
+  course_id: number | null;
+  course_name: string;
+  course_short: string;
+  section_id: number | null;
+  section_number: number | null;
+  deadline_id: number | null;
+  needed_by: number | null;
+  needed_for: string;
+  url: string;
+  files: { id: number; name: string; pages: number }[];
+}
+
+export interface ScheduleDay {
+  date: string;
+  weekday: string;
+  minutes: number;
+  capacity: number;
+  free_minutes: number;
+  stretched: boolean;
+  blocked: { start: string; end: string; reason: string; repeat: "weekly" | "date" }[];
+  blocks: ScheduleBlock[];
+}
+
+export interface ScheduleCourse {
+  id: number;
+  shortname: string;
+  fullname: string;
+  weight: number;
+  target_share: number;
+  planned_minutes: number;
+  planned_share: number;
+}
+
+export interface Schedule {
+  today: string;
+  generated_at: number;
+  timezone: string; // the server's TIMEZONE: block times are shown in it
+  config: ScheduleConfig;
+  weekdays: string[];
+  total_minutes: number;
+  minutes_by_kind: Partial<Record<BlockKind, number>>;
+  late: number;
+  stretched_days: number;
+  cards_due: number;
+  days: ScheduleDay[];
+  unscheduled: PlanItem[];
+  unscheduled_minutes: number;
+  courses: ScheduleCourse[];
+  notes: string[];
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -389,6 +505,7 @@ export const api = {
       body: JSON.stringify({ done }),
     }),
   file: (id: number) => request<FileDetail>(`/api/files/${id}`),
+  page: (id: number) => request<TeacherPage>(`/api/files/${id}/page`),
   sync: () => request<SyncState>("/api/sync"),
   startSync: () => request<{ status: string }>("/api/sync", { method: "POST" }),
   feed: () => request<Feed>("/api/calendar/feed"),
@@ -434,6 +551,9 @@ export const api = {
     request<{ hours_per_day: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ hours_per_day }) }),
   setTarget: (target_percent: number) =>
     request<{ target_percent: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ target_percent }) }),
+  schedule: () => request<Schedule>("/api/schedule"),
+  setSchedule: (c: Partial<ScheduleConfig>) =>
+    request<ScheduleConfig>("/api/schedule/settings", { method: "POST", body: JSON.stringify(c) }),
   setDeadlinePrefs: (id: number, prefs: ItemPrefs) =>
     request<ItemState>(`/api/deadlines/${id}/prefs`, {
       method: "POST",

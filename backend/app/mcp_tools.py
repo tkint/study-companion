@@ -36,7 +36,7 @@ from app.materials import (
     load_course,
     parse_date,
 )
-from app import study, study_time
+from app import study, study_time, teacher_pages
 from app.models import Course, Deadline, File, FilePage, FileText, Module, Section
 from app.planner import Planner, fmt_minutes
 
@@ -167,7 +167,7 @@ class StudyTools:
         return datetime.fromtimestamp(self.clock(), self.tz).date()
 
     def _file_line(self, f: FileInfo) -> str:
-        bits = [f'"{f.row.filename}" file_id {f.id}']
+        bits = [f'"{f.name}"' + (" (teacher page)" if f.title else "") + f" file_id {f.id}"]
         unit = f.unit
         if f.readable:
             bits.append(f"{f.text.pages} {unit}{'s' if f.text.pages != 1 else ''} of text")
@@ -444,7 +444,9 @@ class StudyTools:
             course.fullname if course else "", section.name if section else "",
             module.name if module and module.name != f.filename else "",
         ] if x)
-        head = f'File {f.id} "{f.filename}" ({where})'
+        title = teacher_pages.titles(self.engine, [f]).get(f.id)
+        head = (f'File {f.id} "{title}" (teacher page; {where})' if title
+                else f'File {f.id} "{f.filename}" ({where})')
         if state is None or state.status != "ok" or not state.pages:
             reason = {
                 None: "its text has not been extracted yet (it is extracted after each sync)",

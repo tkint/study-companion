@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { barColors } from "./styles/theme";
 
-// "system" follows the device; light/dark override it. Stored per device (index.html applies
+// Light/dark switch. "system" follows the device; light/dark override it. Stored per device (index.html applies
 // it before the first paint, so there is no flash).
 export type Theme = "system" | "light" | "dark";
 const KEY = "theme";
@@ -20,7 +21,7 @@ function apply(theme: Theme) {
   else root.setAttribute("data-theme", theme);
   const dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   // Both media-specific metas get the same colour, so a forced theme wins over the device's.
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#1c1a27" : "#ffffff"));
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? barColors.dark : barColors.light));
   // Android colours the installed app's system bars from the manifest, which the server
   // builds from this cookie (see manifest_response in backend/app/main.py).
   try {

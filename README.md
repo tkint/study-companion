@@ -32,7 +32,8 @@ Then sign in at `https://<DOMAIN>`, open **Settings** and connect your Moodle:
 university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)**.
 **[docs/web-ui.md](docs/web-ui.md)** covers the dashboard, adding the app to your phone's home
 screen, subscribing to your deadlines from your phone or Outlook calendar, and the prompt
-builder, Claude's notes, study mode (flashcards), study time, reminders and the catch-up plan.
+builder, Claude's notes, study mode (flashcards), study time, reminders, the catch-up plan and the timed study
+schedule with its `.ics` export.
 **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
@@ -130,7 +131,7 @@ backend/app/        FastAPI app: config, auth, accounts, models/db, moodle/ (cli
                     study.py, study_time.py, reminders.py, planner/,
                     api/ (UI routes, ICS feed, prompt builder)
 backend/tests/      pytest (Moodle responses always mocked)
-frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), calendar (FullCalendar)
+frontend/           React + Vite PWA: dashboard, courses, PDF viewer (pdf.js), teacher page viewer, calendar (FullCalendar)
 deploy/caddy/       shared Caddy (separate Compose project) and its deploy script
 deploy/study-companion.caddy  this app's site, added to Caddy through its admin API
 docker/Dockerfile   multi-stage image
