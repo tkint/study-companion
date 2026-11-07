@@ -47,6 +47,8 @@ DAY = 86400
 MAX_DAYS = 60
 MAX_WEEKLY = 50
 MAX_DATES = 100
+MAX_DAILY = 10
+IGNORED = {"feed_unavailable"}  # old setting: unavailabilities are never in the feed now
 MAX_REASON = 80
 MAX_WEIGHT = 3.0
 MIN_BLOCK = 15  # never schedule a block shorter than this (except the end of an item)
@@ -72,8 +74,9 @@ DEFAULTS: dict = {
     "include_optional": False,
     "beyond_target": False,
     "auto_update": True,  # re-plan every night with your progress and new deadlines
-    "feed_unavailable": True,  # your unavailabilities as busy events in the calendar feed
     "course_weights": {},
+    "daily": [],  # every day, e.g. 12:00-14:00 "Meal"
+    "days_off": [],  # weekdays (0 Monday .. 6 Sunday) with no study at all
     "weekly": [],
     "dates": [],
 }
@@ -115,11 +118,12 @@ def _time(value, key: str) -> str:
     return value
 
 
-def _slot(raw, key: str, dated: bool) -> dict:
+def _slot(raw, key: str, repeat: str) -> dict:
+    """One unavailability; ``repeat`` is daily (no day), weekly (``day``) or date (``date``)."""
     if not isinstance(raw, dict):
         raise ScheduleError(f"{key}: each entry is an object")
     out: dict = {}
-    if dated:
+    if repeat == "date":
         d = raw.get("date")
         try:
             if not isinstance(d, str) or not _DATE.match(d):
@@ -128,7 +132,7 @@ def _slot(raw, key: str, dated: bool) -> dict:
         except ValueError:
             raise ScheduleError(f'{key}: date must look like "2026-11-10"') from None
         out["date"] = d
-    else:
+    elif repeat == "weekly":
         day = raw.get("day")
         if isinstance(day, bool) or not isinstance(day, int) or not 0 <= day <= 6:
             raise ScheduleError(f"{key}: day is 0 (Monday) to 6 (Sunday)")
@@ -144,9 +148,21 @@ def _slot(raw, key: str, dated: bool) -> dict:
     return out
 
 
+def unavailable(config: dict, d: date) -> list[dict]:
+    """Your unavailabilities on day ``d``: ``{start, end, reason, repeat}`` with repeat
+    off (a day off), daily, weekly or date."""
+    if d.weekday() in config.get("days_off", []):
+        return [{"start": "00:00", "end": "24:00", "reason": "Day off", "repeat": "off"}]
+    rules = [dict(r, repeat="daily") for r in config.get("daily", [])]
+    rules += [dict(r, repeat="weekly") for r in config.get("weekly", []) if r["day"] == d.weekday()]
+    rules += [dict(r, repeat="date") for r in config.get("dates", []) if r["date"] == d.isoformat()]
+    return rules
+
+
 def validate(data: dict, current: dict) -> dict:
     """Merge ``data`` (any subset of the keys) into ``current``; raises ScheduleError."""
     out = {**current}
+    data = {k: v for k, v in data.items() if k not in IGNORED}
     unknown = set(data) - set(DEFAULTS) - {"daily_hours"}
     if unknown:
         raise ScheduleError(f"unknown setting: {sorted(unknown)[0]}")
@@ -160,7 +176,7 @@ def validate(data: dict, current: dict) -> dict:
             out[key] = _time(data[key], key)
     if _minutes(out["day_end"]) - _minutes(out["day_start"]) < 60:
         raise ScheduleError("the study window (day_start to day_end) must be at least 1 hour")
-    for key in ("recall", "include_optional", "beyond_target", "auto_update", "feed_unavailable"):
+    for key in ("recall", "include_optional", "beyond_target", "auto_update"):
         if key in data:
             if not isinstance(data[key], bool):
                 raise ScheduleError(f"{key} must be true or false")
@@ -175,12 +191,19 @@ def validate(data: dict, current: dict) -> dict:
                 raise ScheduleError("course_weights: keys are course ids")
             weights[str(int(k))] = _num({"weight": v}, "weight", 0, MAX_WEIGHT)
         out["course_weights"] = weights
-    for key, limit, dated in (("weekly", MAX_WEEKLY, False), ("dates", MAX_DATES, True)):
+    for key, limit, repeat in (("daily", MAX_DAILY, "daily"), ("weekly", MAX_WEEKLY, "weekly"),
+                               ("dates", MAX_DATES, "date")):
         if key in data:
             raw = data[key]
             if not isinstance(raw, list) or len(raw) > limit:
                 raise ScheduleError(f"{key}: a list of up to {limit} entries")
-            out[key] = [_slot(r, key, dated) for r in raw]
+            out[key] = [_slot(r, key, repeat) for r in raw]
+    if "days_off" in data:
+        raw = data["days_off"]
+        if not isinstance(raw, list) or any(
+                isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 6 for d in raw):
+            raise ScheduleError("days_off: a list of weekdays, 0 (Monday) to 6 (Sunday)")
+        out["days_off"] = sorted(set(raw))
     if "daily_hours" in data:
         hours = _num(data, "daily_hours", 0.25, 8)
         if hours > out["max_daily_hours"]:
@@ -421,9 +444,7 @@ class Generator:
             start = max(start, int(math.ceil((local.hour * 60 + local.minute + 1) / 5.0)) * 5)
         free = [(start, end)] if end > start else []
         blocked = []
-        rules = [dict(r, repeat="weekly") for r in cfg["weekly"] if r["day"] == d.weekday()]
-        rules += [dict(r, repeat="date") for r in cfg["dates"] if r["date"] == d.isoformat()]
-        for r in rules:
+        for r in unavailable(cfg, d):
             free = _subtract(free, (_minutes(r["start"]), _minutes(r["end"])))
             blocked.append({"start": r["start"], "end": r["end"], "reason": r["reason"],
                             "repeat": r["repeat"]})

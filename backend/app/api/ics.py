@@ -1,5 +1,5 @@
-"""ICS (iCalendar, RFC 5545) feed: deadlines, study blocks and your unavailabilities in one
-calendar, and its secret URL.
+"""ICS (iCalendar, RFC 5545) feed: deadlines and study entries in one calendar (breaks and
+days off are left out), and its secret URL.
 
 Phone and Outlook calendars subscribe to a URL and can't sign in, so the feed is protected
 by a token in the query string (``/calendar.ics?token=...``). The token is an HMAC of
@@ -110,7 +110,7 @@ def _finish(lines: list[str]) -> str:
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
 
 
-def _deadline_events(items: list[dict], stamp: str, alarms) -> list[str]:
+def _deadline_events(items: list[dict], stamp: str, alarms, base_url: str = "") -> list[str]:
     lines: list[str] = []
     for d in items:
         if not d.get("due_at"):
@@ -121,10 +121,12 @@ def _deadline_events(items: list[dict], stamp: str, alarms) -> list[str]:
         if d.get("done"):
             title = f"✓ {title}"
         desc = []
+        if base_url:
+            desc.append(f"Open in Study Companion:\n{focus_url(base_url, d['due_at'])}")
         if d.get("course_name"):
             desc.append(d["course_name"])
         if d.get("url"):
-            desc.append(d["url"])
+            desc.append(f"On Moodle:\n{d['url']}")
         lines += [
             "BEGIN:VEVENT",
             f"UID:{d['source']}-{d['id']}@study-companion",
@@ -135,7 +137,7 @@ def _deadline_events(items: list[dict], stamp: str, alarms) -> list[str]:
             "TRANSP:TRANSPARENT",
         ]
         if desc:
-            lines.append(f"DESCRIPTION:{_escape(chr(10).join(desc))}")
+            lines.append(f"DESCRIPTION:{_paras(desc)}")
         if d.get("url"):
             lines.append(f"URL:{d['url']}")
         if d.get("course_name"):
@@ -147,12 +149,23 @@ def _deadline_events(items: list[dict], stamp: str, alarms) -> list[str]:
     return lines
 
 
+def focus_url(base_url: str, ts: int) -> str:
+    """The web calendar opened on the entry (or deadline) at ``ts``."""
+    return f"{base_url.rstrip('/')}/#/calendar?at={int(ts)}"
+
+
+def _paras(paras: list[str]) -> str:
+    """Paragraphs separated by a blank line, escaped for a DESCRIPTION."""
+    return _escape("\n\n".join(paras))
+
+
 def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool) -> list[str]:
     """One busy VEVENT per study entry, grouped by course like the web calendar and the
     printed weeks (``app.planner.groups``): "Spanish - Study", "Spanish - Test 1". The
-    description lists each block's work and material. With ``day_alarm``, the first entry of
-    each day has an alarm at its start with the day's agenda."""
-    base = base_url.rstrip("/")
+    description starts with a link that opens the entry in Study Companion, on its own line,
+    then each piece of work in its own paragraph (what to do, the files), then the Moodle
+    links. With ``day_alarm``, the first entry of each day has an alarm at its start with
+    the day's agenda."""
     lines: list[str] = []
     position: dict[str, int] = {}
     entries = groups.group(blocks)
@@ -161,27 +174,26 @@ def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool
         by_day.setdefault(g["date"], []).append(g)
     for g in entries:
         n = position[g["date"]] = position.get(g["date"], 0) + 1
-        first = g["blocks"][0]
-        desc = []
+        url = focus_url(base_url, g["start"]) if base_url else ""
+        paras = [f"Open in Study Companion:\n{url}"] if url else []
+        moodle: list[str] = []
         for b in g["blocks"]:
             title = b.get("title", "")
             if b.get("parts", 1) > 1:
-                title += f" ({b['part']}/{b['parts']})"
-            desc.append(f"- {title}" + (f": {b['detail']}" if b.get("detail") else ""))
-            for f in b.get("files") or []:
-                pages = f" ({f['pages']} p.)" if f.get("pages") else ""
-                desc.append(f"  {f['name']}{pages}: {base}/#/file/{f['id']}"
-                            + (f"?course={b['course_id']}" if b.get("course_id") else ""))
-            if b.get("url"):
-                desc.append(f"  On Moodle: {b['url']}")
-        url = ""
-        if first.get("course_id"):
-            url = f"{base}/#/course/{first['course_id']}" + (
-                f"?section={first['section_id']}" if first.get("section_id") else "")
-        elif first.get("kind") == "flashcards":
-            url = f"{base}/#/study?due=1"
-        if url:
-            desc.append(f"Open in Study Companion: {url}")
+                step = "review" if b.get("kind") == "recall" else "part"
+                title += f" ({step} {b['part']}/{b['parts']})"
+            para = [title]
+            if b.get("detail"):
+                para.append(b["detail"])
+            files = b.get("files") or []
+            if files:
+                para.append("Files: " + ", ".join(
+                    f["name"] + (f" ({f['pages']} p.)" if f.get("pages") else "") for f in files))
+            paras.append("\n".join(para))
+            if b.get("url") and b["url"] not in moodle:
+                moodle.append(b["url"])
+        if moodle:
+            paras.append("On Moodle:\n" + "\n".join(moodle))
         lines += [
             "BEGIN:VEVENT",
             f"UID:schedule-{g['date']}-{n}@study-companion",
@@ -189,7 +201,7 @@ def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool
             f"DTSTART:{_dt(g['start'])}",
             f"DTEND:{_dt(g['end'])}",
             f"SUMMARY:{_escape(g['label'])}",
-            f"DESCRIPTION:{_escape(chr(10).join(desc))}",
+            f"DESCRIPTION:{_paras(paras)}",
             "TRANSP:OPAQUE",
             f"CATEGORIES:{_escape(g.get('course_name') or 'Study Companion')}",
         ]
@@ -205,44 +217,16 @@ def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool
     return lines
 
 
-def _busy_events(busy: list[dict], stamp: str) -> list[str]:
-    """Your unavailabilities (``app.planner.published.busy``), so the calendar shows why
-    there is no study block there."""
-    lines: list[str] = []
-    for u in busy:
-        title = u.get("reason") or "Unavailable"
-        lines += [
-            "BEGIN:VEVENT",
-            f"UID:busy-{u['date']}-{u['start']}@study-companion",
-            f"DTSTAMP:{stamp}",
-        ]
-        if u.get("all_day"):
-            day = u["date"].replace("-", "")
-            nxt = datetime.fromisoformat(u["date"]).date().toordinal() + 1
-            lines += [f"DTSTART;VALUE=DATE:{day}",
-                      f"DTEND;VALUE=DATE:{datetime.fromordinal(nxt):%Y%m%d}"]
-        else:
-            lines += [f"DTSTART:{_dt(u['start'])}", f"DTEND:{_dt(u['end'])}"]
-        lines += [
-            f"SUMMARY:{_escape(title)}",
-            "DESCRIPTION:" + _escape("No study planned (Study Companion: when you can't study)."),
-            "TRANSP:TRANSPARENT",
-            "CATEGORIES:Unavailable",
-            "END:VEVENT",
-        ]
-    return lines
-
-
 def build_ics(items: list[dict], now: int | None = None, name: str = "Study Companion",
               alarms: tuple[int, ...] | list[int] = (1440,),
               blocks: list[dict] | None = None, base_url: str = "",
-              busy: list[dict] | None = None, day_alarm: bool = False) -> str:
+              day_alarm: bool = False) -> str:
     """The calendar feed: one VEVENT per deadline at its due time, with an alarm per lead
-    time in ``alarms`` (minutes before) until it is done; one per study block of the
-    published schedule; and one per unavailability in ``busy``."""
+    time in ``alarms`` (minutes before) until it is done, and one per study entry of the
+    published schedule. Breaks, unavailabilities and days off are not events: the feed only
+    holds what you do (the web calendar and the PDF can show them)."""
     stamp = _dt(int(now if now is not None else time.time()))
     lines = _header(name)
-    lines += _deadline_events(items, stamp, alarms)
+    lines += _deadline_events(items, stamp, alarms, base_url)
     lines += _block_events(blocks or [], base_url, stamp, day_alarm)
-    lines += _busy_events(busy or [], stamp)
     return _finish(lines)

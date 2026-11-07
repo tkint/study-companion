@@ -14,7 +14,7 @@ at the top of the page, with the current one highlighted:
 | Today | Overview · Catch-up plan |
 | Courses | All courses (a course and its files open from there) |
 | Study | Flashcards · Study time |
-| Calendar | Study schedule, deadlines and unavailabilities in one calendar; schedule settings, subscription, print, reminders |
+| Calendar | Study schedule, deadlines, breaks and days off in one calendar; schedule settings, subscription, print, reminders |
 | Ask AI | Prompt builder · Templates |
 
 The browser tab shows where you are too ("Catch-up plan · Today · Study Companion"). On your first
@@ -185,7 +185,8 @@ schedule it anyway. The `get_catch_up_plan` tool and the prompts use the same go
 
 The **Calendar** tab is one calendar for everything: the **study blocks** of your schedule
 (focus blocks with start and end times, built by rules, without AI), your **deadlines** (📌)
-and the times you **can't study** (grey). It opens on the *Week* view (also *Month* and
+and your **breaks and days off** (grey; untick **Breaks and days off** above the calendar to
+hide them). It opens on the *Week* view (also *Month* and
 *List*; on a phone also *Day*), and then on the view you picked last on that device. Study
 time is grouped by course, one colour per course, the same in the calendar, the feed and the
 PDF: back-to-back study of a course (reading and active recall) is one entry like
@@ -211,12 +212,13 @@ same settings, e.g. after you finished sections.
   0 leaves it out. The slider shows the share you asked for and the share planned. Courses
   stay together for up to about two focus blocks, then take turns when another has work, and
   work for a close deadline comes first.
-- **When you can't study:** weekly slots (classes, work, training) and specific days or hours
-  (appointments, travel, all-day off). Blocks never overlap them.
+- **Breaks and days off:** **days off** (weekdays with no study at all, e.g. Sunday), **every
+  day** breaks (e.g. 12:00-14:00 Meal), weekly slots (classes, work, training) and specific
+  days or hours (appointments, travel, all-day off). Blocks never overlap them.
 - **Calendar feed:** **Update the plan every night** (on by default) plans again at 03:30 with
-  your progress and new deadlines; turn it off and the plan only changes when you save. **Show
-  when I can't study** puts your unavailabilities in the feed as free (not busy) events; turn
-  it off if they are already in your calendar.
+  your progress and new deadlines; turn it off and the plan only changes when you save.
+  Breaks and days off are never events in the feed: it only holds what you study and your
+  deadlines.
 - **Activities:** *Deep work* blocks for sections (with their files), *Practice* blocks for
   assignments and quizzes, two short *Active recall* blocks one and four days after you finish
   a section (spaced repetition; untick **Spaced active recall** to drop them), and a short
@@ -228,7 +230,7 @@ refreshes), and blocks that already ended are kept for six weeks.
 ### Subscribe or export
 
 **Subscribe** shows your private feed link: one calendar with the study blocks, deadlines (with
-the alarms you chose under **Reminders**) and your unavailabilities.
+the alarms you chose under **Reminders**). Breaks and days off are left out.
 
 - **iPhone:** tap **Subscribe on this device** and confirm.
 - **Google Calendar** (shows on Android): on a computer, *Settings → Add calendar → From URL*,
@@ -237,8 +239,9 @@ the alarms you chose under **Reminders**) and your unavailabilities.
 
 Calendar apps refresh subscriptions on their own schedule (from every few minutes to about
 a day), so a saved change reaches your phone at its next refresh. Study entries are called like
-`Spanish - Study` or `Spanish - Test 1`, with what to do, the files (links into the app) and the
-Moodle links in the description; done deadlines are prefixed ✓. Times use the server's
+`Spanish - Study` or `Spanish - Test 1`. Their description starts with an **Open in Study
+Companion** link on its own line (it opens the calendar on that entry), then one paragraph per
+piece of work (what to do, the files), then the Moodle links; done deadlines are prefixed ✓. Times use the server's
 `TIMEZONE`.
 
 The link contains a private token, so anyone with it can read your plan and deadline titles
@@ -254,7 +257,7 @@ page per week like a printed timetable: your name from Moodle and the week at th
 per day (Monday to Friday, plus the weekend when something is planned), your study sessions at
 their times, grouped by course like the calendar (`09:00-10:00 - Spanish - Study` in the
 course's colour, listing what to study; each test or task its own box),
-deadlines and unavailabilities if you want them, and the date it was printed. The grid only
+deadlines, breaks and days off if you want them, and the date it was printed. The grid only
 covers the hours that week uses, and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
 the server builds it, so nothing goes through the print dialog.
 

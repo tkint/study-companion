@@ -15,7 +15,7 @@ import { BlockRow, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor } from "../format";
 import { DayHead, minutes, PlanRow } from "./Plan";
-import { Alert, Banner, Button, DetailsCard, Dropdown, Late, Lead, List, MenuItem, Modal, Muted, Row, Small } from "../ui";
+import { Alert, Banner, Button, Check, DetailsCard, Dropdown, Late, Lead, List, MenuItem, Modal, Muted, Row, Small } from "../ui";
 
 // One calendar for everything (issue: unified study calendar): the published study schedule
 // (app/planner/published.py), Moodle deadlines and your unavailabilities, in FullCalendar.
@@ -108,6 +108,15 @@ function store(key: string, value: string) {
   }
 }
 
+const BREAKS_KEY = "calendar-breaks";
+
+/** The ``at`` of a feed link (#/calendar?at=<timestamp>): the entry to open. */
+function focusAt(): number | null {
+  const query = window.location.hash.split("?")[1] ?? "";
+  const at = new URLSearchParams(query).get("at");
+  return at && /^\d{9,11}$/.test(at) ? Number(at) : null;
+}
+
 function lastView(allowed: string[]): string {
   const v = load(VIEW_KEY);
   return v && allowed.includes(v) ? v : "timeGridWeek";
@@ -164,6 +173,7 @@ export default function Calendar() {
   const views = useMemo(() => (narrow() ? PHONE_VIEWS : WIDE_VIEWS), []);
   const initialView = useMemo(() => lastView(views), [views]);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showBreaks, setShowBreaks] = useState(() => load(BREAKS_KEY) !== "0");
 
   useEffect(() => {
     api.schedule()
@@ -185,10 +195,27 @@ export default function Calendar() {
 
   const shown = (dirty && preview) || saved;
 
+  // A link from the subscribed calendar opens its entry (or the day of its deadline).
+  useEffect(() => {
+    if (!saved) return;
+    const focus = () => {
+      const at = focusAt();
+      if (at === null) return;
+      const group = saved.groups.find((g) => g.start <= at && at < g.end);
+      ref.current?.getApi().gotoDate(new Date(at * 1000));
+      setDialog(null);
+      setSelected(group ? { group } : null);
+      window.history.replaceState(null, "", "#/calendar");
+    };
+    focus();
+    window.addEventListener("hashchange", focus);
+    return () => window.removeEventListener("hashchange", focus);
+  }, [saved]);
+
   const scheduleEvents = useMemo<EventInput[]>(() => {
     if (!shown) return [];
     const blocks = (shown.groups ?? []).map(groupEvent);
-    const busy = shown.busy.map((u) => ({
+    const busy = (showBreaks ? shown.busy : []).map((u) => ({
       id: `u${u.start}`,
       title: u.reason || "Unavailable",
       start: u.all_day ? u.date : new Date(u.start * 1000),
@@ -197,7 +224,7 @@ export default function Calendar() {
       display: "background",
     }));
     return [...blocks, ...busy];
-  }, [shown]);
+  }, [shown, showBreaks]);
 
   const deadlineSource = useCallback(async (info: EventSourceFuncArg) => {
     try {
@@ -293,6 +320,11 @@ export default function Calendar() {
             Export as ICS
           </MenuItem>
         </Dropdown>
+        <Check>
+          <input type="checkbox" checked={showBreaks}
+            onChange={(e) => { setShowBreaks(e.target.checked); store(BREAKS_KEY, e.target.checked ? "1" : "0"); }} />
+          Breaks and days off
+        </Check>
         <Muted $small role="status">
           {status ?? (dirty ? "Preview of unsaved changes" : `Plan saved ${savedAt(saved.published_at)}`)}
         </Muted>

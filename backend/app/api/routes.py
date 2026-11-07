@@ -249,14 +249,13 @@ def register(
         prefs = reminders.prefs(engine)
         plan = published.current(settings, engine, now=now)
         blocks = [b for d in plan["days"] for b in d.get("blocks", [])]
-        busy = plan["busy"] if plan["config"].get("feed_unavailable", True) else []
         headers = {"Cache-Control": "private, max-age=900"}
         if request.query_params.get("download") == "1":
             headers["Content-Disposition"] = (
                 f'attachment; filename="study-calendar-{plan["today"]}.ics"')
         return Response(
             ics.build_ics(items, now=now, alarms=prefs["deadline_alarms"], blocks=blocks,
-                          base_url=str(request.base_url), busy=busy,
+                          base_url=str(request.base_url),
                           day_alarm=prefs["daily_enabled"]),
             media_type="text/calendar; charset=utf-8",
             headers=headers,
