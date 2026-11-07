@@ -185,8 +185,8 @@ schedule it anyway. The `get_catch_up_plan` tool and the prompts use the same go
 
 The **Calendar** tab is one calendar for everything: the **study blocks** of your schedule
 (focus blocks with start and end times, built by rules, without AI), your **deadlines** (📌)
-and the times you **can't study** (grey). On a computer it opens on the next 7 days (also
-*Week*, *Month* and *List*); on a phone on a list of the week (also *Day* and *Month*). Tap a
+and the times you **can't study** (grey). It opens on the *Week* view (also *Month* and
+*List*; on a phone also *Day*), and then on the view you picked last on that device. Tap a
 block for what to do and its files, or a deadline for details and *Mark done*.
 
 ### Schedule settings (a form you save)
@@ -240,12 +240,14 @@ The link contains a private token, so anyone with it can read your plan and dead
 (nothing else). If it leaks, tap **New link**: the old one stops working at once and you
 subscribe again with the new one. The token is stripped from Caddy's and the app's logs.
 
-**Download .ics** gives a one-off file of the same calendar, if you'd rather import than
-subscribe (Google Calendar *Settings › Import*, Apple Calendar *File › Import*, Outlook *Add
+**Export** with **ICS** selected downloads a one-off file of the same calendar, if you'd rather
+import than subscribe (Google Calendar *Settings › Import*, Apple Calendar *File › Import*, Outlook *Add
 calendar › Upload from file*).
 
-**Print or PDF** prints one or more weeks (from the week shown) as a simple table: day by day,
-time, what to do and course, with deadlines and unavailabilities if you want them. In the print
+**Export** with **PDF** selected prints one or more weeks (from the week shown), one landscape
+page per week like a printed timetable: your name from Moodle and the week at the top, a column
+per day (Monday to Friday, plus the weekend when something is planned), the study blocks at
+their times, deadlines and unavailabilities if you want them, and the date it was printed. In the print
 dialog choose **Save as PDF** to get a file (on a phone too).
 
 ## Ask AI (prompt builder)

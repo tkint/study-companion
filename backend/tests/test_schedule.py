@@ -241,6 +241,7 @@ def test_api(settings, engine, c):
     out = c.get("/api/schedule").json()
     assert out["config"]["days"] == 14 and {"days", "courses", "notes", "unscheduled"} <= out.keys()
     assert out["published_at"] and out["preview"] is False
+    assert "owner" in out  # Moodle name for the printed weeks ("" before the first sync)
     assert c.post("/api/schedule/settings", json={"buffer_days": 2},
                   headers={"Sec-Fetch-Site": "cross-site"}).status_code == 401
     assert c.post("/api/schedule/settings", json={"buffer_days": 9},
