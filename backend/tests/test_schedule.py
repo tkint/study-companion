@@ -94,10 +94,11 @@ def test_blocks_respect_window_unavailability_and_caps(settings, engine, morning
             assert b.minutes >= 15 or b.parts > 1 or b.item is None
     travel = next(d for d in plan.days if d.day.isoformat() == off)
     assert travel.blocks == [] and travel.blocked[0]["reason"] == "Travel"
-    # Blocks of a day never overlap, with a break between them.
+    # Blocks of a day never overlap, with the break between them (none by default).
+    assert plan.config["break_minutes"] == 0
     for day in plan.days:
         for a, b in zip(day.blocks, day.blocks[1:]):
-            assert b.start >= a.end + 10 * 60
+            assert b.start >= a.end
 
 
 def test_buffer_days_and_deadlines_first(settings, engine, morning):
@@ -143,8 +144,9 @@ def test_course_weights(settings, engine, morning):
     assert rows[10]["target_share"] == 100 and rows[10]["planned_share"] == 100
 
 
-def test_interleaves_courses(settings, engine, morning):
-    """Two courses of equal weight take turns instead of one long block of one course."""
+def test_keeps_a_course_together_then_takes_turns(settings, engine, morning):
+    """A course's work stays in one run (up to about two focus blocks), then the other course
+    gets its turn: fewer switches than strict interleaving, but both courses get time."""
     from app.models import Deadline
 
     with session(engine) as s:
@@ -153,9 +155,17 @@ def test_interleaves_courses(settings, engine, morning):
                            name=f"Série {i + 1}", kind="due", due_at=NOW + 40 * DAY, grade=10))
         s.commit()
     plan = generate(settings, engine, morning, beyond_target=True, buffer_days=0)
-    order = [b.item.course_id for b in plan.blocks if b.kind in ("deep", "practice")]
-    switches = sum(1 for a, b in zip(order, order[1:]) if a != b)
-    assert switches >= 2
+    for day in plan.days:
+        order = [b.item.course_id for b in day.blocks if b.item is not None]
+        runs = [order[0]] if order else []
+        for c in order[1:]:
+            if c != runs[-1]:
+                runs.append(c)
+        assert len(runs) == len(set(runs)) or len(runs) <= len(order) // 2 + 1  # grouped
+    courses = {b.item.course_id for b in plan.blocks if b.item is not None}
+    assert {10, 11} <= courses
+    first_day = [b for b in plan.days[0].blocks if b.item is not None]
+    assert first_day[0].item.course_id == first_day[1].item.course_id  # no forced switch
 
 
 def test_no_time_left(settings, engine, morning):
@@ -167,14 +177,16 @@ def test_no_time_left(settings, engine, morning):
 
 
 def test_ics_export(settings, engine, morning):
+    from app.planner import groups
+
     plan = generate(settings, engine, morning, beyond_target=True)
     text = ics.build_ics([], blocks=[b.to_dict() for b in plan.blocks],
                          base_url="https://study.example.ch/", now=morning)
     assert text.startswith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n") and text.endswith("END:VCALENDAR\r\n")
-    assert text.count("BEGIN:VEVENT") == len(plan.blocks)
+    assert text.count("BEGIN:VEVENT") == len(groups.group([b.to_dict() for b in plan.blocks]))
     assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
     unfolded = text.replace("\r\n ", "")
-    assert "SUMMARY:[Study] LA: Matrices (Deep work)" in unfolded
+    assert "SUMMARY:Linear Algebra - Study" in unfolded and "- Matrices" in unfolded
     assert "https://study.example.ch/#/file/2?course=10" in unfolded
     assert "URL:https://study.example.ch/#/course/10?section=102" in unfolded
     first = plan.blocks[0]
@@ -263,7 +275,7 @@ def test_api(settings, engine, c):
     res = c.get("/calendar.ics?download=1")
     assert res.status_code == 200 and res.headers["content-type"].startswith("text/calendar")
     assert res.headers["content-disposition"].startswith('attachment; filename="study-calendar-')
-    assert "UID:schedule-" in res.text and "SUMMARY:[Study]" in res.text
+    assert "UID:schedule-" in res.text and " - Study" in res.text
     assert "SUMMARY:Lunch" in res.text and "UID:assign-" in res.text
     c.post("/api/schedule/settings", json={"feed_unavailable": False}, headers=SAME_ORIGIN)
     assert "SUMMARY:Lunch" not in c.get("/calendar.ics").text
@@ -309,7 +321,7 @@ def test_pdf_writer_escapes_and_fits():
     assert b"(a \\(b\\) \\\\ c)" in out
 
 
-def test_pdf_groups_sessions_and_never_cuts_text(settings):
+def test_pdf_groups_by_course_and_never_cuts_text(settings):
     from datetime import date as d_
 
     from app import pdf
@@ -321,21 +333,27 @@ def test_pdf_groups_sessions_and_never_cuts_text(settings):
     def ts(h, m):
         return int(datetime(2026, 11, 9, h, m, tzinfo=tz).timestamp())
 
-    def block(h, m, minutes, title, course, kind="deep"):
+    def block(h, m, minutes, title, course, kind="deep", cid=1):
         return {"start": ts(h, m), "end": ts(h, m) + minutes * 60, "kind": kind, "title": title,
-                "label": "Deep work", "parts": 1, "part": 1, "course_id": 1,
-                "course_name": course, "course_short": "LA"}
+                "label": "Deep work", "parts": 1, "part": 1, "course_id": cid,
+                "course_name": course, "course_short": "LA", "item_kind": "section"}
 
     long = "A very long section title that would never fit on one line of a narrow column"
     plan = {"config": {"day_start": "08:00", "day_end": "22:00"}, "busy": [], "days": [{"blocks": [
-        block(8, 0, 50, "Matrices", "Linear Algebra"),
-        block(9, 0, 50, long, "Statistics"),
+        block(8, 0, 30, "Matrices", "Linear Algebra"),
+        block(8, 30, 15, "Vectors", "Linear Algebra", "recall"),
+        block(8, 45, 30, "Quiz 1", "Linear Algebra", "practice"),
+        block(9, 15, 50, long, "Statistics", cid=2),
         block(14, 0, 15, "Eigen", "Linear Algebra", "recall"),
     ]}]}
     out = print_week.entries(plan, [], day, day, tz)
-    assert [(e.time, len(e.items)) for e in out] == [("08:00-09:50", 2), ("14:00-14:15", 1)]
-    assert out[0].items[0] == ("Linear Algebra", "Matrices, deep work")
-    assert all("LA" != c for e in out for c, _ in e.items)  # full course names only
+    assert [(e.time, e.title) for e in out] == [
+        ("08:00-08:45", "Linear Algebra - Study"), ("08:45-09:15", "Linear Algebra - Quiz 1"),
+        ("09:15-10:05", "Statistics - Study"), ("14:00-14:15", "Linear Algebra - Study")]
+    assert [w for _, w in out[0].items] == ["Matrices", "Vectors"]
+    assert out[1].items == []  # a task's title is its work
+    assert out[0].color == out[1].color != out[2].color  # one colour per course
+    assert all("LA" not in e.title for e in out)  # full course names only
     lines = pdf.wrap(long, 60, 8)
     assert len(lines) > 2 and " ".join(lines) == long
     body = print_week.render(plan, [], day, 1, tz)
@@ -343,5 +361,29 @@ def test_pdf_groups_sessions_and_never_cuts_text(settings):
 
     from pypdf import PdfReader
     text = PdfReader(BytesIO(body)).pages[0].extract_text()
-    assert "..." not in text and "Linear Algebra" in text and "Statistics" in text
+    assert "..." not in text and "Linear Algebra - Study" in text and "Statistics" in text
     assert "narrow" in text and "column" in text  # the end of the long title is there
+
+
+def test_groups_by_course_with_tasks_apart():
+    from app.planner import groups
+
+    def b(start, minutes, kind, cid, title="Sec", course="Spanish"):
+        return {"date": "2026-11-09", "start": start, "end": start + minutes * 60,
+                "minutes": minutes, "kind": kind, "title": title, "course_id": cid,
+                "course_name": course, "item_kind": "quiz" if kind == "practice" else "section",
+                "deadline_id": 7 if kind == "practice" else None}
+
+    h = 9 * 3600
+    out = groups.group([
+        b(h, 30, "deep", 3), b(h + 1800, 30, "recall", 3),  # 09:00-10:00 Spanish - Study
+        b(h + 3600, 15, "practice", 3, "Test 1"), b(h + 4500, 15, "practice", 3, "Test 1"),
+        b(h + 9000, 30, "deep", 4, course="Literature 3"),
+        {"date": "2026-11-09", "start": h + 12600, "end": h + 13500, "minutes": 15,
+         "kind": "flashcards", "title": "Flashcard review", "course_id": None, "course_name": ""},
+    ])
+    assert [(g["label"], g["minutes"], len(g["blocks"])) for g in out] == [
+        ("Spanish - Study", 60, 2), ("Spanish - Test 1", 30, 2),
+        ("Literature 3 - Study", 30, 1), ("Flashcards", 15, 1)]
+    assert out[0]["color"] == out[1]["color"] == groups.course_color(3) != out[2]["color"]
+    assert out[3]["color"] == groups.NO_COURSE

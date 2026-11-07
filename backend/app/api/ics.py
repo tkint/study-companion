@@ -19,6 +19,7 @@ from sqlalchemy.engine import Engine
 from app.accounts import USER_ID
 from app.db import session
 from app.models import CalendarFeed
+from app.planner import groups
 
 PRODID = "-//Study Companion//Study calendar//EN"
 
@@ -147,55 +148,58 @@ def _deadline_events(items: list[dict], stamp: str, alarms) -> list[str]:
 
 
 def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool) -> list[str]:
-    """One busy VEVENT per study block (``Block.to_dict``). With ``day_alarm``, the first
-    block of each day has an alarm at its start with the day's agenda."""
+    """One busy VEVENT per study entry, grouped by course like the web calendar and the
+    printed weeks (``app.planner.groups``): "Spanish - Study", "Spanish - Test 1". The
+    description lists each block's work and material. With ``day_alarm``, the first entry of
+    each day has an alarm at its start with the day's agenda."""
     base = base_url.rstrip("/")
     lines: list[str] = []
     position: dict[str, int] = {}
+    entries = groups.group(blocks)
     by_day: dict[str, list[dict]] = {}
-    for b in blocks:
-        by_day.setdefault(b["date"], []).append(b)
-    for b in blocks:
-        n = position[b["date"]] = position.get(b["date"], 0) + 1
+    for g in entries:
+        by_day.setdefault(g["date"], []).append(g)
+    for g in entries:
+        n = position[g["date"]] = position.get(g["date"], 0) + 1
+        first = g["blocks"][0]
         desc = []
-        if b.get("course_name"):
-            desc.append(b["course_name"])
-        if b.get("detail"):
-            desc.append(b["detail"])
-        files = b.get("files") or []
-        if files:
-            desc.append("Material:")
-            for f in files:
+        for b in g["blocks"]:
+            title = b.get("title", "")
+            if b.get("parts", 1) > 1:
+                title += f" ({b['part']}/{b['parts']})"
+            desc.append(f"- {title}" + (f": {b['detail']}" if b.get("detail") else ""))
+            for f in b.get("files") or []:
                 pages = f" ({f['pages']} p.)" if f.get("pages") else ""
-                desc.append(f"- {f['name']}{pages}: {base}/#/file/{f['id']}"
+                desc.append(f"  {f['name']}{pages}: {base}/#/file/{f['id']}"
                             + (f"?course={b['course_id']}" if b.get("course_id") else ""))
+            if b.get("url"):
+                desc.append(f"  On Moodle: {b['url']}")
         url = ""
-        if b.get("course_id"):
-            url = f"{base}/#/course/{b['course_id']}" + (
-                f"?section={b['section_id']}" if b.get("section_id") else "")
-        elif b["kind"] == "flashcards":
+        if first.get("course_id"):
+            url = f"{base}/#/course/{first['course_id']}" + (
+                f"?section={first['section_id']}" if first.get("section_id") else "")
+        elif first.get("kind") == "flashcards":
             url = f"{base}/#/study?due=1"
         if url:
             desc.append(f"Open in Study Companion: {url}")
-        if b.get("url"):
-            desc.append(f"On Moodle: {b['url']}")
         lines += [
             "BEGIN:VEVENT",
-            f"UID:schedule-{b['date']}-{n}@study-companion",
+            f"UID:schedule-{g['date']}-{n}@study-companion",
             f"DTSTAMP:{stamp}",
-            f"DTSTART:{_dt(b['start'])}",
-            f"DTEND:{_dt(b['end'])}",
-            f"SUMMARY:{_escape(b['summary'])}",
+            f"DTSTART:{_dt(g['start'])}",
+            f"DTEND:{_dt(g['end'])}",
+            f"SUMMARY:{_escape(g['label'])}",
             f"DESCRIPTION:{_escape(chr(10).join(desc))}",
             "TRANSP:OPAQUE",
-            f"CATEGORIES:{_escape(b.get('course_name') or 'Study Companion')}",
+            f"CATEGORIES:{_escape(g.get('course_name') or 'Study Companion')}",
         ]
         if url:
             lines.append(f"URL:{url}")
         if day_alarm and n == 1:
-            day = by_day[b["date"]]
+            day = by_day[g["date"]]
             total = sum(x.get("minutes", 0) for x in day)
-            agenda = f"Study time: {_human(total)} planned, {len(day)} block{'s' if len(day) != 1 else ''}"
+            agenda = (f"Study time: {_human(total)} planned, "
+                      + ", ".join(x["label"] for x in day))
             lines += _alarm(agenda, "PT0M")
         lines.append("END:VEVENT")
     return lines
