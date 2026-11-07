@@ -307,3 +307,41 @@ def test_pdf_writer_escapes_and_fits():
     out = doc.render()
     assert out.startswith(b"%PDF-1.4") and out.rstrip().endswith(b"%%EOF")
     assert b"(a \\(b\\) \\\\ c)" in out
+
+
+def test_pdf_groups_sessions_and_never_cuts_text(settings):
+    from datetime import date as d_
+
+    from app import pdf
+    from app.planner import print_week
+
+    tz = settings.tz
+    day = d_(2026, 11, 9)
+
+    def ts(h, m):
+        return int(datetime(2026, 11, 9, h, m, tzinfo=tz).timestamp())
+
+    def block(h, m, minutes, title, course, kind="deep"):
+        return {"start": ts(h, m), "end": ts(h, m) + minutes * 60, "kind": kind, "title": title,
+                "label": "Deep work", "parts": 1, "part": 1, "course_id": 1,
+                "course_name": course, "course_short": "LA"}
+
+    long = "A very long section title that would never fit on one line of a narrow column"
+    plan = {"config": {"day_start": "08:00", "day_end": "22:00"}, "busy": [], "days": [{"blocks": [
+        block(8, 0, 50, "Matrices", "Linear Algebra"),
+        block(9, 0, 50, long, "Statistics"),
+        block(14, 0, 15, "Eigen", "Linear Algebra", "recall"),
+    ]}]}
+    out = print_week.entries(plan, [], day, day, tz)
+    assert [(e.time, len(e.items)) for e in out] == [("08:00-09:50", 2), ("14:00-14:15", 1)]
+    assert out[0].items[0] == ("Linear Algebra", "Matrices, deep work")
+    assert all("LA" != c for e in out for c, _ in e.items)  # full course names only
+    lines = pdf.wrap(long, 60, 8)
+    assert len(lines) > 2 and " ".join(lines) == long
+    body = print_week.render(plan, [], day, 1, tz)
+    from io import BytesIO
+
+    from pypdf import PdfReader
+    text = PdfReader(BytesIO(body)).pages[0].extract_text()
+    assert "..." not in text and "Linear Algebra" in text and "Statistics" in text
+    assert "narrow" in text and "column" in text  # the end of the long title is there

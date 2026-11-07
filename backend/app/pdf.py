@@ -42,6 +42,30 @@ def fit(text: str, width: float, size: float, font: str = REGULAR) -> str:
     return (text.rstrip() + "...") if text else ""
 
 
+def wrap(text: str, width: float, size: float, font: str = REGULAR) -> list[str]:
+    """``text`` broken into lines that fit in ``width`` points (words kept whole when they
+    fit on a line, else split). Nothing is cut."""
+    lines: list[str] = []
+    cur = ""
+    for word in text.split():
+        cand = f"{cur} {word}" if cur else word
+        if text_width(cand, size, font) <= width:
+            cur = cand
+            continue
+        if cur:
+            lines.append(cur)
+        while text_width(word, size, font) > width and len(word) > 1:
+            n = len(word)
+            while n > 1 and text_width(word[:n], size, font) > width:
+                n -= 1
+            lines.append(word[:n])
+            word = word[n:]
+        cur = word
+    if cur:
+        lines.append(cur)
+    return lines or [""]
+
+
 def _pdf_text(text: str) -> bytes:
     raw = text.encode("cp1252", errors="replace")
     return raw.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
