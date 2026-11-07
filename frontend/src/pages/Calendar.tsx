@@ -15,7 +15,7 @@ import { BlockRow, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor } from "../format";
 import { DayHead, minutes, PlanRow } from "./Plan";
-import { Alert, Banner, Button, DetailsCard, Late, Lead, List, Modal, Muted, Row, Small } from "../ui";
+import { Alert, Banner, Button, DetailsCard, Late, Lead, List, Modal, Muted, Row, Select, Small } from "../ui";
 
 // One calendar for everything (issue: unified study calendar): the published study schedule
 // (app/planner/published.py), Moodle deadlines and your unavailabilities, in FullCalendar.
@@ -84,7 +84,41 @@ const DialogHead = styled.div`
   & > h2 { margin: 0 0 4px; }
 `;
 
+const ExportGroup = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  & > select { width: auto; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
+`;
+
 const narrow = () => window.matchMedia("(max-width: 640px)").matches;
+
+// The view you picked last opens next time (per device; week by default).
+const VIEW_KEY = "calendar-view";
+const EXPORT_KEY = "calendar-export";
+const WIDE_VIEWS = ["timeGridWeek", "dayGridMonth", "listWeek"];
+const PHONE_VIEWS = ["timeGridWeek", "timeGridDay", "listWeek", "dayGridMonth"];
+
+function load(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // private mode: just don't remember
+  }
+}
+
+function lastView(allowed: string[]): string {
+  const v = load(VIEW_KEY);
+  return v && allowed.includes(v) ? v : "timeGridWeek";
+}
 const PREVIEW_DELAY = 600;
 
 function blockEvent(b: ScheduleBlock): EventInput {
@@ -133,7 +167,9 @@ export default function Calendar() {
   const [dialog, setDialog] = useState<"settings" | "subscribe" | "print" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
-  const initialView = useMemo(() => (narrow() ? "listWeek" : "nextDays"), []);
+  const views = useMemo(() => (narrow() ? PHONE_VIEWS : WIDE_VIEWS), []);
+  const initialView = useMemo(() => lastView(views), [views]);
+  const [exportAs, setExportAs] = useState<"pdf" | "ics">(() => (load(EXPORT_KEY) === "ics" ? "ics" : "pdf"));
 
   useEffect(() => {
     api.schedule()
@@ -237,6 +273,7 @@ export default function Calendar() {
   }
 
   function onDates(arg: DatesSetArg) {
+    store(VIEW_KEY, arg.view.type);
     // Print from the period shown: this week if it includes today, else its first week.
     const { currentStart: start, currentEnd: end } = arg.view;
     const now = Date.now();
@@ -256,8 +293,18 @@ export default function Calendar() {
       <Row>
         <Button $variant="soft" $size="sm" onClick={() => setDialog("settings")}>⚙ Settings</Button>
         <Button $variant="primary" $size="sm" onClick={() => setDialog("subscribe")}>Subscribe</Button>
-        <Button as="a" $variant="outline" $size="sm" href="/calendar.ics?download=1" download>Download .ics</Button>
-        <Button $variant="outline" $size="sm" onClick={() => setDialog("print")}>Print or PDF</Button>
+        <ExportGroup>
+          <Select aria-label="Export format" value={exportAs}
+            onChange={(e) => { const v = e.target.value === "ics" ? "ics" : "pdf"; setExportAs(v); store(EXPORT_KEY, v); }}>
+            <option value="pdf">PDF</option>
+            <option value="ics">ICS</option>
+          </Select>
+          {exportAs === "ics" ? (
+            <Button as="a" $variant="outline" $size="sm" href="/calendar.ics?download=1" download>Export</Button>
+          ) : (
+            <Button $variant="outline" $size="sm" onClick={() => setDialog("print")}>Export</Button>
+          )}
+        </ExportGroup>
         <Muted $small role="status">
           {status ?? (dirty ? "Preview of unsaved changes" : `Plan saved ${savedAt(saved.published_at)}`)}
         </Muted>
@@ -285,12 +332,10 @@ export default function Calendar() {
           headerToolbar={{
             left: "prev,next today",
             center: "title",
-            right: narrow() ? "listWeek,timeGridDay,dayGridMonth" : "nextDays,timeGridWeek,dayGridMonth,listWeek",
+            right: views.join(","),
           }}
           buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day", list: "List" }}
           views={{
-            // From today: the days ahead, not the half-past week.
-            nextDays: { type: "timeGrid", duration: { days: 7 }, dateIncrement: { days: 7 }, buttonText: "7 days" },
             dayGridMonth: { displayEventTime: !narrow() },
             listWeek: { buttonText: "List" },
           }}

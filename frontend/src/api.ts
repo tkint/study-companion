@@ -476,6 +476,8 @@ export interface Schedule {
   /** When this schedule was saved and published (null for a preview of unsaved settings). */
   published_at: number | null;
   preview: boolean;
+  /** Your name on Moodle (header of the printed weeks), "" before the first sync. */
+  owner?: string;
   /** Your unavailabilities over the schedule's days, as timestamps. */
   busy: BusySlot[];
 }

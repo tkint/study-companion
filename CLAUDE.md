@@ -60,7 +60,7 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   Navigation map in `src/nav.ts` (sections = tabs, their pages, page titles): a new page needs a line there.
   `pages/Calendar.tsx` is the unified calendar (published schedule + deadlines + unavailabilities, the
   schedule settings form `components/ScheduleForm.tsx` with preview/save, `CalendarFeed.tsx`, `PrintWeeks.tsx`
-  print-to-PDF table via a print stylesheet). `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
+  print-to-PDF week grid via a print stylesheet; Export select PDF/ICS, last view remembered in localStorage). `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
   Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
   Claude's Markdown is rendered by `src/components/Markdown.tsx` into React elements (no innerHTML).
   Styling: styled-components only (no CSS files, no utility classes). Tokens in `src/styles/theme.ts`
