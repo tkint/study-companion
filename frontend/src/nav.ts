@@ -34,7 +34,6 @@ export const SECTIONS: NavSection[] = [
     pages: [
       { route: "dashboard", label: "Overview", href: href.dashboard, hint: "Today's plan, what's coming up and your week" },
       { route: "plan", label: "Catch-up plan", href: href.plan, hint: "The work ahead, ordered by deadline, day by day" },
-      { route: "schedule", label: "Schedule", href: href.schedule, hint: "The plan with times, around your commitments, with .ics export" },
     ],
   },
   {
@@ -60,7 +59,7 @@ export const SECTIONS: NavSection[] = [
     label: "Calendar",
     short: "Calendar",
     icon: "M4 6h16v14H4zM4 10h16M9 3v5M15 3v5",
-    pages: [{ route: "calendar", label: "Calendar", href: href.calendar, hint: "Deadlines by month, week or list, and phone reminders" }],
+    pages: [{ route: "calendar", label: "Calendar", href: href.calendar, hint: "Your study plan with times, deadlines and commitments in one calendar: subscribe, download or print" }],
   },
   {
     id: "prompt",

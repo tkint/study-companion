@@ -11,13 +11,13 @@ at the top of the page, with the current one highlighted:
 
 | Tab | Pages |
 | --- | --- |
-| Today | Overview · Catch-up plan · Schedule |
+| Today | Overview · Catch-up plan |
 | Courses | All courses (a course and its files open from there) |
 | Study | Flashcards · Study time |
-| Calendar | Calendar, reminders and the phone subscription |
+| Calendar | Study schedule, deadlines and unavailabilities in one calendar; schedule settings, subscription, print, reminders |
 | Ask AI | Prompt builder · Templates |
 
-The browser tab shows where you are too ("Schedule · Today · Study Companion"). On your first
+The browser tab shows where you are too ("Catch-up plan · Today · Study Companion"). On your first
 visit a short **tour** walks through the sections; the **?** button in the top bar plays it
 again at any time.
 
@@ -131,9 +131,8 @@ page under **Reminders**:
 
 - **Before each deadline**: up to 3 alarms (1 week, 2 days, 1 day, 2 hours, 1 hour; default
   1 day and 2 hours). Done and optional deadlines have no alarm; ignored ones aren't in the feed.
-- **Daily study reminder** (on by default, 18:00): a "Study time" event for today and the next
-  6 days, at your chosen time, with the minutes the catch-up plan gives that day, its items in
-  the description, and today's flashcards to review. Days with nothing planned have no event.
+- **Daily study reminder** (on by default): an alarm on the first study block of each day,
+  with the time planned that day.
 
 The **Study** page also shows a short card for today: cards to review, deadlines in the next
 48 hours, and what you studied against what's planned.
@@ -182,10 +181,21 @@ and sections no upcoming deadline needs) in priority order until it reaches your
 is listed under **Beyond your goal** (only if you have time); tick **Plan beyond my goal** to
 schedule it anyway. The `get_catch_up_plan` tool and the prompts use the same goal.
 
-## Study schedule (timed blocks and .ics)
+## Calendar: study schedule, deadlines and subscription
 
-**Catch-up plan › Timed schedule** turns the plan into focus blocks with start and end times,
-built by rules, without AI. Every change saves on its own and the schedule is generated again.
+The **Calendar** tab is one calendar for everything: the **study blocks** of your schedule
+(focus blocks with start and end times, built by rules, without AI), your **deadlines** (📌)
+and the times you **can't study** (grey). On a computer it opens on the next 7 days (also
+*Week*, *Month* and *List*); on a phone on a list of the week (also *Day* and *Month*). Tap a
+block for what to do and its files, or a deadline for details and *Mark done*.
+
+### Schedule settings (a form you save)
+
+Below the calendar, **Schedule settings** is a form. Changes show at once in the calendar as
+a **preview** (dashed blocks and a yellow banner), but nothing changes elsewhere until you
+**Save**. Saving publishes the schedule: the subscribed feed, the download and the printed
+weeks all show the saved plan. **Discard** goes back to it. **Re-plan now** plans again with the
+same settings, e.g. after you finished sections.
 
 - **Workload and rest:** hours per day (the same setting as the plan), a **daily maximum**
   (up to 8 h, only used when a deadline would be missed otherwise), **rest kept each day**
@@ -198,25 +208,22 @@ built by rules, without AI. Every change saves on its own and the schedule is ge
   close deadline comes first.
 - **When you can't study:** weekly slots (classes, work, training) and specific days or hours
   (appointments, travel, all-day off). Blocks never overlap them.
+- **Calendar feed:** **Update the plan every night** (on by default) plans again at 03:30 with
+  your progress and new deadlines; turn it off and the plan only changes when you save. **Show
+  when I can't study** puts your unavailabilities in the feed as free (not busy) events; turn
+  it off if they are already in your calendar.
 - **Activities:** *Deep work* blocks for sections (with their files), *Practice* blocks for
   assignments and quizzes, two short *Active recall* blocks one and four days after you finish
   a section (spaced repetition; untick **Spaced active recall** to drop them), and a short
   *Flashcards* block each day once you have flashcards.
 
-**Download .ics** saves the blocks as a calendar file for Google Calendar (*Settings › Import*),
-Apple Calendar (*File › Import*) or Outlook (*Add calendar › Upload from file*). Each event is
-called like `[Study] LA: Matrices (Deep work)`, with what to do, the files (links into the app)
-and the Moodle link in the description. Events keep the same ids per day and position, so
-some apps update them when you import a newer schedule; others add copies, so delete the old
-import first there. Times use the
-server's `TIMEZONE`.
+A saved plan stays as it is between saves (blocks don't move each time your calendar app
+refreshes), and blocks that already ended are kept for six weeks.
 
-## Calendar and ICS export
+### Subscribe, download or print
 
-The **Calendar** tab shows deadlines in month, week and list views (list by default on a
-phone). Tap an item for details and *Mark done*.
-
-To see deadlines in your phone or Outlook calendar, tap **Show subscription link**:
+**Subscribe** shows your private feed link: one calendar with the study blocks, deadlines (with
+the alarms you chose under **Reminders**) and your unavailabilities.
 
 - **iPhone:** tap **Subscribe on this device** and confirm.
 - **Google Calendar** (shows on Android): on a computer, *Settings → Add calendar → From URL*,
@@ -224,13 +231,22 @@ To see deadlines in your phone or Outlook calendar, tap **Show subscription link
 - **Outlook:** *Add calendar → Subscribe from web*, paste the link.
 
 Calendar apps refresh subscriptions on their own schedule (from every few minutes to about
-a day). Each deadline has the alarms you chose under **Reminders** (by default one day and two
-hours before); done items are prefixed ✓. The daily study reminders come in the same feed.
+a day), so a saved change reaches your phone at its next refresh. Study blocks are called like
+`[Study] LA: Matrices (Deep work)`, with what to do, the files (links into the app) and the
+Moodle link in the description; done deadlines are prefixed ✓. Times use the server's
+`TIMEZONE`.
 
-The link contains a private token, so anyone with it can read your deadline titles (nothing
-else). If it leaks, tap **New link**: the old one stops working at once and you subscribe
-again with the new one. The token is stripped from Caddy's and the app's logs.
-**Download .ics** gives a one-off file instead, if you'd rather import than subscribe.
+The link contains a private token, so anyone with it can read your plan and deadline titles
+(nothing else). If it leaks, tap **New link**: the old one stops working at once and you
+subscribe again with the new one. The token is stripped from Caddy's and the app's logs.
+
+**Download .ics** gives a one-off file of the same calendar, if you'd rather import than
+subscribe (Google Calendar *Settings › Import*, Apple Calendar *File › Import*, Outlook *Add
+calendar › Upload from file*).
+
+**Print or PDF** prints one or more weeks (from the week shown) as a simple table: day by day,
+time, what to do and course, with deadlines and unavailabilities if you want them. In the print
+dialog choose **Save as PDF** to get a file (on a phone too).
 
 ## Ask AI (prompt builder)
 

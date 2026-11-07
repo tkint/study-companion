@@ -1,19 +1,14 @@
-import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import {
-  api, type DatedUnavailability, type Schedule as ScheduleData, type ScheduleBlock, type ScheduleConfig,
-  type WeeklyUnavailability,
-} from "../api";
-import { Status, useLoad } from "../components/common";
+import type { DatedUnavailability, ScheduleConfig, ScheduleCourse, WeeklyUnavailability } from "../api";
 import { courseColor } from "../format";
-import { href } from "../router";
-import { DayHead, minutes, PlanRow } from "./Plan";
-import { WorkMain, WorkRow, WorkTitle } from "../components/DeadlineList";
-import type { Tone } from "../styles/theme";
+import { minutes } from "../pages/Plan";
 import {
-  Alert, Badge, Button, Check, DetailsCard, Empty, Field, IconButton, Input, Late, Lead, List, Meta, Muted,
-  Row, Select, Small, Stat, StatGrid, Swatch, Toggles,
+  Button, Check, DetailsCard, Field, IconButton, Input, Muted, Select, Small, Swatch, Toggles,
 } from "../ui";
+
+// The settings of the timed study schedule (app/planner/schedule.py) as one form. The
+// calendar page keeps the draft, previews it and saves it; saving publishes the schedule
+// that the calendar feed shows.
 
 const Grid = styled.div`
   display: grid;
@@ -86,74 +81,14 @@ const AllDay = styled(Check)`
   font-size: ${({ theme }) => theme.fontSizes.md};
 `;
 
-const Blocked = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 8px;
-`;
-
-const Time = styled.div`
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  color: ${({ theme }) => theme.colors.textMuted};
-`;
-
-const Detail = styled(Small)`
-  white-space: pre-line;
-`;
-
-const Files = styled.p`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 4px 0 0;
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-`;
-
-const Minutes = styled.strong`
-  flex: none;
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-`;
-
-// The timed study schedule (app/planner/schedule.py): the catch-up plan's work as focus blocks
-// with times, around your weekly and dated unavailabilities, within your hours per day, rest
-// hours and daily maximum. Changes save on their own and the schedule is generated again.
-// "Download .ics" exports the blocks for Google Calendar, Apple Calendar or Outlook.
-
 const WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const SAVE_DELAY = 600;
 
-const KIND_TONE: Record<ScheduleBlock["kind"], Tone> = {
-  deep: "neutral",
-  practice: "warning",
-  recall: "primary",
-  flashcards: "success",
-};
 
 function hours(h: number): string {
   return minutes(Math.round(h * 60));
 }
 
-function clock(ts: number, timeZone?: string): string {
-  const opts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
-  try {
-    return new Date(ts * 1000).toLocaleTimeString(undefined, { ...opts, timeZone });
-  } catch {
-    return new Date(ts * 1000).toLocaleTimeString(undefined, opts);
-  }
-}
 
-function dayLabel(iso: string, today: string): string {
-  if (iso === today) return "Today";
-  const d = new Date(`${iso}T12:00:00`);
-  const t = new Date(`${today}T12:00:00`);
-  if (Math.round((d.getTime() - t.getTime()) / 86400000) === 1) return "Tomorrow";
-  return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
-}
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -182,55 +117,20 @@ function Slider({ label, value, min, max, step, format, onChange, hint }: {
   );
 }
 
-export default function Schedule() {
-  const { data, error, reload } = useLoad(() => api.schedule(), []);
-  const [draft, setDraft] = useState<ScheduleConfig | null>(null);
-  const [saveState, setSaveState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
-  const timer = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    if (data && !draft) setDraft(data.config);
-  }, [data, draft]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
-  if (!data || !draft) return <Status error={error} loading />;
-  const cfg = draft;
-
+export function ScheduleForm({ draft: cfg, courses, today, onChange }: {
+  draft: ScheduleConfig;
+  courses: ScheduleCourse[];
+  today: string;
+  onChange: (next: ScheduleConfig) => void;
+}) {
   function change(patch: Partial<ScheduleConfig>) {
     const next = { ...cfg, ...patch };
     if (next.daily_hours > next.max_daily_hours) next.daily_hours = next.max_daily_hours;
-    setDraft(next);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
-      setSaveState({ busy: true, error: null });
-      try {
-        await api.setSchedule(next);
-        setSaveState({ busy: false, error: null });
-        reload();
-      } catch (e) {
-        setSaveState({ busy: false, error: (e as Error).message });
-      }
-    }, SAVE_DELAY);
+    onChange(next);
   }
 
   return (
     <>
-      <h1>Study schedule</h1>
-      <Lead $small>
-        Your catch-up plan with times: focus blocks around your classes and commitments, short breaks in between,
-        active recall a day and a few days after each section, and a margin before every deadline. Change anything
-        below and the schedule updates.
-      </Lead>
-      <Row>
-        <Button as="a" $variant="primary" $size="sm" href="/api/schedule.ics" download>Download .ics</Button>
-        <Muted $small role="status">
-          {saveState.busy ? "Saving…" : saveState.error ? <Late>{saveState.error}</Late> : "Saved"}
-        </Muted>
-      </Row>
-
-      <Summary data={data} />
-      {data.notes.map((n, i) => <Alert key={i} $tone="warning">{n}</Alert>)}
-
       <DetailsCard open>
         <summary>Workload and rest</summary>
         <Grid>
@@ -273,12 +173,12 @@ export default function Schedule() {
         </Toggles>
       </DetailsCard>
 
-      <DetailsCard open={data.courses.length > 1}>
+      <DetailsCard open={courses.length > 1}>
         <summary>Course weights</summary>
         <Small $muted>A course with weight 2 gets about twice the time of one with weight 1. 0 leaves it out.
           Deadlines can still come first.</Small>
         <Grid>
-          {data.courses.map((c) => {
+          {courses.map((c) => {
             const w = cfg.course_weights[String(c.id)] ?? 1;
             return (
               <CourseWeight key={c.id}>
@@ -296,97 +196,20 @@ export default function Schedule() {
       <DetailsCard open={!cfg.weekly.length && !cfg.dates.length}>
         <summary>When you can't study ({cfg.weekly.length + cfg.dates.length})</summary>
         <WeeklyEditor rows={cfg.weekly} onChange={(weekly) => change({ weekly })} />
-        <DatedEditor rows={cfg.dates} today={data.today} onChange={(dates) => change({ dates })} />
+        <DatedEditor rows={cfg.dates} today={today} onChange={(dates) => change({ dates })} />
       </DetailsCard>
 
-      {!data.days.length && !data.unscheduled.length && <Empty>Nothing to schedule.</Empty>}
-      {data.days.map((d) => (
-        <section key={d.date}>
-          <DayHead>
-            <span>{dayLabel(d.date, data.today)}</span>
-            <span>
-              {minutes(d.minutes)}{d.stretched && <> <Badge $tone="warning">extra</Badge></>}
-            </span>
-          </DayHead>
-          {d.blocked.length > 0 && (
-            <Blocked>
-              {d.blocked.map((b, i) => (
-                <Badge key={i} $dashed>
-                  {b.start === "00:00" && b.end === "24:00" ? "all day" : `${b.start}–${b.end}`}
-                  {b.reason ? ` · ${b.reason}` : ""}
-                </Badge>
-              ))}
-            </Blocked>
-          )}
-          {d.blocks.length ? (
-            <List $gap="8px">{d.blocks.map((b, i) => <BlockRow key={i} block={b} timeZone={data.timezone} />)}</List>
-          ) : (
-            <Small $muted>No study blocks.</Small>
-          )}
-        </section>
-      ))}
-      {data.unscheduled.length > 0 && (
-        <section>
-          <DayHead>
-            <span>Doesn't fit in {cfg.days} days</span>
-            <span>{minutes(data.unscheduled_minutes)}</span>
-          </DayHead>
-          <List $gap="8px">
-            {data.unscheduled.map((it, i) => <PlanRow key={i} item={it} />)}
-          </List>
-        </section>
-      )}
+      <DetailsCard>
+        <summary>Calendar feed</summary>
+        <Toggles>
+          <Check><input type="checkbox" checked={cfg.auto_update} onChange={(e) => change({ auto_update: e.target.checked })} />
+            Update the plan every night with my progress and new deadlines</Check>
+          <Check><input type="checkbox" checked={cfg.feed_unavailable} onChange={(e) => change({ feed_unavailable: e.target.checked })} />
+            Show when I can't study in the subscribed calendar</Check>
+        </Toggles>
+        <Small $muted>Without the nightly update, the calendar only changes when you save.</Small>
+      </DetailsCard>
     </>
-  );
-}
-
-const SummaryGrid = styled(StatGrid)`
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  @media (max-width: 640px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-`;
-
-function Summary({ data }: { data: ScheduleData }) {
-  const k = data.minutes_by_kind;
-  return (
-    <SummaryGrid aria-label="Schedule summary">
-      <Stat $tone="primary"><strong>{minutes(data.total_minutes)}</strong><span>planned</span></Stat>
-      <Stat><strong>{minutes((k.deep ?? 0) + (k.practice ?? 0))}</strong><span>reading and practice</span></Stat>
-      <Stat><strong>{minutes((k.recall ?? 0) + (k.flashcards ?? 0))}</strong><span>recall and cards</span></Stat>
-      <Stat $tone={data.late ? "danger" : undefined}>
-        <strong>{data.late}</strong><span>late</span>
-      </Stat>
-    </SummaryGrid>
-  );
-}
-
-function BlockRow({ block: b, timeZone }: { block: ScheduleBlock; timeZone?: string }) {
-  const link = b.course_id ? href.course(b.course_id, b.section_id ?? undefined)
-    : b.kind === "flashcards" ? href.study({ due: true }) : undefined;
-  return (
-    <WorkRow as="li" $late={b.late}>
-      <Swatch style={{ background: b.course_id ? courseColor(b.course_id) : "var(--c-primary)" }} aria-hidden="true" />
-      <WorkMain>
-        <Time>{clock(b.start, timeZone)}–{clock(b.end, timeZone)}</Time>
-        <WorkTitle>
-          {link ? <a href={link}>{b.title}</a> : b.title}
-          {b.parts > 1 && <Muted> · {b.kind === "recall" ? "review" : "part"} {b.part}/{b.parts}</Muted>}
-        </WorkTitle>
-        <Meta>
-          {(b.course_short || b.course_name) && <strong>{b.course_short || b.course_name}</strong>}
-          <Badge $tone={KIND_TONE[b.kind]}>{b.label}</Badge>
-          {b.late && <Badge $tone="warning">late</Badge>}
-        </Meta>
-        {b.detail && <Detail $muted>{b.detail}</Detail>}
-        {b.files.length > 0 && (
-          <Files>
-            {b.files.map((f) => (
-              <a key={f.id} href={href.file(f.id, b.course_id ?? undefined)}>{f.name}{f.pages ? ` (${f.pages} p.)` : ""}</a>
-            ))}
-          </Files>
-        )}
-      </WorkMain>
-      <Minutes>{minutes(b.minutes)}</Minutes>
-    </WorkRow>
   );
 }
 

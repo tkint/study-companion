@@ -79,7 +79,7 @@ def publish(settings: Settings, engine: Engine, now: float | None = None) -> dic
         row.published_at = ts
         s.add(row)
         s.commit()
-    return {**data, "published_at": ts, "preview": False}
+    return _with_busy(settings, {**data, "published_at": ts, "preview": False})
 
 
 def current(settings: Settings, engine: Engine, now: float | None = None) -> dict:
@@ -89,15 +89,32 @@ def current(settings: Settings, engine: Engine, now: float | None = None) -> dic
     if data is None:
         return publish(settings, engine, now)
     ts = int(now if now is not None else time.time())
-    return {**data, "today": datetime.fromtimestamp(ts, settings.tz).date().isoformat(),
-            "config": schedule.load(engine), "published_at": at, "preview": False}
+    return _with_busy(settings, {
+        **data, "today": datetime.fromtimestamp(ts, settings.tz).date().isoformat(),
+        "config": schedule.load(engine), "published_at": at, "preview": False})
 
 
 def preview(settings: Settings, engine: Engine, data: dict, now: float | None = None) -> dict:
     """The schedule the unsaved settings ``data`` would give. Raises ScheduleError."""
     config = schedule.draft(engine, data)
     plan = schedule.Generator(settings, engine, now=now, config=config).generate().to_dict()
-    return {**plan, "published_at": None, "preview": True}
+    return _with_busy(settings, {**plan, "published_at": None, "preview": True})
+
+
+def busy_range(data: dict) -> tuple[date, date]:
+    """From the first day kept in ``data`` (or today) to the end of the planning horizon."""
+    today = date.fromisoformat(data["today"])
+    first = today
+    if data.get("days"):
+        first = min(first, date.fromisoformat(data["days"][0]["date"]))
+    return first, today + timedelta(days=int(data["config"]["days"]) - 1)
+
+
+def _with_busy(settings: Settings, data: dict) -> dict:
+    """``data`` plus ``busy``: your unavailabilities over its range, for the calendar view
+    and the printed weeks."""
+    first, last = busy_range(data)
+    return {**data, "busy": busy(data["config"], first, last, settings.tz)}
 
 
 def nightly(settings: Settings, engine: Engine, now: float | None = None) -> bool:

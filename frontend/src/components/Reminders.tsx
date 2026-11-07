@@ -4,7 +4,7 @@ import { fromNow, minutesLabel } from "../format";
 import { href } from "../router";
 import styled from "styled-components";
 import { rise } from "../styles/motion";
-import { Check, Chip, Chips, Field, Fieldset, Input, Lead, Small } from "../ui";
+import { Check, Chip, Chips, Fieldset, Lead, Small } from "../ui";
 
 const Card = styled.section`
   margin: 12px 0 16px;
@@ -22,10 +22,6 @@ const Card = styled.section`
 export const SettingsSection = styled.section`
   margin-top: 28px;
   & ${Fieldset} { margin: 10px 0; }
-`;
-
-const TimeField = styled(Field)`
-  max-width: 200px;
 `;
 
 // In-app reminders: a friendly "today" card (cards to review, deadlines in the next 48 h,
@@ -118,8 +114,8 @@ export function ReminderSettings() {
     <SettingsSection>
       <h2>Reminders</h2>
       <Lead>
-        Reminders come as alarms in the calendar you subscribe to below, so your phone notifies
-        you like any other event.
+        Reminders come as alarms in the calendar you subscribe to (Subscribe, above), so your
+        phone notifies you like any other event.
       </Lead>
       <Fieldset>
         <legend>Before each deadline</legend>
@@ -136,15 +132,8 @@ export function ReminderSettings() {
         <legend>Daily study reminder</legend>
         <Check>
           <input type="checkbox" checked={prefs.daily_enabled} onChange={(e) => update({ daily_enabled: e.target.checked })} />
-          <span>Remind me to study, with the day's plan and cards to review</span>
+          <span>Notify me when each day's first study block starts</span>
         </Check>
-        {prefs.daily_enabled && (
-          <TimeField>
-            <span>At</span>
-            <Input type="time" value={prefs.daily_time} step={300}
-              onChange={(e) => /^\d\d:\d\d$/.test(e.target.value) && update({ daily_time: e.target.value })} />
-          </TimeField>
-        )}
       </Fieldset>
       {saved && <Small $muted role="status">{saved}</Small>}
     </SettingsSection>

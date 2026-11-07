@@ -37,7 +37,7 @@ const STEPS: Step[] = [
     go: href.dashboard,
     target: '[data-tour="subnav"]',
     title: "Pages inside a section",
-    body: "Sections with more than one page show them here. Under Today: the catch-up plan and a timed schedule you can export to your calendar.",
+    body: "Sections with more than one page show them here. Under Today: the catch-up plan, ordered by deadline.",
   },
   {
     go: href.courses,
@@ -55,7 +55,7 @@ const STEPS: Step[] = [
     go: href.calendar,
     target: '[data-tour="tab-calendar"]',
     title: "Calendar",
-    body: "All deadlines by month, week or list. Further down: subscribe on your phone to get reminders.",
+    body: "Your study blocks, deadlines and commitments in one calendar. Subscribe on your phone, download the .ics or print weeks as a PDF.",
   },
   {
     go: href.prompt(),

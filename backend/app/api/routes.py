@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import mimetypes
 import time
-from datetime import date, timedelta
 from typing import Callable
 
 from fastapi import FastAPI, Request
@@ -250,14 +249,7 @@ def register(
         prefs = reminders.prefs(engine)
         plan = published.current(settings, engine, now=now)
         blocks = [b for d in plan["days"] for b in d.get("blocks", [])]
-        busy = []
-        if plan["config"].get("feed_unavailable", True):
-            today = date.fromisoformat(plan["today"])
-            first = today
-            if plan["days"]:  # the past weeks kept in the published schedule
-                first = min(first, date.fromisoformat(plan["days"][0]["date"]))
-            busy = published.busy(plan["config"], first,
-                                  today + timedelta(days=plan["config"]["days"] - 1), settings.tz)
+        busy = plan["busy"] if plan["config"].get("feed_unavailable", True) else []
         headers = {"Cache-Control": "private, max-age=900"}
         if request.query_params.get("download") == "1":
             headers["Content-Disposition"] = (
