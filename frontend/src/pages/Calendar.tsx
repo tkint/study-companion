@@ -9,19 +9,19 @@ import { api, type Deadline, type Schedule, type ScheduleBlock, type ScheduleCon
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
 import { DeadlineItem } from "../components/DeadlineList";
-import { PrintWeeks } from "../components/PrintWeeks";
+import { ExportPdf } from "../components/ExportPdf";
 import { ReminderSettings } from "../components/Reminders";
 import { BlockRow, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor } from "../format";
 import { DayHead, minutes, PlanRow } from "./Plan";
-import { Alert, Banner, Button, DetailsCard, Late, Lead, List, Modal, Muted, Row, Select, Small } from "../ui";
+import { Alert, Banner, Button, DetailsCard, Dropdown, Late, Lead, List, MenuItem, Modal, Muted, Row, Small } from "../ui";
 
 // One calendar for everything (issue: unified study calendar): the published study schedule
 // (app/planner/published.py), Moodle deadlines and your unavailabilities, in FullCalendar.
 // The schedule settings are a form: changes show at once as a preview in the calendar, and
 // Save publishes them, which is what the subscribed feed (/calendar.ics) and the printed
-// weeks show. Subscribe, download the .ics or print weeks as a table (PDF) from the toolbar.
+// weeks show. Subscribe, or Export (menu): as PDF (one page per week, built by the server) or ICS.
 
 // FullCalendar's own CSS, re-coloured with the theme.
 const CalendarCard = styled.div`
@@ -84,18 +84,11 @@ const DialogHead = styled.div`
   & > h2 { margin: 0 0 4px; }
 `;
 
-const ExportGroup = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  & > select { width: auto; min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
-`;
 
 const narrow = () => window.matchMedia("(max-width: 640px)").matches;
 
 // The view you picked last opens next time (per device; week by default).
 const VIEW_KEY = "calendar-view";
-const EXPORT_KEY = "calendar-export";
 const WIDE_VIEWS = ["timeGridWeek", "dayGridMonth", "listWeek"];
 const PHONE_VIEWS = ["timeGridWeek", "timeGridDay", "listWeek", "dayGridMonth"];
 
@@ -164,12 +157,12 @@ export default function Calendar() {
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const [selected, setSelected] = useState<{ deadline?: Deadline; block?: ScheduleBlock } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"settings" | "subscribe" | "print" | null>(null);
+  const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const views = useMemo(() => (narrow() ? PHONE_VIEWS : WIDE_VIEWS), []);
   const initialView = useMemo(() => lastView(views), [views]);
-  const [exportAs, setExportAs] = useState<"pdf" | "ics">(() => (load(EXPORT_KEY) === "ics" ? "ics" : "pdf"));
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     api.schedule()
@@ -274,7 +267,7 @@ export default function Calendar() {
 
   function onDates(arg: DatesSetArg) {
     store(VIEW_KEY, arg.view.type);
-    // Print from the period shown: this week if it includes today, else its first week.
+    // Export from the period shown: this week if it includes today, else its first week.
     const { currentStart: start, currentEnd: end } = arg.view;
     const now = Date.now();
     const iso = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
@@ -293,18 +286,12 @@ export default function Calendar() {
       <Row>
         <Button $variant="soft" $size="sm" onClick={() => setDialog("settings")}>⚙ Settings</Button>
         <Button $variant="primary" $size="sm" onClick={() => setDialog("subscribe")}>Subscribe</Button>
-        <ExportGroup>
-          <Select aria-label="Export format" value={exportAs}
-            onChange={(e) => { const v = e.target.value === "ics" ? "ics" : "pdf"; setExportAs(v); store(EXPORT_KEY, v); }}>
-            <option value="pdf">PDF</option>
-            <option value="ics">ICS</option>
-          </Select>
-          {exportAs === "ics" ? (
-            <Button as="a" $variant="outline" $size="sm" href="/calendar.ics?download=1" download>Export</Button>
-          ) : (
-            <Button $variant="outline" $size="sm" onClick={() => setDialog("print")}>Export</Button>
-          )}
-        </ExportGroup>
+        <Dropdown text label="Export" trigger="Export ▾" open={exportOpen} onOpenChange={setExportOpen}>
+          <MenuItem onClick={() => { setExportOpen(false); setDialog("pdf"); }}>Export as PDF</MenuItem>
+          <MenuItem onClick={() => { setExportOpen(false); window.location.href = "/calendar.ics?download=1"; }}>
+            Export as ICS
+          </MenuItem>
+        </Dropdown>
         <Muted $small role="status">
           {status ?? (dirty ? "Preview of unsaved changes" : `Plan saved ${savedAt(saved.published_at)}`)}
         </Muted>
@@ -419,7 +406,7 @@ export default function Calendar() {
         <CalendarFeed />
         <Button $variant="ghost" $block onClick={closeDialog}>Close</Button>
       </Modal>
-      <PrintWeeks open={dialog === "print"} onClose={closeDialog} data={saved} start={visible ?? saved.today} />
+      <ExportPdf open={dialog === "pdf"} onClose={closeDialog} start={visible ?? saved.today} />
     </>
   );
 }

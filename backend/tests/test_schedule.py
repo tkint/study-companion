@@ -267,3 +267,43 @@ def test_api(settings, engine, c):
     assert "SUMMARY:Lunch" in res.text and "UID:assign-" in res.text
     c.post("/api/schedule/settings", json={"feed_unavailable": False}, headers=SAME_ORIGIN)
     assert "SUMMARY:Lunch" not in c.get("/calendar.ics").text
+
+
+def test_pdf_export(settings, engine, c):
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    anon = TestClient(create_app(settings), follow_redirects=False)
+    assert anon.get("/api/schedule.pdf").status_code == 401
+    assert c.get("/api/schedule.pdf?weeks=9").status_code == 400
+    assert c.get("/api/schedule.pdf?from=soon").status_code == 400
+    c.post("/api/schedule/settings", headers=SAME_ORIGIN, json={
+        "weekly": [{"day": d, "start": "12:00", "end": "13:00", "reason": "Lunch"} for d in range(7)]})
+    res = c.get("/api/schedule.pdf?weeks=2")
+    assert res.status_code == 200 and res.headers["content-type"] == "application/pdf"
+    assert res.headers["content-disposition"].startswith('inline; filename="study-plan-')
+    pdf = PdfReader(BytesIO(res.content))
+    assert len(pdf.pages) == 2
+    assert pdf.pages[0].mediabox.width == 842 and pdf.pages[0].mediabox.height == 595
+    text = pdf.pages[0].extract_text()
+    assert "Study plan" in text and "Week of Monday" in text and "Printed on" in text
+    assert "Lunch" in text and "Monday" in text and "Friday" in text
+    blocks = [b for d in c.get("/api/schedule").json()["days"] for b in d["blocks"]]
+    week = "".join(p.extract_text() for p in pdf.pages)
+    assert any(b["title"][:8] in week for b in blocks)
+    no_busy = PdfReader(BytesIO(c.get("/api/schedule.pdf?busy=0").content)).pages[0].extract_text()
+    assert "Lunch" not in no_busy
+
+
+def test_pdf_writer_escapes_and_fits():
+    from app import pdf
+
+    doc = pdf.Document(title="a (b) \\ c")
+    page = doc.page()
+    page.text(10, 20, "Matrices (part 1/2) é – ok ✓")
+    assert pdf.fit("a" * 200, 50, 9).endswith("...")
+    assert pdf.text_width(pdf.fit("a" * 200, 50, 9), 9) <= 50
+    out = doc.render()
+    assert out.startswith(b"%PDF-1.4") and out.rstrip().endswith(b"%%EOF")
+    assert b"(a \\(b\\) \\\\ c)" in out

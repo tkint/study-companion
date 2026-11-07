@@ -6,16 +6,19 @@ check the origin."""
 from __future__ import annotations
 
 import json
+import time
+from datetime import date, datetime, timedelta
 from typing import Callable
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.engine import Engine
 
 from app.config import Settings
 from app.db import session
 from app.models import Site
-from app.planner import published, schedule
+from app.api import ui
+from app.planner import print_week, published, schedule
 
 MAX_BODY = 32768  # room for 50 weekly and 100 dated unavailabilities
 
@@ -77,3 +80,33 @@ def register(
         except schedule.ScheduleError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(with_owner(published.publish(settings, engine)))
+
+    @app.get("/api/schedule.pdf")
+    async def schedule_pdf(request: Request) -> Response:
+        """The saved schedule as a PDF, one page per week: ``from`` (a date in the first week,
+        default this week), ``weeks`` (1-8), ``deadlines`` and ``busy`` (0 to leave out)."""
+        if not is_authenticated(request):
+            return unauthorized()
+        q = request.query_params
+        now = int(time.time())
+        today = datetime.fromtimestamp(now, settings.tz).date()
+        try:
+            first = date.fromisoformat(q.get("from") or today.isoformat())
+            weeks = int(q.get("weeks") or 1)
+        except ValueError:
+            return JSONResponse({"error": "from is YYYY-MM-DD, weeks 1 to 8"}, status_code=400)
+        if not 1 <= weeks <= print_week.MAX_WEEKS:
+            return JSONResponse({"error": "weeks must be 1 to 8"}, status_code=400)
+        monday = first - timedelta(days=first.weekday())
+        start = int(datetime(monday.year, monday.month, monday.day, tzinfo=settings.tz).timestamp())
+        end = start + weeks * 7 * 86400 + 3600
+        plan = with_owner(published.current(settings, engine, now=now))
+        deadlines = ui.deadlines(engine, start=start - 86400, end=end + 86400, now=now,
+                                 include_ignored=False)
+        body = print_week.render(plan, deadlines, monday, weeks, settings.tz, owner=plan["owner"],
+                                 printed=today, with_deadlines=q.get("deadlines") != "0",
+                                 with_busy=q.get("busy") != "0")
+        return Response(body, media_type="application/pdf", headers={
+            "Content-Disposition": f'inline; filename="study-plan-{monday.isoformat()}.pdf"',
+            "Cache-Control": "private, no-store",
+        })

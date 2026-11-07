@@ -220,7 +220,7 @@ same settings, e.g. after you finished sections.
 A saved plan stays as it is between saves (blocks don't move each time your calendar app
 refreshes), and blocks that already ended are kept for six weeks.
 
-### Subscribe, download or print
+### Subscribe or export
 
 **Subscribe** shows your private feed link: one calendar with the study blocks, deadlines (with
 the alarms you chose under **Reminders**) and your unavailabilities.
@@ -240,15 +240,15 @@ The link contains a private token, so anyone with it can read your plan and dead
 (nothing else). If it leaks, tap **New link**: the old one stops working at once and you
 subscribe again with the new one. The token is stripped from Caddy's and the app's logs.
 
-**Export** with **ICS** selected downloads a one-off file of the same calendar, if you'd rather
+**Export › Export as ICS** downloads a one-off file of the same calendar, if you'd rather
 import than subscribe (Google Calendar *Settings › Import*, Apple Calendar *File › Import*, Outlook *Add
 calendar › Upload from file*).
 
-**Export** with **PDF** selected prints one or more weeks (from the week shown), one landscape
+**Export › Export as PDF** makes a PDF of one or more weeks (from the week shown), one landscape
 page per week like a printed timetable: your name from Moodle and the week at the top, a column
 per day (Monday to Friday, plus the weekend when something is planned), the study blocks at
-their times, deadlines and unavailabilities if you want them, and the date it was printed. In the print
-dialog choose **Save as PDF** to get a file (on a phone too).
+their times, deadlines and unavailabilities if you want them, and the date it was printed. **Open PDF** shows it in a new tab, **Download** saves the file;
+the server builds it, so nothing goes through the print dialog.
 
 ## Ask AI (prompt builder)
 
