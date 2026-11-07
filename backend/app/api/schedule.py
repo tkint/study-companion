@@ -1,19 +1,19 @@
-"""JSON routes of the timed study schedule (``app.planner.schedule``) and its ``.ics``
-download. Session cookie required; writes also check the origin."""
+"""JSON routes of the timed study schedule (``app.planner.schedule``): the published
+schedule, a preview of unsaved settings, and saving them (which publishes a new schedule,
+so the calendar feed ``/calendar.ics`` follows). Session cookie required; writes also
+check the origin."""
 
 from __future__ import annotations
 
 import json
-import time
 from typing import Callable
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
-from app.api import ics
 from app.config import Settings
-from app.planner import schedule
+from app.planner import published, schedule
 
 MAX_BODY = 32768  # room for 50 weekly and 100 dated unavailabilities
 
@@ -28,38 +28,44 @@ def register(
     def unauthorized() -> JSONResponse:
         return JSONResponse({"error": "not signed in"}, status_code=401)
 
-    @app.get("/api/schedule")
-    async def get_schedule(request: Request) -> JSONResponse:
-        if not is_authenticated(request):
-            return unauthorized()
-        return JSONResponse(schedule.Generator(settings, engine).generate().to_dict())
-
-    @app.post("/api/schedule/settings")
-    async def schedule_settings(request: Request) -> JSONResponse:
-        """Any subset of the settings (``schedule.DEFAULTS`` plus ``daily_hours``)."""
-        if not is_authenticated(request) or not same_origin(request):
-            return unauthorized()
+    async def body(request: Request) -> dict | None:
         raw = await request.body()
         try:
             data = json.loads(raw) if len(raw) <= MAX_BODY else None
         except ValueError:
             data = None
-        if not isinstance(data, dict):
+        return data if isinstance(data, dict) else None
+
+    @app.get("/api/schedule")
+    async def get_schedule(request: Request) -> JSONResponse:
+        if not is_authenticated(request):
+            return unauthorized()
+        return JSONResponse(published.current(settings, engine))
+
+    @app.post("/api/schedule/preview")
+    async def schedule_preview(request: Request) -> JSONResponse:
+        """The schedule unsaved settings would give; nothing is saved."""
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        data = await body(request)
+        if data is None:
             return JSONResponse({"error": "send a JSON object"}, status_code=400)
         try:
-            return JSONResponse(schedule.save(engine, data))
+            return JSONResponse(published.preview(settings, engine, data))
         except schedule.ScheduleError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
-    @app.get("/api/schedule.ics")
-    async def schedule_ics(request: Request) -> Response:
-        if not is_authenticated(request):
+    @app.post("/api/schedule/settings")
+    async def schedule_settings(request: Request) -> JSONResponse:
+        """Save any subset of the settings (``schedule.DEFAULTS`` plus ``daily_hours``) and
+        publish the schedule they give. Returns the published schedule."""
+        if not is_authenticated(request) or not same_origin(request):
             return unauthorized()
-        now = int(time.time())
-        plan = schedule.Generator(settings, engine, now=now).generate()
-        body = ics.build_schedule_ics([b.to_dict() for b in plan.blocks],
-                                      str(request.base_url), now=now)
-        return Response(body, media_type="text/calendar; charset=utf-8", headers={
-            "Content-Disposition": f'attachment; filename="study-schedule-{plan.today}.ics"',
-            "Cache-Control": "private, no-store",
-        })
+        data = await body(request)
+        if data is None:
+            return JSONResponse({"error": "send a JSON object"}, status_code=400)
+        try:
+            schedule.save(engine, data)
+        except schedule.ScheduleError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(published.publish(settings, engine))

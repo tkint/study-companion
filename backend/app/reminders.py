@@ -3,9 +3,10 @@ and a "today" read model for the in-app banner.
 
 - Deadlines get one VALARM per lead time (default 1 day and 2 hours before), until done.
   Ignored deadlines are not in the feed; optional ones are, but without alarms.
-- A daily "study session" event at your reminder time for today and the next days, with
-  the catch-up plan's minutes and items for that day and the flashcards due. Calendar apps
-  show its alarm as a phone notification.
+- With the daily reminder on, the first study block of each day in the feed (the published
+  study schedule, ``app.planner.published``) has an alarm at its start with the day's
+  planned time. Calendar apps show it as a phone notification. ``daily_sessions`` is the
+  in-app banner's view of today's plan.
 
 Settings are per user in SQLite (``ReminderPrefs``), edited on the Calendar page.
 """

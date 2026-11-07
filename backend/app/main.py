@@ -40,6 +40,7 @@ from app.mcp_tools import StudyTools
 from app.moodle import api as moodle_api
 from app.moodle.client import MoodleAuthError, MoodleError, redact_text
 from app.moodle.scheduler import start_scheduler
+from app.planner import published
 from app.moodle.sync import ClientFactory, SyncAlreadyRunning, SyncService, default_client_factory
 from app.moodle.token import TokenFormatError, parse_pasted_token
 
@@ -157,7 +158,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        scheduler = start_scheduler(sync, settings.sync_interval_hours)
+        scheduler = start_scheduler(sync, settings.sync_interval_hours,
+                                    nightly=lambda: published.nightly(settings, engine),
+                                    tz=settings.tz)
         if not sync.configured():
             logger.warning("Moodle is not connected yet: add it on the settings page")
         async with mcp_endpoint.running():

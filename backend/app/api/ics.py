@@ -1,4 +1,5 @@
-"""ICS (iCalendar, RFC 5545) export of deadlines, and the secret feed URL.
+"""ICS (iCalendar, RFC 5545) feed: deadlines, study blocks and your unavailabilities in one
+calendar, and its secret URL.
 
 Phone and Outlook calendars subscribe to a URL and can't sign in, so the feed is protected
 by a token in the query string (``/calendar.ics?token=...``). The token is an HMAC of
@@ -19,7 +20,7 @@ from app.accounts import USER_ID
 from app.db import session
 from app.models import CalendarFeed
 
-PRODID = "-//Study Companion//Deadlines//EN"
+PRODID = "-//Study Companion//Study calendar//EN"
 
 
 def _epoch(engine: Engine, user_id: int = USER_ID) -> int:
@@ -90,14 +91,8 @@ def _alarm(text: str, trigger: str) -> list[str]:
             f"TRIGGER:{trigger}", "END:VALARM"]
 
 
-def build_ics(items: list[dict], now: int | None = None, name: str = "Study deadlines",
-              alarms: tuple[int, ...] | list[int] = (1440,),
-              sessions: list[dict] | None = None) -> str:
-    """One VEVENT per deadline, at its due time, with an alarm per lead time in ``alarms``
-    (minutes before) until it is done; plus one daily study reminder per ``sessions`` entry
-    (``app.reminders.daily_sessions``) with an alarm at its start."""
-    stamp = _dt(int(now if now is not None else time.time()))
-    lines = [
+def _header(name: str) -> list[str]:
+    return [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         f"PRODID:{PRODID}",
@@ -107,6 +102,15 @@ def build_ics(items: list[dict], now: int | None = None, name: str = "Study dead
         "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
         "X-PUBLISHED-TTL:PT6H",
     ]
+
+
+def _finish(lines: list[str]) -> str:
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+def _deadline_events(items: list[dict], stamp: str, alarms) -> list[str]:
+    lines: list[str] = []
     for d in items:
         if not d.get("due_at"):
             continue
@@ -139,51 +143,18 @@ def build_ics(items: list[dict], now: int | None = None, name: str = "Study dead
             for lead in alarms:
                 lines += _alarm(title, _lead(lead))
         lines.append("END:VEVENT")
-    for sess in sessions or []:
-        bits = []
-        if sess.get("minutes"):
-            bits.append(f"{_human(sess['minutes'])} planned")
-        if sess.get("cards_due"):
-            bits.append(f"{sess['cards_due']} card{'s' if sess['cards_due'] != 1 else ''} to review")
-        title = "Study time" + (f": {', '.join(bits)}" if bits else "")
-        length = max(int(sess.get("minutes") or 0), 15)
-        lines += [
-            "BEGIN:VEVENT",
-            f"UID:study-{sess['date']}@study-companion",
-            f"DTSTAMP:{stamp}",
-            f"DTSTART:{_dt(sess['start'])}",
-            f"DTEND:{_dt(sess['start'] + length * 60)}",
-            f"SUMMARY:{_escape(title)}",
-            "TRANSP:TRANSPARENT",
-            "CATEGORIES:Study Companion",
-        ]
-        if sess.get("items"):
-            lines.append(f"DESCRIPTION:{_escape(chr(10).join(sess['items']))}")
-        lines += _alarm(title, "PT0M")
-        lines.append("END:VEVENT")
-    lines.append("END:VCALENDAR")
-    return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+    return lines
 
 
-SCHEDULE_PRODID = "-//Study Companion//Study schedule//EN"
-
-
-def build_schedule_ics(blocks: list[dict], base_url: str, now: int | None = None,
-                       name: str = "Study schedule") -> str:
-    """One busy VEVENT per study block of ``app.planner.schedule`` (``Block.to_dict``), with
-    the course material and what to do in the description. UIDs are stable per day and
-    position, so importing a newer schedule updates the same events."""
-    stamp = _dt(int(now if now is not None else time.time()))
+def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool) -> list[str]:
+    """One busy VEVENT per study block (``Block.to_dict``). With ``day_alarm``, the first
+    block of each day has an alarm at its start with the day's agenda."""
     base = base_url.rstrip("/")
-    lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        f"PRODID:{SCHEDULE_PRODID}",
-        "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
-        f"X-WR-CALNAME:{_escape(name)}",
-    ]
+    lines: list[str] = []
     position: dict[str, int] = {}
+    by_day: dict[str, list[dict]] = {}
+    for b in blocks:
+        by_day.setdefault(b["date"], []).append(b)
     for b in blocks:
         n = position[b["date"]] = position.get(b["date"], 0) + 1
         desc = []
@@ -221,6 +192,53 @@ def build_schedule_ics(blocks: list[dict], base_url: str, now: int | None = None
         ]
         if url:
             lines.append(f"URL:{url}")
+        if day_alarm and n == 1:
+            day = by_day[b["date"]]
+            total = sum(x.get("minutes", 0) for x in day)
+            agenda = f"Study time: {_human(total)} planned, {len(day)} block{'s' if len(day) != 1 else ''}"
+            lines += _alarm(agenda, "PT0M")
         lines.append("END:VEVENT")
-    lines.append("END:VCALENDAR")
-    return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+    return lines
+
+
+def _busy_events(busy: list[dict], stamp: str) -> list[str]:
+    """Your unavailabilities (``app.planner.published.busy``), so the calendar shows why
+    there is no study block there."""
+    lines: list[str] = []
+    for u in busy:
+        title = u.get("reason") or "Unavailable"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:busy-{u['date']}-{u['start']}@study-companion",
+            f"DTSTAMP:{stamp}",
+        ]
+        if u.get("all_day"):
+            day = u["date"].replace("-", "")
+            nxt = datetime.fromisoformat(u["date"]).date().toordinal() + 1
+            lines += [f"DTSTART;VALUE=DATE:{day}",
+                      f"DTEND;VALUE=DATE:{datetime.fromordinal(nxt):%Y%m%d}"]
+        else:
+            lines += [f"DTSTART:{_dt(u['start'])}", f"DTEND:{_dt(u['end'])}"]
+        lines += [
+            f"SUMMARY:{_escape(title)}",
+            "DESCRIPTION:" + _escape("No study planned (Study Companion: when you can't study)."),
+            "TRANSP:TRANSPARENT",
+            "CATEGORIES:Unavailable",
+            "END:VEVENT",
+        ]
+    return lines
+
+
+def build_ics(items: list[dict], now: int | None = None, name: str = "Study Companion",
+              alarms: tuple[int, ...] | list[int] = (1440,),
+              blocks: list[dict] | None = None, base_url: str = "",
+              busy: list[dict] | None = None, day_alarm: bool = False) -> str:
+    """The calendar feed: one VEVENT per deadline at its due time, with an alarm per lead
+    time in ``alarms`` (minutes before) until it is done; one per study block of the
+    published schedule; and one per unavailability in ``busy``."""
+    stamp = _dt(int(now if now is not None else time.time()))
+    lines = _header(name)
+    lines += _deadline_events(items, stamp, alarms)
+    lines += _block_events(blocks or [], base_url, stamp, day_alarm)
+    lines += _busy_events(busy or [], stamp)
+    return _finish(lines)

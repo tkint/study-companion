@@ -1,7 +1,7 @@
 """Timed study schedule (issue #34): settings, capacity, unavailabilities, weights, buffer
 days, activity mix and the .ics export."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +11,7 @@ from app.db import make_engine, session
 from app.extract.index import extract_files, index_structure
 from app.main import create_app
 from app.models import StudyQuestion
-from app.planner import schedule
+from app.planner import published, schedule
 from app.planner.schedule import Generator, ScheduleError
 
 from .conftest import PASSWORD
@@ -168,8 +168,8 @@ def test_no_time_left(settings, engine, morning):
 
 def test_ics_export(settings, engine, morning):
     plan = generate(settings, engine, morning, beyond_target=True)
-    text = ics.build_schedule_ics([b.to_dict() for b in plan.blocks], "https://study.example.ch/",
-                                  now=morning)
+    text = ics.build_ics([], blocks=[b.to_dict() for b in plan.blocks],
+                         base_url="https://study.example.ch/", now=morning)
     assert text.startswith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n") and text.endswith("END:VCALENDAR\r\n")
     assert text.count("BEGIN:VEVENT") == len(plan.blocks)
     assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
@@ -184,6 +184,49 @@ def test_ics_export(settings, engine, morning):
     assert len(uids) == len(set(uids))
 
 
+def test_busy_expands_unavailabilities_in_local_time(settings):
+    config = {"weekly": [{"day": 0, "start": "08:00", "end": "10:00", "reason": "Class"}],
+              "dates": [{"date": "2026-10-28", "start": "00:00", "end": "24:00", "reason": "Trip"}]}
+    # Zurich leaves summer time on Sunday 25 October 2026: both Mondays stay 08:00 local.
+    out = published.busy(config, date(2026, 10, 19), date(2026, 11, 1), settings.tz)
+    assert [(u["date"], u["repeat"]) for u in out] == [
+        ("2026-10-19", "weekly"), ("2026-10-26", "weekly"), ("2026-10-28", "date")]
+    assert [local(settings, u["start"]).hour for u in out[:2]] == [8, 8]
+    assert out[1]["start"] - out[0]["start"] == 7 * DAY + 3600
+    assert out[2]["all_day"] and not out[0]["all_day"]
+    body = ics.build_ics([], now=NOW, busy=out)
+    assert "SUMMARY:Class" in body and "DTSTART;VALUE=DATE:20261028" in body
+    assert "DTEND;VALUE=DATE:20261029" in body and body.count("TRANSP:TRANSPARENT") == 3
+
+
+def test_publish_keeps_the_feed_stable_until_saved(settings, engine, morning):
+    first = published.publish(settings, engine, now=morning)
+    assert first["days"] and not first["preview"] and first["published_at"] == morning
+    blocks = [b for d in first["days"] for b in d["blocks"]]
+    # Later the same day, the published schedule is unchanged (no re-planning on read).
+    later = published.current(settings, engine, now=morning + 3 * 3600)
+    assert [b for d in later["days"] for b in d["blocks"]] == blocks
+    # A preview of unsaved settings changes nothing.
+    pre = published.preview(settings, engine, {"session_minutes": 25}, now=morning)
+    assert pre["preview"] and pre["config"]["session_minutes"] == 25
+    assert published.current(settings, engine, now=morning)["config"]["session_minutes"] == 50
+    # Re-publishing later keeps the blocks that already ended and re-plans the rest.
+    noon = morning + 5 * 3600
+    again = published.publish(settings, engine, now=noon)
+    today = again["days"][0]
+    done = [b for b in blocks if b["end"] <= noon]
+    assert done and today["blocks"][:len(done)] == done
+    assert all(b["start"] >= noon for b in today["blocks"][len(done):])
+
+
+def test_nightly_update_follows_auto_update(settings, engine, morning):
+    assert published.nightly(settings, engine, now=morning)
+    schedule.save(engine, {"auto_update": False}, now=morning)
+    assert not published.nightly(settings, engine, now=morning + DAY)
+    with pytest.raises(ScheduleError):
+        schedule.save(engine, {"auto_update": "yes"})
+
+
 @pytest.fixture
 def c(settings, engine):
     client = TestClient(create_app(settings), follow_redirects=False)
@@ -194,19 +237,32 @@ def c(settings, engine):
 def test_api(settings, engine, c):
     anon = TestClient(create_app(settings), follow_redirects=False)
     assert anon.get("/api/schedule").status_code == 401
-    assert anon.get("/api/schedule.ics").status_code == 401
+    assert anon.post("/api/schedule/preview", json={}, headers=SAME_ORIGIN).status_code == 401
     out = c.get("/api/schedule").json()
     assert out["config"]["days"] == 14 and {"days", "courses", "notes", "unscheduled"} <= out.keys()
+    assert out["published_at"] and out["preview"] is False
     assert c.post("/api/schedule/settings", json={"buffer_days": 2},
                   headers={"Sec-Fetch-Site": "cross-site"}).status_code == 401
     assert c.post("/api/schedule/settings", json={"buffer_days": 9},
                   headers=SAME_ORIGIN).status_code == 400
     assert c.post("/api/schedule/settings", content=b"[]", headers=SAME_ORIGIN).status_code == 400
+    assert c.post("/api/schedule/preview", json={"buffer_days": 9},
+                  headers=SAME_ORIGIN).status_code == 400
+    pre = c.post("/api/schedule/preview", json={"buffer_days": 3}, headers=SAME_ORIGIN).json()
+    assert pre["preview"] and pre["config"]["buffer_days"] == 3
+    assert c.get("/api/schedule").json()["config"]["buffer_days"] == 1  # not saved
     saved = c.post("/api/schedule/settings", json={"buffer_days": 2, "daily_hours": 3},
                    headers=SAME_ORIGIN).json()
-    assert saved["buffer_days"] == 2 and saved["daily_hours"] == 3
+    assert saved["config"]["buffer_days"] == 2 and saved["config"]["daily_hours"] == 3
+    assert saved["published_at"] and "days" in saved
     assert c.get("/api/plan").json()["hours_per_day"] == 3  # shared with the catch-up plan
-    res = c.get("/api/schedule.ics")
+    # One calendar for everything: the download has the study blocks and the deadlines.
+    c.post("/api/schedule/settings", headers=SAME_ORIGIN, json={
+        "weekly": [{"day": d, "start": "12:00", "end": "13:00", "reason": "Lunch"} for d in range(7)]})
+    res = c.get("/calendar.ics?download=1")
     assert res.status_code == 200 and res.headers["content-type"].startswith("text/calendar")
-    assert res.headers["content-disposition"].startswith('attachment; filename="study-schedule-')
-    assert "BEGIN:VCALENDAR" in res.text
+    assert res.headers["content-disposition"].startswith('attachment; filename="study-calendar-')
+    assert "UID:schedule-" in res.text and "SUMMARY:[Study]" in res.text
+    assert "SUMMARY:Lunch" in res.text and "UID:assign-" in res.text
+    c.post("/api/schedule/settings", json={"feed_unavailable": False}, headers=SAME_ORIGIN)
+    assert "SUMMARY:Lunch" not in c.get("/calendar.ics").text

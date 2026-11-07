@@ -418,3 +418,14 @@ class ScheduleSettings(SQLModel, table=True):
     user_id: int = Field(primary_key=True)
     config: str = "{}"
     updated_at: int = 0
+
+
+class PublishedSchedule(SQLModel, table=True):
+    """The timed study schedule as last saved (``app.planner.published``): what the calendar
+    view, the print export and the ICS feed show until the next save or nightly update.
+    ``data`` is ``Schedule.to_dict()`` with the blocks of the past weeks kept, so a calendar
+    app does not lose the study blocks you already did."""
+
+    user_id: int = Field(primary_key=True)
+    data: str = "{}"
+    published_at: int = 0

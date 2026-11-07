@@ -401,6 +401,8 @@ export interface ScheduleConfig {
   recall: boolean;
   include_optional: boolean;
   beyond_target: boolean;
+  auto_update: boolean; // re-plan every night
+  feed_unavailable: boolean; // unavailabilities in the calendar feed
   course_weights: Record<string, number>;
   weekly: WeeklyUnavailability[];
   dates: DatedUnavailability[];
@@ -471,6 +473,20 @@ export interface Schedule {
   unscheduled_minutes: number;
   courses: ScheduleCourse[];
   notes: string[];
+  /** When this schedule was saved and published (null for a preview of unsaved settings). */
+  published_at: number | null;
+  preview: boolean;
+  /** Your unavailabilities over the schedule's days, as timestamps. */
+  busy: BusySlot[];
+}
+
+export interface BusySlot {
+  date: string;
+  start: number;
+  end: number;
+  all_day: boolean;
+  reason: string;
+  repeat: "weekly" | "date";
 }
 
 export class ApiError extends Error {
@@ -552,8 +568,11 @@ export const api = {
   setTarget: (target_percent: number) =>
     request<{ target_percent: number }>("/api/plan/settings", { method: "POST", body: JSON.stringify({ target_percent }) }),
   schedule: () => request<Schedule>("/api/schedule"),
+  /** Save the settings and publish the schedule they give (the calendar feed follows). */
   setSchedule: (c: Partial<ScheduleConfig>) =>
-    request<ScheduleConfig>("/api/schedule/settings", { method: "POST", body: JSON.stringify(c) }),
+    request<Schedule>("/api/schedule/settings", { method: "POST", body: JSON.stringify(c) }),
+  previewSchedule: (c: Partial<ScheduleConfig>) =>
+    request<Schedule>("/api/schedule/preview", { method: "POST", body: JSON.stringify(c) }),
   setDeadlinePrefs: (id: number, prefs: ItemPrefs) =>
     request<ItemState>(`/api/deadlines/${id}/prefs`, {
       method: "POST",

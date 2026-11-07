@@ -172,7 +172,7 @@ export default function Plan() {
         use ⋯ to mark something optional or let it go.
       </Lead>
       <Row $tight>
-        <Button as="a" $variant="soft" $size="sm" href={href.schedule}>Timed schedule and .ics export →</Button>
+        <Button as="a" $variant="soft" $size="sm" href={href.calendar}>Study calendar with times →</Button>
       </Row>
       <Controls>
         <Field>
