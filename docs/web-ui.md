@@ -246,8 +246,10 @@ calendar › Upload from file*).
 
 **Export › Export as PDF** makes a PDF of one or more weeks (from the week shown), one landscape
 page per week like a printed timetable: your name from Moodle and the week at the top, a column
-per day (Monday to Friday, plus the weekend when something is planned), the study blocks at
-their times, deadlines and unavailabilities if you want them, and the date it was printed. **Open PDF** shows it in a new tab, **Download** saves the file;
+per day (Monday to Friday, plus the weekend when something is planned), your study sessions at
+their times (back-to-back blocks share one box that lists each piece of work with its course),
+deadlines and unavailabilities if you want them, and the date it was printed. The grid only
+covers the hours that week uses, and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
 the server builds it, so nothing goes through the print dialog.
 
 ## Ask AI (prompt builder)
