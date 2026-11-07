@@ -70,6 +70,8 @@ DEFAULTS: dict = {
     "recall": True,
     "include_optional": False,
     "beyond_target": False,
+    "auto_update": True,  # re-plan every night with your progress and new deadlines
+    "feed_unavailable": True,  # your unavailabilities as busy events in the calendar feed
     "course_weights": {},
     "weekly": [],
     "dates": [],
@@ -157,7 +159,7 @@ def validate(data: dict, current: dict) -> dict:
             out[key] = _time(data[key], key)
     if _minutes(out["day_end"]) - _minutes(out["day_start"]) < 60:
         raise ScheduleError("the study window (day_start to day_end) must be at least 1 hour")
-    for key in ("recall", "include_optional", "beyond_target"):
+    for key in ("recall", "include_optional", "beyond_target", "auto_update", "feed_unavailable"):
         if key in data:
             if not isinstance(data[key], bool):
                 raise ScheduleError(f"{key} must be true or false")
@@ -227,6 +229,17 @@ def save(engine: Engine, data: dict, now: float | None = None) -> dict:
         s.add(row)
         s.commit()
     return load(engine)
+
+
+def draft(engine: Engine, data: dict) -> dict:
+    """Saved settings with ``data`` applied, without saving (the form's preview)."""
+    if not isinstance(data, dict):
+        raise ScheduleError("send a JSON object")
+    current = load(engine)
+    merged = validate(data, current)
+    hours = data.get("daily_hours", current["daily_hours"])
+    merged["daily_hours"] = min(float(hours), merged["max_daily_hours"])
+    return merged
 
 
 # ---------------------------------------------------------------------- schedule

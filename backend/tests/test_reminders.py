@@ -57,9 +57,6 @@ def test_daily_sessions_follow_the_plan(settings, engine):
     first = sessions[0]
     assert first["minutes"] > 0 and first["items"]
     assert first["start"] >= NOW - DAY
-    body = ics.build_ics([], now=NOW, sessions=sessions)
-    assert f"UID:study-{first['date']}@study-companion" in body
-    assert "SUMMARY:Study time:" in body and "TRIGGER:PT0M" in body
     reminders.set_prefs(engine, {"daily_enabled": False})
     assert reminders.daily_sessions(engine, settings, NOW) == []
 
@@ -69,8 +66,17 @@ def test_daily_session_counts_due_cards_today(settings, engine):
     sessions = reminders.daily_sessions(engine, settings, NOW)
     assert sessions[0]["cards_due"] == 1
     assert all(s["cards_due"] == 0 for s in sessions[1:])
-    body = ics.build_ics([], now=NOW, sessions=sessions[:1])
-    assert "1 card to review" in body
+
+
+def test_daily_alarm_on_each_days_first_block():
+    blocks = [{"date": "2026-11-09", "start": NOW + i * 3600, "end": NOW + i * 3600 + 3000,
+               "minutes": 50, "kind": "deep", "summary": f"[Study] B{i}"} for i in range(3)]
+    blocks.append({**blocks[0], "date": "2026-11-10", "start": NOW + DAY, "end": NOW + DAY + 900,
+                   "minutes": 15})
+    body = ics.build_ics([], now=NOW, blocks=blocks, base_url="https://s.example/", day_alarm=True)
+    assert body.count("BEGIN:VALARM") == 2 and "TRIGGER:PT0M" in body
+    assert "Study time: 2 h 30 planned\\, 3 blocks" in body.replace("\r\n ", "")
+    assert "VALARM" not in ics.build_ics([], now=NOW, blocks=blocks, day_alarm=False)
 
 
 def test_today_read_model(settings, engine):

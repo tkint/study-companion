@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import time
+from datetime import date, timedelta
 from typing import Callable
 
 from fastapi import FastAPI, Request
@@ -22,7 +23,7 @@ from app.config import Settings
 from app.db import session
 from app.models import CourseImage, File
 from app.moodle.names import UnsafePathError, safe_join
-from app.planner import Planner
+from app.planner import Planner, published
 
 # Shown in the browser. Everything else downloads: Moodle HTML or SVG served inline from
 # this origin could run scripts with your session.
@@ -247,12 +248,24 @@ def register(
         items = ui.deadlines(engine, start=now - ui.OVERDUE_DAYS * 86400, now=now,
                              include_ignored=False)
         prefs = reminders.prefs(engine)
-        sessions = reminders.daily_sessions(engine, settings, now)
+        plan = published.current(settings, engine, now=now)
+        blocks = [b for d in plan["days"] for b in d.get("blocks", [])]
+        busy = []
+        if plan["config"].get("feed_unavailable", True):
+            today = date.fromisoformat(plan["today"])
+            first = today
+            if plan["days"]:  # the past weeks kept in the published schedule
+                first = min(first, date.fromisoformat(plan["days"][0]["date"]))
+            busy = published.busy(plan["config"], first,
+                                  today + timedelta(days=plan["config"]["days"] - 1), settings.tz)
         headers = {"Cache-Control": "private, max-age=900"}
         if request.query_params.get("download") == "1":
-            headers["Content-Disposition"] = 'attachment; filename="study-deadlines.ics"'
+            headers["Content-Disposition"] = (
+                f'attachment; filename="study-calendar-{plan["today"]}.ics"')
         return Response(
-            ics.build_ics(items, now=now, alarms=prefs["deadline_alarms"], sessions=sessions),
+            ics.build_ics(items, now=now, alarms=prefs["deadline_alarms"], blocks=blocks,
+                          base_url=str(request.base_url), busy=busy,
+                          day_alarm=prefs["daily_enabled"]),
             media_type="text/calendar; charset=utf-8",
             headers=headers,
         )
