@@ -2,9 +2,9 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { createPortal } from "react-dom";
 import styled from "styled-components";
 import { pop } from "../styles/motion";
-import { IconButton } from "./Button";
+import { Button, IconButton } from "./Button";
 
-// A small menu under a "⋯" button. The menu is drawn in a portal with fixed positioning, so
+// A small menu under a "⋯" button (or a text button with ``text``). The menu is drawn in a portal with fixed positioning, so
 // list items, cards and their animations can never paint over it (the old stacking bug).
 // Closes on Escape, a tap outside, or picking an item.
 
@@ -40,10 +40,12 @@ export const MenuItem = styled.button.attrs({ type: "button", role: "menuitem" }
   &:disabled { opacity: .5; }
 `;
 
-export function Dropdown({ label, trigger = "⋯", children, open: controlled, onOpenChange }: {
+export function Dropdown({ label, trigger = "⋯", text = false, children, open: controlled, onOpenChange }: {
   /** Accessible name of the trigger button. */
   label: string;
   trigger?: ReactNode;
+  /** A small outlined text button ("Export ▾") instead of the round icon button. */
+  text?: boolean;
   children: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -103,10 +105,17 @@ export function Dropdown({ label, trigger = "⋯", children, open: controlled, o
 
   return (
     <>
-      <IconButton ref={button} type="button" aria-label={label} title={label} aria-haspopup="menu"
-        aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}>
-        {trigger}
-      </IconButton>
+      {text ? (
+        <Button ref={button} type="button" $variant="outline" $size="sm" aria-haspopup="menu"
+          aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}>
+          {trigger}
+        </Button>
+      ) : (
+        <IconButton ref={button} type="button" aria-label={label} title={label} aria-haspopup="menu"
+          aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}>
+          {trigger}
+        </IconButton>
+      )}
       {open && createPortal(
         <Pop ref={menu} id={id} role="menu" style={pos ? { top: pos.top, right: pos.right } : { visibility: "hidden" }}>
           {children}
