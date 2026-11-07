@@ -20,7 +20,7 @@ from sqlalchemy.engine import Engine
 from app.config import Settings
 from app.db import session
 from app.models import PublishedSchedule
-from app.planner import schedule
+from app.planner import groups, schedule
 
 logger = logging.getLogger("app.planner.published")
 
@@ -111,10 +111,12 @@ def busy_range(data: dict) -> tuple[date, date]:
 
 
 def _with_busy(settings: Settings, data: dict) -> dict:
-    """``data`` plus ``busy``: your unavailabilities over its range, for the calendar view
-    and the printed weeks."""
+    """``data`` plus ``busy`` (your unavailabilities over its range) and ``groups`` (the
+    blocks as shown: by course, ``groups.group``), for the calendar view and the printed weeks."""
     first, last = busy_range(data)
-    return {**data, "busy": busy(data["config"], first, last, settings.tz)}
+    blocks = [b for d in data.get("days", []) for b in d.get("blocks", [])]
+    return {**data, "busy": busy(data["config"], first, last, settings.tz),
+            "groups": groups.group(blocks)}
 
 
 def nightly(settings: Settings, engine: Engine, now: float | None = None) -> bool:

@@ -5,7 +5,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import type { DatesSetArg, EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
-import { api, type Deadline, type Schedule, type ScheduleBlock, type ScheduleConfig } from "../api";
+import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup } from "../api";
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
 import { DeadlineItem } from "../components/DeadlineList";
@@ -58,7 +58,7 @@ const CalendarCard = styled.div`
   .fc-overdue .fc-event-title, .fc-overdue .fc-list-event-title { font-weight: 700; }
   .fc-timegrid-event.fc-deadline, .fc-daygrid-event.fc-deadline { border-style: dashed; font-weight: 650; }
   .fc .fc-timegrid-slot { height: 2.1em; }
-  .fc-recall, .fc-flashcards { opacity: .85; }
+  .fc-flashcards { opacity: .85; }
   .fc-late { outline: 2px solid ${({ theme }) => theme.colors.warning}; }
   &[data-preview="true"] .fc-study { opacity: .75; border-style: dashed; }
   ${({ theme }) => theme.media.phone} {
@@ -114,16 +114,17 @@ function lastView(allowed: string[]): string {
 }
 const PREVIEW_DELAY = 600;
 
-function blockEvent(b: ScheduleBlock): EventInput {
-  const course = b.course_short || b.course_name;
+/** One study entry, grouped by course like the printed weeks ("Spanish - Study",
+ * "Spanish - Test 1"), in the course's colour. */
+function groupEvent(g: ScheduleGroup): EventInput {
   return {
-    id: `b${b.start}`,
-    title: `${course ? course + ": " : ""}${b.title}${b.parts > 1 ? ` (${b.part}/${b.parts})` : ""}`,
-    start: new Date(b.start * 1000),
-    end: new Date(b.end * 1000),
-    color: b.course_id ? courseColor(b.course_id) : "var(--c-primary)",
-    classNames: ["fc-study", `fc-${b.kind}`, ...(b.late ? ["fc-late"] : []), ...(b.end * 1000 < Date.now() ? ["fc-done"] : [])],
-    extendedProps: { block: b },
+    id: `g${g.start}`,
+    title: g.label,
+    start: new Date(g.start * 1000),
+    end: new Date(g.end * 1000),
+    color: g.color,
+    classNames: ["fc-study", `fc-${g.kind}`, ...(g.late ? ["fc-late"] : []), ...(g.end * 1000 < Date.now() ? ["fc-done"] : [])],
+    extendedProps: { group: g },
   };
 }
 
@@ -155,7 +156,7 @@ export default function Calendar() {
   const [draft, setDraft] = useState<ScheduleConfig | null>(null);
   const [preview, setPreview] = useState<Schedule | null>(null);
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
-  const [selected, setSelected] = useState<{ deadline?: Deadline; block?: ScheduleBlock } | null>(null);
+  const [selected, setSelected] = useState<{ deadline?: Deadline; group?: ScheduleGroup } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
@@ -186,7 +187,7 @@ export default function Calendar() {
 
   const scheduleEvents = useMemo<EventInput[]>(() => {
     if (!shown) return [];
-    const blocks = shown.days.flatMap((d) => d.blocks).map(blockEvent);
+    const blocks = (shown.groups ?? []).map(groupEvent);
     const busy = shown.busy.map((u) => ({
       id: `u${u.start}`,
       title: u.reason || "Unavailable",
@@ -260,9 +261,9 @@ export default function Calendar() {
 
   function onClick(arg: EventClickArg) {
     const p = arg.event.extendedProps;
-    if (!p.deadline && !p.block) return;
+    if (!p.deadline && !p.group) return;
     arg.jsEvent.preventDefault();
-    setSelected({ deadline: p.deadline as Deadline | undefined, block: p.block as ScheduleBlock | undefined });
+    setSelected({ deadline: p.deadline as Deadline | undefined, group: p.group as ScheduleGroup | undefined });
   }
 
   function onDates(arg: DatesSetArg) {
@@ -379,7 +380,7 @@ export default function Calendar() {
 
       <ReminderSettings />
 
-      <Modal open={!!selected} onClose={close} label={selected?.block ? "Study block" : "Deadline"}>
+      <Modal open={!!selected} onClose={close} label={selected?.group ? selected.group.label : "Deadline"}>
         {selected?.deadline && (
           <List $animate={false}>
             <DeadlineItem
@@ -391,12 +392,15 @@ export default function Calendar() {
             />
           </List>
         )}
-        {selected?.block && (
+        {selected?.group && (
           <>
+            <h2 style={{ margin: 0 }}>{selected.group.label}</h2>
             <DayHead as="h3">
-              <span>{new Date(selected.block.start * 1000).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span>
+              <span>{new Date(selected.group.start * 1000).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span>
             </DayHead>
-            <List $animate={false}><BlockRow block={selected.block} timeZone={shown.timezone} /></List>
+            <List $animate={false}>
+              {selected.group.blocks.map((b) => <BlockRow key={b.start} block={b} timeZone={shown.timezone} />)}
+            </List>
           </>
         )}
         <Button $variant="ghost" $block onClick={close}>Close</Button>

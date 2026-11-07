@@ -75,7 +75,7 @@ def test_daily_alarm_on_each_days_first_block():
                    "minutes": 15})
     body = ics.build_ics([], now=NOW, blocks=blocks, base_url="https://s.example/", day_alarm=True)
     assert body.count("BEGIN:VALARM") == 2 and "TRIGGER:PT0M" in body
-    assert "Study time: 2 h 30 planned\\, 3 blocks" in body.replace("\r\n ", "")
+    assert "Study time: 2 h 30 planned\\, Study" in body.replace("\r\n ", "")
     assert "VALARM" not in ics.build_ics([], now=NOW, blocks=blocks, day_alarm=False)
 
 

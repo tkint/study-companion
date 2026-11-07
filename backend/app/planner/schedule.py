@@ -14,7 +14,8 @@ Pipeline:
    would no longer fit in the capacity left before it; otherwise courses take turns in
    proportion to their weight (a weight of 2 gets twice the time of a weight of 1; 0 leaves
    the course out), with a bonus for courses with a deadline in the next week, and never
-   the same course twice in a row when another one has work (interleaving). Urgent work may
+   one course for longer than about two focus blocks when another one has work (each course's
+   time stays in one piece, then the next course has its turn). Urgent work may
    stretch a day up to ``max_daily_hours``.
 4. **Activities.** Reading sections are *deep work* blocks of at most ``session_minutes``
    with ``break_minutes`` between blocks. Assignments and quizzes are *practice* blocks. A
@@ -65,7 +66,7 @@ DEFAULTS: dict = {
     "day_start": "08:00",
     "day_end": "22:00",
     "session_minutes": 50,
-    "break_minutes": 10,
+    "break_minutes": 0,
     "buffer_days": 1,
     "recall": True,
     "include_optional": False,
@@ -486,6 +487,7 @@ class Generator:
             used = 0
             last_course: int | None = None
             last_kind = ""
+            run = 0  # minutes of the current run of one course
 
             def place(length: int, budget: int, allow_short: bool) -> tuple[int, int] | None:
                 nonlocal used
@@ -513,21 +515,40 @@ class Generator:
                                             self._ts(day.day, spot[0] + spot[1]), "flashcards", None,
                                             detail=f"{due}Review the flashcards due today in the "
                                                    "Study tab (spaced repetition)."))
+            def recall(r: Recall) -> bool:
+                spot = place(RECALL_MINUTES, day.capacity, True) \
+                    if used + RECALL_MINUTES <= day.capacity else None
+                if not spot:
+                    return False
+                recalls.remove(r)
+                day.blocks.append(Block(
+                    day.day, self._ts(day.day, spot[0]), self._ts(day.day, spot[0] + spot[1]),
+                    "recall", r.item, part=r.step, parts=len(RECALL_OFFSETS),
+                    detail=self._recall_detail(r)))
+                return True
+
             while True:
                 pending = [r for r in recalls if r.release <= i]
-                if pending and (last_kind in ("deep", "practice") or not works):
-                    r = pending[0]
-                    spot = place(RECALL_MINUTES, day.capacity, True) \
-                        if used + RECALL_MINUTES <= day.capacity else None
-                    if spot:
-                        recalls.remove(r)
-                        day.blocks.append(Block(
-                            day.day, self._ts(day.day, spot[0]), self._ts(day.day, spot[0] + spot[1]),
-                            "recall", r.item, part=r.step, parts=len(RECALL_OFFSETS),
-                            detail=self._recall_detail(r)))
-                        last_kind = "recall"
+                work, urgent = self._pick(works, weights, served, last_course, run, i, days, used)
+                # Active recall joins its course's study time: just before that course's next
+                # block, or on its own when the course has no work left (or the day ends).
+                course_of = lambda r: r.item.course_id or 0  # noqa: E731
+                left = {w.course for w in works}
+                due_now = [r for r in pending if work is not None and course_of(r) == work.course]
+                if work is None or (work.course != last_course):
+                    due_now += [r for r in pending if course_of(r) not in left and r not in due_now]
+                if work is None:
+                    due_now = pending
+                if due_now:
+                    placed = False
+                    for r in due_now:
+                        if recall(r):
+                            placed = True
+                            c = course_of(r)
+                            run = run + RECALL_MINUTES if c == last_course else RECALL_MINUTES
+                            last_course, last_kind = c, "recall"
+                    if placed:
                         continue
-                work, urgent = self._pick(works, weights, served, last_course, i, days, used)
                 if work is None:
                     break
                 budget = stretch_caps[i] if urgent else day.capacity
@@ -546,6 +567,7 @@ class Generator:
                 work.remaining -= take
                 served[work.course] = served.get(work.course, 0) + take
                 day.blocks.append(block)
+                run = run + take if work.course == last_course else take
                 last_course, last_kind = work.course, work.kind
                 if work.remaining <= 0:
                     works.remove(work)
@@ -611,7 +633,8 @@ class Generator:
         return total
 
     def _pick(self, works: list[Work], weights: dict[int, float], served: dict[int, int],
-              last_course: int | None, i: int, days: list[Day], used: int) -> tuple[Work | None, bool]:
+              last_course: int | None, run: int, i: int, days: list[Day],
+              used: int) -> tuple[Work | None, bool]:
         if not works:
             return None, False
         dated = sorted((w for w in works if w.deadline is not None), key=lambda w: w.deadline)
@@ -626,6 +649,10 @@ class Generator:
         heads: dict[int, Work] = {}
         for w in works:  # works keep the plan's order within a course
             heads.setdefault(w.course, w)
+        # Keep going with the same course (its study time stays in one piece) up to about two
+        # focus blocks, then let the course with the least time for its weight have a turn.
+        if last_course in heads and run < self._run_limit():
+            return heads[last_course], False
         candidates = list(heads)
         if len(candidates) > 1 and last_course in candidates:
             candidates.remove(last_course)
@@ -639,6 +666,9 @@ class Generator:
             return (served.get(c, 0) / w, head.item.key())
 
         return heads[min(candidates, key=score)], False
+
+    def _run_limit(self) -> int:
+        return max(60, 2 * int(self.config["session_minutes"]))
 
     def _recall_detail(self, r: Recall) -> str:
         when = "the day after" if r.step == 1 else "a few days after"

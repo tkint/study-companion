@@ -186,8 +186,12 @@ schedule it anyway. The `get_catch_up_plan` tool and the prompts use the same go
 The **Calendar** tab is one calendar for everything: the **study blocks** of your schedule
 (focus blocks with start and end times, built by rules, without AI), your **deadlines** (📌)
 and the times you **can't study** (grey). It opens on the *Week* view (also *Month* and
-*List*; on a phone also *Day*), and then on the view you picked last on that device. Tap a
-block for what to do and its files, or a deadline for details and *Mark done*.
+*List*; on a phone also *Day*), and then on the view you picked last on that device. Study
+time is grouped by course, one colour per course, the same in the calendar, the feed and the
+PDF: back-to-back study of a course (reading and active recall) is one entry like
+`09:00-10:00 Spanish - Study`, and each test or task is its own entry named after it
+(`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. Tap an entry for what
+to do and its files, or a deadline for details and *Mark done*.
 
 ### Schedule settings (a form you save)
 
@@ -199,13 +203,14 @@ same settings, e.g. after you finished sections.
 
 - **Workload and rest:** hours per day (the same setting as the plan), a **daily maximum**
   (up to 8 h, only used when a deadline would be missed otherwise), **rest kept each day**
-  (free time inside your study window), the length of a focus block, the break between blocks,
+  (free time inside your study window), the length of a focus block, the break between blocks
+  (none by default, so a course's blocks join into one entry),
   and a **buffer** of days before deadlines (work is planned to finish that many days early).
   **Study from / until** sets the window blocks go in.
 - **Course weights:** a course with weight 2 gets about twice the time of one with weight 1;
   0 leaves it out. The slider shows the share you asked for and the share planned. Courses
-  take turns (never the same course twice in a row when another has work), and work for a
-  close deadline comes first.
+  stay together for up to about two focus blocks, then take turns when another has work, and
+  work for a close deadline comes first.
 - **When you can't study:** weekly slots (classes, work, training) and specific days or hours
   (appointments, travel, all-day off). Blocks never overlap them.
 - **Calendar feed:** **Update the plan every night** (on by default) plans again at 03:30 with
@@ -231,9 +236,9 @@ the alarms you chose under **Reminders**) and your unavailabilities.
 - **Outlook:** *Add calendar → Subscribe from web*, paste the link.
 
 Calendar apps refresh subscriptions on their own schedule (from every few minutes to about
-a day), so a saved change reaches your phone at its next refresh. Study blocks are called like
-`[Study] LA: Matrices (Deep work)`, with what to do, the files (links into the app) and the
-Moodle link in the description; done deadlines are prefixed ✓. Times use the server's
+a day), so a saved change reaches your phone at its next refresh. Study entries are called like
+`Spanish - Study` or `Spanish - Test 1`, with what to do, the files (links into the app) and the
+Moodle links in the description; done deadlines are prefixed ✓. Times use the server's
 `TIMEZONE`.
 
 The link contains a private token, so anyone with it can read your plan and deadline titles
@@ -247,7 +252,8 @@ calendar › Upload from file*).
 **Export › Export as PDF** makes a PDF of one or more weeks (from the week shown), one landscape
 page per week like a printed timetable: your name from Moodle and the week at the top, a column
 per day (Monday to Friday, plus the weekend when something is planned), your study sessions at
-their times (back-to-back blocks share one box that lists each piece of work with its course),
+their times, grouped by course like the calendar (`09:00-10:00 - Spanish - Study` in the
+course's colour, listing what to study; each test or task its own box),
 deadlines and unavailabilities if you want them, and the date it was printed. The grid only
 covers the hours that week uses, and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
 the server builds it, so nothing goes through the print dialog.

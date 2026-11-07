@@ -410,6 +410,23 @@ export interface ScheduleConfig {
 
 export type BlockKind = "deep" | "practice" | "recall" | "flashcards";
 
+export interface ScheduleGroup {
+  date: string;
+  start: number;
+  end: number;
+  minutes: number;
+  course_id: number | null;
+  course_name: string;
+  kind: "study" | "task" | "flashcards";
+  title: string;
+  /** "Course - Study", "Course - Test 1", or "Flashcards". */
+  label: string;
+  /** The course's colour (same as courseColor). */
+  color: string;
+  late: boolean;
+  blocks: ScheduleBlock[];
+}
+
 export interface ScheduleBlock {
   date: string;
   start: number;
@@ -480,6 +497,9 @@ export interface Schedule {
   owner?: string;
   /** Your unavailabilities over the schedule's days, as timestamps. */
   busy: BusySlot[];
+  /** The blocks as shown (calendar, PDF, feed): back-to-back study of one course is one
+   * "Course - Study" entry, each test or task its own. */
+  groups: ScheduleGroup[];
 }
 
 export interface BusySlot {

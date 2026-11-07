@@ -44,7 +44,8 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `backend/app/study.py` study loop: Claude's notes, questions (SM-2 spaced repetition), quiz results,
   sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan, `planner/schedule.py`
   timed study schedule (capacity, unavailabilities, course weights, recall blocks; `ScheduleSettings`), `api/schedule.py`
-  its API (published schedule, preview, save, `/api/schedule.pdf`); `planner/print_week.py` the
+  its API (published schedule, preview, save, `/api/schedule.pdf`); `planner/groups.py` how blocks are shown (grouped by course, tests/tasks
+  apart, course colours; web, PDF and ICS); `planner/print_week.py` the
   timetable PDF (one landscape page per week) drawn with `app/pdf.py`, a tiny PDF writer (no dependency); `planner/published.py` the saved schedule the calendar
   view, printed weeks and ICS feed show (`PublishedSchedule`, history, nightly re-plan, unavailabilities)
 - `backend/app/study_time.py` study sessions (web timer, manual, Claude's `log_study_time`), totals, streak;
