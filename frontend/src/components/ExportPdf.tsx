@@ -59,7 +59,7 @@ export function ExportPdf({ open, onClose, start }: {
         <Check><input type="checkbox" checked={withDeadlines} onChange={(e) => setWithDeadlines(e.target.checked)} />
           Deadlines</Check>
         <Check><input type="checkbox" checked={withBusy} onChange={(e) => setWithBusy(e.target.checked)} />
-          When I can't study</Check>
+          Breaks and days off</Check>
       </Toggles>
       <Small $muted role="status">
         {short(first)} – {short(addDays(first, weeks * 7 - 1), true)}

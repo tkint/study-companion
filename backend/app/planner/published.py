@@ -135,9 +135,7 @@ def busy(config: dict, start: date, end: date, tz) -> list[dict]:
     out = []
     d = start
     while d <= end:
-        rules = [dict(r, repeat="weekly") for r in config.get("weekly", []) if r["day"] == d.weekday()]
-        rules += [dict(r, repeat="date") for r in config.get("dates", []) if r["date"] == d.isoformat()]
-        for r in rules:
+        for r in schedule.unavailable(config, d):
             s_min, e_min = schedule._minutes(r["start"]), schedule._minutes(r["end"])
             s = datetime(d.year, d.month, d.day, tzinfo=tz) + timedelta(minutes=s_min)
             e = datetime(d.year, d.month, d.day, tzinfo=tz) + timedelta(minutes=e_min)

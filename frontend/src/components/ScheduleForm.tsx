@@ -1,5 +1,7 @@
 import styled from "styled-components";
-import type { DatedUnavailability, ScheduleConfig, ScheduleCourse, WeeklyUnavailability } from "../api";
+import type {
+  DailyUnavailability, DatedUnavailability, ScheduleConfig, ScheduleCourse, WeeklyUnavailability,
+} from "../api";
 import { courseColor } from "../format";
 import { minutes } from "../pages/Plan";
 import {
@@ -82,6 +84,12 @@ const AllDay = styled(Check)`
 `;
 
 const WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const DayChecks = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+`;
 
 
 function hours(h: number): string {
@@ -193,8 +201,10 @@ export function ScheduleForm({ draft: cfg, courses, today, onChange }: {
         </Grid>
       </DetailsCard>
 
-      <DetailsCard open={!cfg.weekly.length && !cfg.dates.length}>
-        <summary>When you can't study ({cfg.weekly.length + cfg.dates.length})</summary>
+      <DetailsCard open={!cfg.weekly.length && !cfg.dates.length && !cfg.daily.length && !cfg.days_off.length}>
+        <summary>Breaks and days off ({cfg.daily.length + cfg.days_off.length + cfg.weekly.length + cfg.dates.length})</summary>
+        <DaysOffEditor days={cfg.days_off} onChange={(days_off) => change({ days_off })} />
+        <DailyEditor rows={cfg.daily} onChange={(daily) => change({ daily })} />
         <WeeklyEditor rows={cfg.weekly} onChange={(weekly) => change({ weekly })} />
         <DatedEditor rows={cfg.dates} today={today} onChange={(dates) => change({ dates })} />
       </DetailsCard>
@@ -204,12 +214,50 @@ export function ScheduleForm({ draft: cfg, courses, today, onChange }: {
         <Toggles>
           <Check><input type="checkbox" checked={cfg.auto_update} onChange={(e) => change({ auto_update: e.target.checked })} />
             Update the plan every night with my progress and new deadlines</Check>
-          <Check><input type="checkbox" checked={cfg.feed_unavailable} onChange={(e) => change({ feed_unavailable: e.target.checked })} />
-            Show when I can't study in the subscribed calendar</Check>
         </Toggles>
-        <Small $muted>Without the nightly update, the calendar only changes when you save.</Small>
+        <Small $muted>Without the nightly update, the calendar only changes when you save. Breaks and
+          days off are not in the subscribed calendar: it only holds what you study and your deadlines.</Small>
       </DetailsCard>
     </>
+  );
+}
+
+function DaysOffEditor({ days, onChange }: { days: number[]; onChange: (d: number[]) => void }) {
+  return (
+    <Editor>
+      <legend>Days off</legend>
+      <Small $muted>No study at all on these days.</Small>
+      <DayChecks>
+        {WEEKDAYS_SHORT.map((d, n) => (
+          <Check key={n}>
+            <input type="checkbox" checked={days.includes(n)}
+              onChange={(e) => onChange(e.target.checked ? [...days, n].sort() : days.filter((x) => x !== n))} />
+            {d}
+          </Check>
+        ))}
+      </DayChecks>
+    </Editor>
+  );
+}
+
+function DailyEditor({ rows, onChange }: { rows: DailyUnavailability[]; onChange: (r: DailyUnavailability[]) => void }) {
+  const set = (i: number, patch: Partial<DailyUnavailability>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <Editor>
+      <legend>Every day</legend>
+      <Small $muted>Meals, a walk, a nap…</Small>
+      {rows.map((r, i) => (
+        <Slot key={i}>
+          <TimeRange start={r.start} end={r.end} onChange={(start, end) => set(i, { start, end })} />
+          <Input type="text" aria-label="Reason" placeholder="Reason" maxLength={80}
+            value={r.reason} onChange={(e) => set(i, { reason: e.target.value })} />
+          <IconButton type="button" aria-label="Remove" onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</IconButton>
+        </Slot>
+      ))}
+      <Button type="button" $variant="soft" $size="sm" disabled={rows.length >= 10}
+        onClick={() => onChange([...rows, { start: "12:00", end: "14:00", reason: "Meal" }])}>+ Daily break</Button>
+    </Editor>
   );
 }
 

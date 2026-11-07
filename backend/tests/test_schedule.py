@@ -186,9 +186,10 @@ def test_ics_export(settings, engine, morning):
     assert text.count("BEGIN:VEVENT") == len(groups.group([b.to_dict() for b in plan.blocks]))
     assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
     unfolded = text.replace("\r\n ", "")
-    assert "SUMMARY:Linear Algebra - Study" in unfolded and "- Matrices" in unfolded
-    assert "https://study.example.ch/#/file/2?course=10" in unfolded
-    assert "URL:https://study.example.ch/#/course/10?section=102" in unfolded
+    assert "SUMMARY:Linear Algebra - Study" in unfolded and "\\n\\nMatrices" in unfolded
+    # The link to the entry in the app comes first, on its own line; paragraphs are spaced.
+    assert "DESCRIPTION:Open in Study Companion:\\nhttps://study.example.ch/#/calendar?at=" in unfolded
+    assert "URL:https://study.example.ch/#/calendar?at=" in unfolded
     first = plan.blocks[0]
     stamp = datetime.fromtimestamp(first.start, tz=timezone.utc)
     assert f"DTSTART:{stamp:%Y%m%dT%H%M%SZ}" in text
@@ -206,9 +207,26 @@ def test_busy_expands_unavailabilities_in_local_time(settings):
     assert [local(settings, u["start"]).hour for u in out[:2]] == [8, 8]
     assert out[1]["start"] - out[0]["start"] == 7 * DAY + 3600
     assert out[2]["all_day"] and not out[0]["all_day"]
-    body = ics.build_ics([], now=NOW, busy=out)
-    assert "SUMMARY:Class" in body and "DTSTART;VALUE=DATE:20261028" in body
-    assert "DTEND;VALUE=DATE:20261029" in body and body.count("TRANSP:TRANSPARENT") == 3
+
+
+def test_daily_breaks_and_days_off(settings, engine, morning):
+    config = {"daily": [{"start": "12:00", "end": "14:00", "reason": "Meal"}], "days_off": [6],
+              "weekly": [], "dates": []}
+    out = published.busy(config, date(2026, 11, 7), date(2026, 11, 9), settings.tz)  # Sat-Mon
+    assert [(u["date"], u["reason"], u["all_day"]) for u in out] == [
+        ("2026-11-07", "Meal", False), ("2026-11-08", "Day off", True), ("2026-11-09", "Meal", False)]
+    schedule.save(engine, {"daily": config["daily"], "days_off": [6], "feed_unavailable": True})
+    plan = generate(settings, engine, morning, days=7)
+    assert plan.config["days_off"] == [6] and plan.blocks
+    assert any(d.blocked and d.blocked[0]["repeat"] == "off" for d in plan.days)
+    for b in plan.blocks:
+        start = local(settings, b.start)
+        assert start.weekday() != 6
+        m = start.hour * 60 + start.minute
+        assert not 12 * 60 <= m < 14 * 60
+    with pytest.raises(schedule.ScheduleError):
+        schedule.save(engine, {"days_off": [7]})
+    assert "feed_unavailable" not in schedule.load(engine)
 
 
 def test_publish_keeps_the_feed_stable_until_saved(settings, engine, morning):
@@ -276,9 +294,8 @@ def test_api(settings, engine, c):
     assert res.status_code == 200 and res.headers["content-type"].startswith("text/calendar")
     assert res.headers["content-disposition"].startswith('attachment; filename="study-calendar-')
     assert "UID:schedule-" in res.text and " - Study" in res.text
-    assert "SUMMARY:Lunch" in res.text and "UID:assign-" in res.text
-    c.post("/api/schedule/settings", json={"feed_unavailable": False}, headers=SAME_ORIGIN)
-    assert "SUMMARY:Lunch" not in c.get("/calendar.ics").text
+    # Breaks are not events in the feed (only the web calendar and the PDF show them).
+    assert "SUMMARY:Lunch" not in res.text and "UID:assign-" in res.text
 
 
 def test_pdf_export(settings, engine, c):

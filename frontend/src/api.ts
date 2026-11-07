@@ -381,6 +381,12 @@ export interface WeeklyUnavailability {
   reason: string;
 }
 
+export interface DailyUnavailability {
+  start: string; // HH:MM
+  end: string; // HH:MM or 24:00
+  reason: string;
+}
+
 export interface DatedUnavailability {
   date: string; // YYYY-MM-DD
   start: string;
@@ -402,8 +408,11 @@ export interface ScheduleConfig {
   include_optional: boolean;
   beyond_target: boolean;
   auto_update: boolean; // re-plan every night
-  feed_unavailable: boolean; // unavailabilities in the calendar feed
   course_weights: Record<string, number>;
+  /** Every day, e.g. 12:00-14:00 "Meal". */
+  daily: DailyUnavailability[];
+  /** Weekdays with no study at all (0 Monday .. 6 Sunday). */
+  days_off: number[];
   weekly: WeeklyUnavailability[];
   dates: DatedUnavailability[];
 }
@@ -460,7 +469,7 @@ export interface ScheduleDay {
   capacity: number;
   free_minutes: number;
   stretched: boolean;
-  blocked: { start: string; end: string; reason: string; repeat: "weekly" | "date" }[];
+  blocked: { start: string; end: string; reason: string; repeat: Repeat }[];
   blocks: ScheduleBlock[];
 }
 
@@ -508,8 +517,11 @@ export interface BusySlot {
   end: number;
   all_day: boolean;
   reason: string;
-  repeat: "weekly" | "date";
+  repeat: Repeat;
 }
+
+/** How an unavailability repeats: a day off, every day, every week, or one date. */
+export type Repeat = "off" | "daily" | "weekly" | "date";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
