@@ -18,9 +18,9 @@ const Backdrop = styled.div`
   ${({ theme }) => theme.media.notPhone} { align-items: center; padding: 24px; }
 `;
 
-const Sheet = styled.div`
+const Sheet = styled.div<{ $wide?: boolean }>`
   width: 100%;
-  max-width: 560px;
+  max-width: ${({ $wide }) => ($wide ? "880px" : "560px")};
   max-height: 90vh;
   overflow: auto;
   display: grid;
@@ -44,11 +44,13 @@ const Grip = styled.span`
   ${({ theme }) => theme.media.notPhone} { display: none; }
 `;
 
-export function Modal({ open, onClose, label, children }: {
+export function Modal({ open, onClose, label, children, wide }: {
   open: boolean;
   onClose: () => void;
   label: string;
   children: ReactNode;
+  /** Room for a form (880px instead of 560px on a computer; a full-width sheet on a phone). */
+  wide?: boolean;
 }) {
   const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -68,7 +70,7 @@ export function Modal({ open, onClose, label, children }: {
   if (!open) return null;
   return createPortal(
     <Backdrop onClick={onClose}>
-      <Sheet ref={sheet} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
+      <Sheet ref={sheet} $wide={wide} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
         onClick={(e) => e.stopPropagation()}>
         <Grip aria-hidden="true" />
         {children}

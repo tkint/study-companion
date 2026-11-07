@@ -191,9 +191,9 @@ block for what to do and its files, or a deadline for details and *Mark done*.
 
 ### Schedule settings (a form you save)
 
-Below the calendar, **Schedule settings** is a form. Changes show at once in the calendar as
-a **preview** (dashed blocks and a yellow banner), but nothing changes elsewhere until you
-**Save**. Saving publishes the schedule: the subscribed feed, the download and the printed
+**⚙ Settings** (above the calendar) opens the schedule settings in a dialog. **Preview** (or
+closing the dialog) shows your changes in the calendar (dashed blocks and a yellow banner with
+**Edit**, **Discard** and **Save**), but nothing changes elsewhere until you **Save**. Saving publishes the schedule: the subscribed feed, the download and the printed
 weeks all show the saved plan. **Discard** goes back to it. **Re-plan now** plans again with the
 same settings, e.g. after you finished sections.
 

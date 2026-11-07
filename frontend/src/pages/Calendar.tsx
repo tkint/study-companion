@@ -10,7 +10,7 @@ import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
 import { DeadlineItem } from "../components/DeadlineList";
 import { PrintWeeks } from "../components/PrintWeeks";
-import { ReminderSettings, SettingsSection } from "../components/Reminders";
+import { ReminderSettings } from "../components/Reminders";
 import { BlockRow, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor } from "../format";
@@ -70,14 +70,18 @@ const CalendarCard = styled.div`
   }
 `;
 
-const SaveBar = styled(Banner)<{ $sticky: boolean }>`
-  position: ${({ $sticky }) => ($sticky ? "sticky" : "static")};
-  z-index: 5;
-  bottom: 12px;
-  margin-top: 16px;
+// The dialog's footer stays at the bottom of the sheet while the form scrolls.
+const SaveBar = styled(Banner)`
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  margin: 4px 0 0;
   box-shadow: ${({ theme }) => theme.shadows.pop};
   background: ${({ theme }) => theme.colors.surface};
-  ${({ theme }) => theme.media.phone} { bottom: calc(${({ theme }) => theme.layout.tabbar} + 8px); }
+`;
+
+const DialogHead = styled.div`
+  & > h2 { margin: 0 0 4px; }
 `;
 
 const narrow = () => window.matchMedia("(max-width: 640px)").matches;
@@ -126,7 +130,7 @@ export default function Calendar() {
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const [selected, setSelected] = useState<{ deadline?: Deadline; block?: ScheduleBlock } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"subscribe" | "print" | null>(null);
+  const [dialog, setDialog] = useState<"settings" | "subscribe" | "print" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const initialView = useMemo(() => (narrow() ? "listWeek" : "nextDays"), []);
@@ -201,8 +205,8 @@ export default function Calendar() {
     }, PREVIEW_DELAY);
   }
 
-  async function save() {
-    if (!draft) return;
+  async function save(): Promise<boolean> {
+    if (!draft) return false;
     window.clearTimeout(timer.current);
     setState({ busy: true, error: null });
     try {
@@ -211,8 +215,10 @@ export default function Calendar() {
       setDraft(out.config);
       setPreview(null);
       setState({ busy: false, error: null });
+      return true;
     } catch (e) {
       setState({ busy: false, error: (e as Error).message });
+      return false;
     }
   }
 
@@ -244,10 +250,11 @@ export default function Calendar() {
     <>
       <h1>Calendar</h1>
       <Lead $small>
-        Your study plan with times, your deadlines and the times you can't study, in one calendar. Change the settings
-        below, check the preview, then save: your subscribed calendar follows.
+        Your study plan with times, your deadlines and the times you can't study, in one calendar. Change the settings,
+        check the preview, then save: your subscribed calendar follows.
       </Lead>
       <Row>
+        <Button $variant="soft" $size="sm" onClick={() => setDialog("settings")}>⚙ Settings</Button>
         <Button $variant="primary" $size="sm" onClick={() => setDialog("subscribe")}>Subscribe</Button>
         <Button as="a" $variant="outline" $size="sm" href="/calendar.ics?download=1" download>Download .ics</Button>
         <Button $variant="outline" $size="sm" onClick={() => setDialog("print")}>Print or PDF</Button>
@@ -261,6 +268,7 @@ export default function Calendar() {
           <span>Preview: these changes aren't saved, your subscribed calendar still has the saved plan.</span>
           <Row>
             <Button $variant="ghost" $size="sm" onClick={discard}>Discard</Button>
+            <Button $variant="outline" $size="sm" onClick={() => setDialog("settings")}>Edit</Button>
             <Button $variant="primary" $size="sm" onClick={save} disabled={state.busy}>Save</Button>
           </Row>
         </Banner>
@@ -314,20 +322,28 @@ export default function Calendar() {
         </DetailsCard>
       )}
 
-      <SettingsSection>
-        <h2>Schedule settings</h2>
-        <Small $muted>The calendar above previews your changes. Save to update the plan everywhere.</Small>
+      <Modal open={dialog === "settings"} onClose={closeDialog} label="Schedule settings" wide>
+        <DialogHead>
+          <h2>Schedule settings</h2>
+          <Small $muted>
+            Close the dialog to preview your changes in the calendar. Save to update the plan everywhere, your
+            subscribed calendar included.
+          </Small>
+        </DialogHead>
         <ScheduleForm draft={draft} courses={shown.courses} today={saved.today} onChange={change} />
-        <SaveBar $tone={dirty ? "warning" : "primary"} $sticky={dirty}>
+        <SaveBar $tone={dirty ? "warning" : "primary"}>
           <span>{dirty ? "Unsaved changes" : `Saved ${savedAt(saved.published_at)}`}{status && <> · {status}</>}</span>
           <Row>
             {dirty && <Button $variant="ghost" $size="sm" onClick={discard}>Discard</Button>}
-            <Button $variant={dirty ? "primary" : "soft"} $size="sm" onClick={save} disabled={state.busy}>
-              {dirty ? "Save and update calendar" : "Re-plan now"}
+            {dirty && <Button $variant="outline" $size="sm" onClick={closeDialog}>Preview</Button>}
+            <Button $variant={dirty ? "primary" : "soft"} $size="sm" disabled={state.busy}
+              onClick={async () => { if (await save()) closeDialog(); }}>
+              {dirty ? "Save" : "Re-plan now"}
             </Button>
+            {!dirty && <Button $variant="ghost" $size="sm" onClick={closeDialog}>Close</Button>}
           </Row>
         </SaveBar>
-      </SettingsSection>
+      </Modal>
 
       <ReminderSettings />
 
