@@ -638,7 +638,7 @@ def test_readings_are_day_entries(settings, engine, morning):
     assert reads[0]["per_day"] == 30 and reads[0]["pages"] == 350
     assert reads[1]["start_date"] == (start + timedelta(days=12)).isoformat()
     assert reads[1]["continues"] and reads[1]["end_date"] == (start + timedelta(days=13)).isoformat()
-    assert any("reading" in n and "start after" in n for n in plan.notes)
+    assert any("1 reading starts after" in n for n in plan.notes)
     lit = [b for b in plan.blocks if b.item and b.item.course_id == 13 and b.kind == "deep"]
     assert lit and all(b.parts == 1 and b.minutes <= 25 for b in lit)
     assert "planned apart" in lit[0].detail
