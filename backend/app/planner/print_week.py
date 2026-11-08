@@ -11,6 +11,8 @@ Readable first:
 - Text is never cut: it wraps, the font gets smaller when a box is short, and a box that still
   can't hold its text grows downwards.
 - Courses are named by their full name (no short code next to it).
+- Long readings (not timed) are a strip above the grid on each day they run, one line each
+  ("Literature 3 - Read: Novel 1 (30 pages)", shortened to fit the column).
 
 Built with ``app.pdf`` (no PDF library). Times are in the server's TIMEZONE, like the plan.
 """
@@ -34,6 +36,7 @@ W, H = 842.0, 595.0  # A4 landscape, points
 MARGIN = 28.0
 HOURS_COL = 38.0
 HEAD_ROW = 20.0
+READ_ROW = 11.0  # one long reading in the strip above the grid
 PAD = 2.0
 
 INK = (0, 0, 0)
@@ -48,7 +51,7 @@ class Entry:
     day: date
     start: int  # minutes since local midnight
     end: int
-    kind: str  # study, due, busy, allday
+    kind: str  # study, due, busy, allday, reading
     title: str  # "Course - Study", deadline or reason
     items: list[tuple[str, str]] = field(default_factory=list)  # ("", work) lines under the title
     time: str = ""
@@ -103,6 +106,17 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
         entry = Entry(day, s, max(e, s + 5), "study", g["label"], [("", w) for w in work])
         entry.color = g["color"]
         out.append(entry)
+    for r in plan.get("readings", []):  # long readings: a day entry on each of their days
+        try:
+            d, end = date.fromisoformat(r["start_date"]), date.fromisoformat(r["end_date"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        while d <= end:
+            if first <= d <= last:
+                out.append(Entry(d, 0, 0, "reading", reading_label(r),
+                                 [("", f"{r.get('per_day', 0)} pages")],
+                                 color=r.get("color") or groups.NO_COURSE))
+            d += timedelta(days=1)
     if with_busy:
         for u in plan.get("busy", []):
             day = date.fromisoformat(u["date"])
@@ -128,6 +142,12 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
             e.time = f"{_hm(e.start)}-{_hm(e.end)}"
     out.sort(key=lambda e: (e.day, e.start))
     return out
+
+
+def reading_label(r: dict) -> str:
+    """"Literature 3 - Read: Novel 1" (just "Read: Novel 1" without a course)."""
+    course = r.get("course_name") or ""
+    return f"{course + ' - ' if course else ''}Read: {r.get('title', '')}"
 
 
 def _paragraphs(e: Entry) -> list[tuple[str, str]]:
@@ -178,7 +198,7 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
         days = [d for i, d in enumerate(week_days) if i < 5 or any(e.day == d for e in mine)]
         # Only the hours this week uses (the study window when it has no blocks).
         # Deadlines don't stretch it (a 23:59 or 02:00 deadline sits at the grid's edge).
-        timed = [e for e in mine if e.kind not in ("allday", "due")]
+        timed = [e for e in mine if e.kind in ("study", "busy")]
         if timed:
             lo, hi = min(e.start for e in timed), max(e.end for e in timed)
         else:
@@ -196,7 +216,11 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
 
         top = MARGIN + 38
         bottom = H - MARGIN - 18
-        grid_top = top + HEAD_ROW
+        # Long readings: a strip of their own between the day names and the time grid.
+        reads = max((sum(1 for e in mine if e.kind == "reading" and e.day == d) for d in days),
+                    default=0)
+        strip = reads * READ_ROW + (2 if reads else 0)
+        grid_top = top + HEAD_ROW + strip
         col_w = (W - 2 * MARGIN - HOURS_COL) / len(days)
         scale = (bottom - grid_top) / span
 
@@ -211,6 +235,19 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
         for i, d in enumerate(days):
             x = MARGIN + HOURS_COL + i * col_w
             page.centered(x + col_w / 2, top + 14, f"{WEEKDAYS[d.weekday()]} {d.day}", 11, BOLD)
+
+        if reads:
+            page.rect(MARGIN, top + HEAD_ROW, HOURS_COL, strip, fill=HOURS_BG)
+            page.text(MARGIN + 3, top + HEAD_ROW + 9, "Reading", 7, REGULAR, (0.2, 0.2, 0.2))
+            page.line(MARGIN, top + HEAD_ROW, W - MARGIN, top + HEAD_ROW, INK, 0.6)
+        for i, d in enumerate(days):
+            x = MARGIN + HOURS_COL + i * col_w
+            for n, e in enumerate(e for e in mine if e.kind == "reading" and e.day == d):
+                rt = top + HEAD_ROW + 1 + n * READ_ROW
+                fill = _rgb(e.color or groups.NO_COURSE)
+                page.rect(x + 2, rt, col_w - 4, READ_ROW - 1, fill=fill, stroke=fill)
+                label = f"{e.title} ({e.items[0][1]})" if e.items else e.title
+                page.text(x + 4, rt + 8, fit(label, col_w - 8, 6.5, REGULAR), 6.5, REGULAR, WHITE)
 
         for i, d in enumerate(days):
             x = MARGIN + HOURS_COL + i * col_w

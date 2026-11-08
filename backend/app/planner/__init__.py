@@ -2,7 +2,9 @@
 
 What is left to study: every non-empty section of your enrolled courses that you have not
 marked studied and that Moodle does not show as fully completed, plus the open assignment,
-quiz and calendar deadlines. Each item gets an estimated time (from page counts) and a
+quiz and calendar deadlines. Each item gets an estimated time (from page counts, at most 5 h
+for a section; long readings such as a novel or a big scan are not timed: the schedule
+plans them as day entries) and a
 *needed by* date: a deadline's own due date, and for a section the earliest open deadline
 in that section or a later one of the same course (later work builds on earlier sections).
 
@@ -38,6 +40,14 @@ from app.study import hours_per_day as saved_hours, section_counts, studied_sect
 MINUTES_PER_UNIT = {"page": 3.0, "slide": 1.5, "part": 4.0}
 MINUTES_PER_ACTIVITY = 5  # pages, links, books... without files
 MIN_SECTION_MINUTES = 15
+# Long readings (a novel, an anthology, a big scan) are not timed study: a text file longer
+# than READING_PAGES is a *reading*, planned as a day entry at a pages-per-day pace
+# (``app.planner.schedule``), and the section's timed estimate only counts the rest (slides,
+# notes, exercises). Pages only guessed from the file size count for at most GUESSED_PAGES
+# there, and a section's timed estimate for at most MAX_SECTION_MINUTES.
+READING_PAGES = 40
+GUESSED_PAGES = 30
+MAX_SECTION_MINUTES = 300
 DEADLINE_MINUTES = {"assign": 120, "quiz": 45, "event": 30}
 QUIET_MODULES = {"label", "forum", "feedback", "choice"}
 MAX_DAYS = 90
@@ -65,6 +75,8 @@ class PlanItem:
     overdue: bool = False
     mandatory: bool = True
     catch_up: bool = False  # behind (overdue or needed by nothing upcoming) vs upcoming work
+    readings: list[tuple[int, str, int]] = field(default_factory=list)  # long readings
+    reading_only: bool = False  # a section with nothing but long readings
 
     def key(self) -> tuple:
         rank = 0 if self.kind == "section" else 1
@@ -88,6 +100,8 @@ class PlanItem:
             "files": [{"id": i, "name": n, "pages": p} for i, n, p in self.files],
             "has_summary": self.has_summary, "questions": self.questions,
             "overdue": self.overdue, "mandatory": self.mandatory, "catch_up": self.catch_up,
+            "readings": [{"id": i, "name": n, "pages": p} for i, n, p in self.readings],
+            "reading_only": self.reading_only,
         }
 
 
@@ -154,17 +168,59 @@ def _round5(minutes: float) -> int:
     return max(5, int(math.ceil(minutes / 5.0)) * 5)
 
 
-def section_minutes(sec: SectionInfo) -> tuple[int, int]:
-    """Estimated (minutes, pages) to study a section."""
-    minutes, pages = 0.0, 0
+@dataclass
+class SectionWork:
+    minutes: int  # timed study (readings left out)
+    pages: int  # pages of that timed study
+    readings: list[tuple[int, str, int]]  # (file_id, name, pages) of the long readings
+    reading_only: bool  # nothing to study but the readings
+
+
+def _unique_files(sec: SectionInfo) -> list:
+    """The section's files, the same file twice (a folder and a file resource) once."""
+    out, seen = [], set()
     for f in sec.files:
+        key = (f.row.filename.lower(), f.row.filesize)
+        if f.row.filesize and key in seen:
+            continue
+        seen.add(key)
+        out.append(f)
+    return out
+
+
+def is_reading(f) -> bool:
+    """A long text (a book, an anthology, a big scan): read it, don't time it."""
+    return f.unit != "slide" and f.pages > READING_PAGES
+
+
+def section_work(sec: SectionInfo) -> SectionWork:
+    """What studying a section takes: timed study (at least ``MIN_SECTION_MINUTES``, at most
+    ``MAX_SECTION_MINUTES``) and the long readings planned apart."""
+    minutes, pages, active = 0.0, 0, False
+    readings: list[tuple[int, str, int]] = []
+    for f in _unique_files(sec):
+        if is_reading(f):
+            readings.append((f.id, f.name, f.pages))
+            continue
         n = f.pages
+        if f.text is None or f.text.status not in {"ok", "empty"}:
+            n = min(n, GUESSED_PAGES)
         pages += n
         minutes += n * MINUTES_PER_UNIT.get(f.unit, 3.0)
+        active = active or n > 0
     for m in sec.modules:
         if not m.files and m.row.modname not in QUIET_MODULES:
             minutes += MINUTES_PER_ACTIVITY
-    return _round5(max(MIN_SECTION_MINUTES, minutes)), pages
+            active = True
+    active = active or len(sec.row.summary or "") > 200
+    total = _round5(min(MAX_SECTION_MINUTES, max(MIN_SECTION_MINUTES, minutes)))
+    return SectionWork(total, pages, readings, bool(readings) and not active)
+
+
+def section_minutes(sec: SectionInfo) -> tuple[int, int]:
+    """Estimated (minutes, pages) of timed study for a section (long readings left out)."""
+    w = section_work(sec)
+    return w.minutes, w.pages
 
 
 def _section_done(sec: SectionInfo) -> bool:
@@ -285,7 +341,8 @@ class Planner:
                 if state["ignored"]:
                     ignored += 1
                     continue
-                minutes, pages = section_minutes(sec)
+                work = section_work(sec)
+                minutes, pages = work.minutes, work.pages
                 is_done = sec.row.id in studied or _section_done(sec)
                 if state["mandatory"]:
                     progress.total_items += 1
@@ -308,7 +365,9 @@ class Planner:
                     minutes=minutes, needed_by=need[0] if need else None,
                     needed_for=need[1] if need else "", section_id=sec.row.id,
                     section_number=sec.row.number, pages=pages,
-                    files=[(f.id, f.row.filename, f.pages) for f in sec.files if f.readable][:6],
+                    files=[(f.id, f.row.filename, f.pages) for f in sec.files
+                           if f.readable and not is_reading(f)][:6],
+                    readings=work.readings, reading_only=work.reading_only,
                     has_summary=bool(info.get("summary_at")), questions=info.get("questions", 0),
                     mandatory=state["mandatory"],
                 ))

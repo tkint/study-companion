@@ -13,13 +13,19 @@ Pipeline:
    deadlines, trimmed to your catch-up goal). Each item must be done ``buffer_days`` before
    the date it is needed by, which leaves a contingency margin before hard deadlines.
 3. **Picking the next block.** Earliest deadline first whenever the work due by a deadline
-   would no longer fit in the capacity left before it; otherwise courses take turns in
+   would no longer fit in the capacity left before it (when it can't fit at all, only its
+   assignments and quizzes go first: its reading shares the turns with a double weight, so
+   one late course doesn't take every block); otherwise courses take turns in
    proportion to their weight (a weight of 2 gets twice the time of a weight of 1; 0 leaves
    the course out), with a bonus for courses with a deadline in the next week, and never
    one course for longer than about two focus blocks when another one has work (each course's
    time stays in one piece, then the next course has its turn). Urgent work may
    stretch a day up to ``max_daily_hours``.
-4. **Activities.** Reading sections are *deep work* blocks of at most ``session_minutes``
+4. **Readings.** Long readings (a novel, an anthology, a big scan: ``planner.is_reading``)
+   are not timed: each is a day entry spanning the days it takes at
+   ``reading_pages_per_day`` (fewer days, more pages a day, when a deadline needs it read
+   sooner), one reading after the other within a course. They take none of the study time.
+5. **Activities.** Sections are *deep work* blocks of at most ``session_minutes``
    with ``break_minutes`` between blocks. Assignments and quizzes are *practice* blocks. A
    finished section gets two short *active recall* blocks one and four days later (spaced
    repetition); if you have flashcards, each day starts with a short *flashcards* block.
@@ -42,7 +48,8 @@ from app.config import Settings
 from app.db import session
 from app.materials import enrolled_courses
 from app.models import ScheduleSettings, StudyQuestion
-from app.planner import DEADLINE_MINUTES, Planner, PlanItem, fmt_minutes
+from app.planner import DEADLINE_MINUTES, MAX_SECTION_MINUTES, Planner, PlanItem, fmt_minutes
+from app.planner.groups import course_color
 
 USER = 1
 DAY = 86400
@@ -59,6 +66,7 @@ RECALL_OFFSETS = (1, 4)  # days after a section is finished
 FLASHCARD_MINUTES = 15
 URGENT_LOAD = 0.85  # work due by D over capacity until D that makes it urgent
 SOON = 7 * DAY  # a course with a deadline this close gets a bonus
+BEHIND_BONUS = 2.0  # weight bonus of a course whose needed reading can't fit before its deadline
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 _TIME = re.compile(r"^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -71,6 +79,7 @@ DEFAULTS: dict = {
     "day_start": "08:00",
     "day_end": "22:00",
     "session_minutes": 50,
+    "reading_pages_per_day": 30,  # pace of long readings (day entries, not timed)
     "break_minutes": 0,
     "buffer_days": 1,
     "recall": True,
@@ -171,7 +180,8 @@ def validate(data: dict, current: dict) -> dict:
         raise ScheduleError(f"unknown setting: {sorted(unknown)[0]}")
     for key, lo, hi, integer in (("days", 1, MAX_DAYS, True), ("max_daily_hours", 1, 8, False),
                                  ("rest_hours", 0, 12, False), ("session_minutes", 15, 120, True),
-                                 ("break_minutes", 0, 30, True), ("buffer_days", 0, 7, True)):
+                                 ("break_minutes", 0, 30, True), ("buffer_days", 0, 7, True),
+                                 ("reading_pages_per_day", 5, 300, True)):
         if key in data:
             out[key] = _num(data, key, lo, hi, integer)
     for key in ("day_start", "day_end"):
@@ -394,6 +404,7 @@ class Schedule:
     notes: list[str]
     cards_due: int = 0
     timezone: str = ""
+    readings: list[dict] = field(default_factory=list)
 
     @property
     def blocks(self) -> list[Block]:
@@ -418,6 +429,7 @@ class Schedule:
             "unscheduled": [i.to_dict() for i in self.unscheduled],
             "unscheduled_minutes": sum(i.minutes for i in self.unscheduled),
             "courses": self.courses, "notes": self.notes,
+            "readings": self.readings,
         }
 
 
@@ -505,8 +517,9 @@ class Generator:
                            if it.course_id is not None and weights.get(it.course_id, 1.0) == 0})
         if left_out:
             notes.append(f"Left out (weight 0): {', '.join(left_out)}.")
-        works = [self._work(it) for it in items
-                 if it.course_id is None or weights.get(it.course_id, 1.0) > 0]
+        items = [it for it in items if it.course_id is None or weights.get(it.course_id, 1.0) > 0]
+        readings, unread = self._readings(items, horizon)
+        works = [self._work(it) for it in items if not it.reading_only]
         weights = {k: v for k, v in weights.items() if v > 0}
 
         with session(self.engine) as s:
@@ -662,11 +675,70 @@ class Generator:
             span = f"the {horizon} days from {self.start:%d %B}" if later else f"the next {horizon} days"
             notes.append(f"{fmt_minutes(sum(i.minutes for i in unscheduled))} of work doesn't fit "
                          f"in {span}.")
+        if unread:
+            one = len(unread) == 1
+            notes.append(f"{len(unread)} reading{'' if one else 's'} start{'s' if one else ''} "
+                         "after the planned days: read faster (pages per day) or plan more days.")
         if not any(d.capacity for d in days):
             notes.append("No free study time: check your study window, unavailabilities and "
                          "rest hours.")
         return Schedule(self.today, self.start, self.now, cfg, days, unscheduled, course_rows, notes,
-                        cards_due, self.settings.timezone)
+                        cards_due, self.settings.timezone, readings)
+
+    def _readings(self, items: list[PlanItem], horizon: int) -> tuple[list[dict], list[PlanItem]]:
+        """Long readings as day entries: from the day the course's previous reading ends, for
+        as many days as the pace needs, or fewer (more pages a day) when the section is needed
+        sooner. Returns the entries and the items whose reading starts after the horizon."""
+        pace = int(self.config["reading_pages_per_day"])
+        buffer = int(self.config["buffer_days"]) * DAY
+        last_day = self.start + timedelta(days=horizon - 1)
+        free_from: dict[int, date] = {}
+        out: list[dict] = []
+        left: list[PlanItem] = []
+        for it in items:
+            if not it.readings:
+                continue
+            course = it.course_id or 0
+            first = free_from.get(course, self.start)
+            if first > last_day:
+                left.append(it)
+                continue
+            pages = sum(p for _, _, p in it.readings)
+            n = max(1, math.ceil(pages / pace))
+            last = first + timedelta(days=n - 1)
+            late = False
+            if it.needed_by is not None and it.needed_by > self.now:
+                ts = it.needed_by - buffer if it.needed_by - buffer > self.now else it.needed_by
+                due = datetime.fromtimestamp(ts, self.tz).date()
+                late = due < last
+                if first <= due < last:  # needed sooner: more pages a day
+                    last = due
+                    n = (last - first).days + 1
+                    late = False
+            free_from[course] = last + timedelta(days=1)
+            per_day = math.ceil(pages / n)
+            shown_last = min(last, last_day)
+            course_name = it.course_name or "Reading"
+            files = ", ".join(f"{name} ({p} pages)" for _, name, p in it.readings)
+            detail = [f"Read {files}: about {per_day} pages a day, "
+                      f"{first:%a %d %b} to {last:%a %d %b}.",
+                      "Reading in your own time: it takes none of your study blocks."]
+            if it.needed_by:
+                detail.append(f"Needed for “{it.needed_for}” by "
+                              f"{datetime.fromtimestamp(it.needed_by, self.tz):%a %d %b %H:%M}.")
+            out.append({
+                "start_date": first.isoformat(), "end_date": shown_last.isoformat(),
+                "days": (shown_last - first).days + 1, "continues": last > last_day,
+                "pages": pages, "per_day": per_day, "late": late,
+                "title": it.title, "label": f"{course_name} - Reading",
+                "course_id": it.course_id, "course_name": it.course_name,
+                "course_short": it.course_short, "color": course_color(it.course_id),
+                "section_id": it.section_id, "section_number": it.section_number,
+                "needed_by": it.needed_by, "needed_for": it.needed_for,
+                "files": [{"id": i, "name": name, "pages": p} for i, name, p in it.readings],
+                "detail": "\n".join(detail),
+            })
+        return out, left
 
     def _work(self, item: PlanItem) -> Work:
         deadline = None
@@ -695,13 +767,23 @@ class Generator:
             return None, False
         dated = sorted((w for w in works if w.deadline is not None), key=lambda w: w.deadline)
         demand = 0
+        behind: set[int] = set()  # courses whose sections can't all fit before their deadline
         for w in dated:  # earliest deadline first when the load before a deadline is high
             demand += w.remaining
             room = self._capacity_until(days, i, used, w.deadline)
             if demand >= URGENT_LOAD * room:
-                first = min((x for x in dated if x.deadline <= w.deadline),
-                            key=lambda x: (x.deadline, x.item.key()))
-                return first, True
+                due = [x for x in dated if x.deadline <= w.deadline]
+                order = lambda x: (x.deadline, x.item.key())  # noqa: E731
+                if demand <= room:  # it still fits: nothing else until it's done
+                    return min(due, key=order), True
+                # It can't all fit anyway: hand-ins still come first, but the reading they
+                # need no longer takes every block (that would make every other course late
+                # too); its course gets a bigger share of the turns instead.
+                tasks = [x for x in due if x.kind == "practice"]
+                if tasks:
+                    return min(tasks, key=order), True
+                behind = {x.course for x in due}
+                break
         heads: dict[int, Work] = {}
         for w in works:  # works keep the plan's order within a course
             heads.setdefault(w.course, w)
@@ -717,7 +799,9 @@ class Generator:
         def score(c: int) -> tuple:
             w = weights.get(c, 1.0)
             head = heads[c]
-            if head.deadline is not None and head.deadline - now_day <= SOON:
+            if c in behind:
+                w *= BEHIND_BONUS
+            elif head.deadline is not None and head.deadline - now_day <= SOON:
                 w *= 1.5
             return (served.get(c, 0) / w, head.item.key())
 
@@ -756,6 +840,14 @@ class Generator:
             lines.append(f"Read and review section {it.section_number}: {it.title}"
                          + (f" ({it.pages} pages in total)" if it.pages else "") + ".")
             lines.append("Then try to recall the key points without the material.")
+            if it.readings:
+                lines.append("Its long reading ("
+                             + ", ".join(name for _, name, _ in it.readings)
+                             + ") is planned apart, as a day entry.")
+            if it.minutes >= MAX_SECTION_MINUTES:
+                lines.append(f"Long reading: the time planned is capped at "
+                             f"{fmt_minutes(MAX_SECTION_MINUTES)}, so skim it and focus on what "
+                             "the course asks for.")
             if it.questions:
                 lines.append(f"{it.questions} flashcards saved for this section.")
         elif it.kind == "assign":

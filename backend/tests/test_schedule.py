@@ -565,3 +565,152 @@ def test_xlsx_writer_names_and_escaping():
     assert book.sheet("2026-11-09").name == "2026-11-09 (2)"
     cells = _xlsx(book.render())["2026-11-09"]["cells"]
     assert cells == {"A1": "bad  chars & <tags>", "A2": "bold plain"}
+
+
+
+def add_literature(engine, sections=3, notes=True, essay_in=None):
+    """Course 13 "Literature 3": each section holds a novel (300 extracted pages), the same
+    novel again in a folder, a scan whose 50 pages are only guessed from its size and, with
+    ``notes``, an 8-page handout to study."""
+    from app.models import Course, Deadline, File, FileText, Module, Section
+
+    with session(engine) as s:
+        s.add(Course(id=13, shortname="LIT3", fullname="Literature 3", enrolled=True,
+                     folder="LIT3"))
+        for n in range(1, sections + 1):
+            sid, mid, fid = 1300 + n, 13000 + 10 * n, 1300 + 10 * n
+            s.add(Section(id=sid, course_id=13, number=n, name=f"Novel {n}"))
+            s.flush()
+            files = [("novel.pdf", 3_000_000), ("novel.pdf", 3_000_000), ("scan.pdf", 3_000_000)]
+            if notes:
+                files.append(("notes.pdf", 40_000))
+            for j, (name, size) in enumerate(files):
+                s.add(Module(id=mid + j, course_id=13, section_id=sid,
+                             modname="folder" if j == 1 else "resource",
+                             name=f"Reading {n}.{j}", position=j))
+                s.flush()
+                s.add(File(id=fid + j, module_id=mid + j, course_id=13, section_id=sid,
+                           filename=name, mimetype="application/pdf", filesize=size,
+                           timemodified=NOW - 10 * DAY, status="ok"))
+            s.flush()
+            s.add(FileText(file_id=fid, status="ok", pages=300, chars=10**6))
+            s.add(FileText(file_id=fid + 1, status="ok", pages=300, chars=10**6))
+            s.add(FileText(file_id=fid + 2, status="too_large"))
+            if notes:
+                s.add(FileText(file_id=fid + 3, status="ok", pages=8, chars=20_000))
+        if essay_in is not None:
+            s.add(Module(id=13999, course_id=13, section_id=1300 + min(2, sections),
+                         modname="assign", name="Essay", position=9))
+            s.flush()
+            s.add(Deadline(id=99, source="assign", source_id=99, course_id=13, module_id=13999,
+                           name="Essay", kind="due", due_at=NOW + essay_in * DAY, grade=20))
+        s.commit()
+
+
+def test_long_readings_are_not_timed(engine):
+    """A novel (once, though it is in a folder too) and a big scan are readings; only the
+    handout is timed study."""
+    from app.materials import load_course
+    from app.planner import section_work
+
+    add_literature(engine, sections=2)
+    work = section_work(load_course(engine, 13).section(1301))
+    assert [(name, pages) for _, name, pages in work.readings] == [("novel.pdf", 300),
+                                                                    ("scan.pdf", 50)]
+    assert work.pages == 8 and work.minutes == 25 and not work.reading_only
+    with session(engine) as s:  # without the handout, there is nothing to time
+        from app.models import Module
+
+        s.get(Module, 13013).removed = True
+        s.commit()
+    assert section_work(load_course(engine, 13).section(1301)).reading_only
+
+
+def test_readings_are_day_entries(settings, engine, morning):
+    """Readings are day entries at the pace you set, one after the other within a course,
+    and take none of the study time."""
+    add_literature(engine, sections=3)
+    plan = generate(settings, engine, morning, beyond_target=True, reading_pages_per_day=30)
+    start = plan.start
+    reads = plan.readings
+    assert [r["title"] for r in reads] == ["Novel 1", "Novel 2"]  # Novel 3 starts too late
+    assert reads[0]["start_date"] == start.isoformat() and reads[0]["days"] == 12
+    assert reads[0]["per_day"] == 30 and reads[0]["pages"] == 350
+    assert reads[1]["start_date"] == (start + timedelta(days=12)).isoformat()
+    assert reads[1]["continues"] and reads[1]["end_date"] == (start + timedelta(days=13)).isoformat()
+    assert any("1 reading starts after" in n for n in plan.notes)
+    lit = [b for b in plan.blocks if b.item and b.item.course_id == 13 and b.kind == "deep"]
+    assert lit and all(b.parts == 1 and b.minutes <= 25 for b in lit)
+    assert "planned apart" in lit[0].detail
+    assert plan.to_dict()["readings"] == reads
+    faster = generate(settings, engine, morning, beyond_target=True, reading_pages_per_day=100)
+    assert [r["days"] for r in faster.readings] == [4, 4, 4]
+
+
+def test_readings_follow_deadlines(settings, engine, morning):
+    """A reading needed sooner gets more pages a day; one that can't start in time keeps the
+    pace and is flagged late. Sections with nothing but readings get no study block."""
+    add_literature(engine, sections=2, notes=False, essay_in=6)
+    plan = generate(settings, engine, morning, beyond_target=True, buffer_days=0)
+    first, second = plan.readings
+    due = local(settings, NOW + 6 * DAY).date()
+    assert first["end_date"] == due.isoformat() and first["per_day"] > 30 and not first["late"]
+    assert second["late"] and second["per_day"] == 30
+    assert not any(b.item and b.item.title == "Novel 1" and b.kind == "deep" for b in plan.blocks)
+    assert any(b.item and b.item.title == "Essay" for b in plan.blocks)  # still timed
+
+
+def test_readings_in_exports(settings, engine, c):
+    """The calendar feed has an all-day event per reading (free time), the PDF and Excel
+    weeks show it on each of its days."""
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    add_literature(engine, sections=1)
+    c.post("/api/schedule/settings", headers=SAME_ORIGIN, json={"beyond_target": True})
+    plan = c.get("/api/schedule").json()
+    assert plan["readings"][0]["title"] == "Novel 1"
+    feed = c.get("/calendar.ics").text.replace("\r\n ", "")
+    assert "SUMMARY:Literature 3 - Read: Novel 1" in feed
+    start = plan["readings"][0]["start_date"].replace("-", "")
+    assert f"DTSTART;VALUE=DATE:{start}" in feed and "TRANSP:TRANSPARENT" in feed
+    first = plan["readings"][0]["start_date"]
+    pdf = PdfReader(BytesIO(c.get(f"/api/schedule.pdf?from={first}").content))
+    assert "Read: Novel 1" in pdf.pages[0].extract_text()
+    book = _xlsx(c.get(f"/api/schedule.xlsx?from={first}").content)
+    cells = "\n".join(v for sheet in book.values() for v in sheet["cells"].values())
+    assert "Literature 3 - Read: Novel 1 (30 pages)" in cells
+
+
+def test_one_course_does_not_flood_the_schedule(settings, engine, morning):
+    """Literature 3 has far more study than fits before its essay: the essay still comes
+    first, but the other courses keep getting time and no item has dozens of parts."""
+    from app.models import Deadline, FileText
+
+    add_literature(engine, sections=14, essay_in=6)
+    with session(engine) as s:  # long handouts (just under a reading): lots of timed study
+        for n in range(1, 15):
+            s.get(FileText, 1300 + 10 * n + 3).pages = 40
+        for i in range(4):  # Statistics work with no deadline pressure
+            s.add(Deadline(id=60 + i, source="assign", source_id=60 + i, course_id=11,
+                           name=f"Série {i + 1}", kind="due", due_at=NOW + 40 * DAY, grade=10))
+        s.commit()
+    with session(engine) as s:  # the essay needs every section
+        from app.models import Module
+
+        s.get(Module, 13999).section_id = 1314
+        s.commit()
+    plan = generate(settings, engine, morning, beyond_target=True, daily_hours=4, buffer_days=0)
+    lit = [b for b in plan.blocks if b.item and b.item.course_id == 13]
+    others = [b for b in plan.blocks if b.item and b.item.course_id in (10, 11)]
+    assert lit and others
+    assert max(b.parts for b in plan.blocks) <= 4
+    essay = [b for b in lit if b.item.kind == "assign"]
+    assert essay and max(b.end for b in essay) <= NOW + 6 * DAY
+    # Literature is behind, so it gets the bigger share, but not every block.
+    lit_min = sum(b.minutes for b in lit)
+    other_min = sum(b.minutes for b in others)
+    assert lit_min > other_min and other_min >= 0.15 * (lit_min + other_min)
+    week = [d for d in plan.days[:6] if d.blocks]
+    assert sum(1 for d in week if any(b.item and b.item.course_id != 13 for b in d.blocks)) >= 3

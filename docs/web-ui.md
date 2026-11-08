@@ -144,7 +144,12 @@ Open it from **Today › Full plan**. It is built by rules, without AI:
 1. **What is left**: every non-empty section of your enrolled courses that Moodle doesn't show as
    completed and you haven't marked studied, plus open assignments, quizzes and events.
 2. **Time**: reading time from page counts (about 3 minutes per PDF page, 1.5 per slide, 4 per
-   Word/HTML part, at least 15 minutes per section); 2 h per assignment, 45 min per quiz.
+   Word/HTML part, at least 15 minutes and at most 5 h per section); 2 h per assignment, 45 min
+   per quiz. A file in a section twice (e.g. in a folder and as a file) counts once, and a file
+   whose text couldn't be extracted counts for at most 30 pages. **Long readings** (a PDF or
+   Word file over 40 pages: a novel, an anthology, a big scan) are not timed study: the
+   calendar plans them as day entries (see below), and the section's time only counts the rest
+   (slides, notes, exercises).
 3. **Order**: by the date each item is needed by (a deadline's due date; for a section, the
    earliest open deadline in it or in a later section of the same course), then by grade
    weight, then section order, so courses without deadlines take turns.
@@ -207,6 +212,7 @@ same settings, e.g. after you finished sections.
   (free time inside your study window), the length of a focus block, the break between blocks
   (none by default, so a course's blocks join into one entry),
   and a **buffer** of days before deadlines (work is planned to finish that many days early).
+  **Reading pace** (30 pages a day by default) sets how long each long reading runs.
   **Study from / until** sets the window blocks go in. **Start on** (today by default) lets
   the plan begin on a later day, e.g. a new term or after holidays: nothing is planned before
   it (blocks already passed are cleared too), **Plan ahead** counts its days from there, and the
@@ -215,7 +221,9 @@ same settings, e.g. after you finished sections.
 - **Course weights:** a course with weight 2 gets about twice the time of one with weight 1;
   0 leaves it out. The slider shows the share you asked for and the share planned. Courses
   stay together for up to about two focus blocks, then take turns when another has work, and
-  work for a close deadline comes first.
+  work for a close deadline comes first. When a course's reading can't all fit before its
+  deadline anyway, its assignments and quizzes still come first but its reading only gets a
+  double share of the turns, so one course that is behind never takes every block.
 - **Breaks and days off:** **days off** (weekdays with no study at all, e.g. Sunday), **every
   day** breaks (e.g. 12:00-14:00 Meal), weekly slots (classes, work, training) and specific
   days or hours (appointments, travel, all-day off). Blocks never overlap them.
@@ -223,6 +231,12 @@ same settings, e.g. after you finished sections.
   your progress and new deadlines; turn it off and the plan only changes when you save.
   Breaks and days off are never events in the feed: it only holds what you study and your
   deadlines.
+- **Long readings:** books and other long texts are an all-day entry over the days they take
+  at your reading pace, one after the other within a course (fewer days and more pages a day
+  when a deadline needs the section sooner; *late* when it can't start in time). They take
+  none of your study time, so the timed blocks stay for active study. They show in the
+  all-day row of the calendar, in a strip above each day of the PDF, in the "All day" row of
+  the Excel weeks, and as all-day events (marked free) in the calendar feed.
 - **Activities:** *Deep work* blocks for sections (with their files), *Practice* blocks for
   assignments and quizzes, two short *Active recall* blocks one and four days after you finish
   a section (spaced repetition; untick **Spaced active recall** to drop them), and a short

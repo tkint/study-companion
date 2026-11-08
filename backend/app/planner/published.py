@@ -67,7 +67,10 @@ def _merge_history(old: dict | None, new: dict, now: int) -> dict:
             d = {**d, "blocks": blocks, "minutes": sum(b["minutes"] for b in blocks)}
         days.append(d)
     history = [past[k] for k in sorted(past)]
-    return {**new, "days": history + days}
+    # Readings that ended before today stay too; the new plan has the rest.
+    read = [r for r in old.get("readings", []) if isinstance(r, dict)
+            and oldest <= str(r.get("end_date", "")) < today]
+    return {**new, "days": history + days, "readings": read + new.get("readings", [])}
 
 
 def publish(settings: Settings, engine: Engine, now: float | None = None) -> dict:

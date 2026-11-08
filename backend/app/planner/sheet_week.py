@@ -6,8 +6,8 @@ that week's Monday (``2026-11-09``), laid out like the calendar:
 - study sessions grouped by course (``app.planner.groups``) in merged cells at their times,
   in the course's colour: "09:00-10:00 - Spanish - Study" and what to study under it;
   each test or task its own cell;
-- a row under the day names for deadlines and days off, and breaks in grey at their times,
-  if asked;
+- a row under the day names for long readings (every day they run), deadlines and days off,
+  and breaks in grey at their times, if asked;
 - rows grow so text is never cut, the day names and times stay put when scrolling, and each
   sheet prints on one landscape page wide.
 
@@ -102,15 +102,16 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
         ws.height(DAY_ROW, 20)
 
         # Deadlines and days off: a row of their own under the day names.
-        top = [e for e in mine if e.kind in ("due", "allday")]
+        top = [e for e in mine if e.kind in ("due", "allday", "reading")]
         row = FIRST_ROW
         if top:
-            ws.set(row, 1, "Due / off", TIME)
+            ws.set(row, 1, "All day", TIME)
             need = 1
             for i, d in enumerate(days):
                 day_top = [e for e in top if e.day == d]
                 off = any(e.kind == "allday" for e in day_top)
                 lines = [e.title if e.kind == "allday" else
+                         f"{e.title} ({e.items[0][1]})" if e.kind == "reading" and e.items else
                          f"{e.time} {e.title}" + "".join(f" ({c})" for _, c in e.items if c)
                          for e in day_top]
                 text = "\n".join(lines)

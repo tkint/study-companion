@@ -217,6 +217,9 @@ export interface PlanItem {
   overdue: boolean;
   mandatory: boolean;
   catch_up: boolean; // behind (overdue, or needed by nothing upcoming) rather than upcoming
+  /** Long readings of a section, planned apart as day entries (missing in older plans). */
+  readings?: { id: number; name: string; pages: number }[];
+  reading_only?: boolean;
 }
 
 export interface PlanSlot extends PlanItem {
@@ -405,6 +408,8 @@ export interface ScheduleConfig {
   day_end: string;
   session_minutes: number;
   break_minutes: number;
+  /** Pace of long readings (books, big scans): day entries, not timed blocks. */
+  reading_pages_per_day: number;
   buffer_days: number;
   recall: boolean;
   include_optional: boolean;
@@ -513,6 +518,34 @@ export interface Schedule {
   /** The blocks as shown (calendar, PDF, feed): back-to-back study of one course is one
    * "Course - Study" entry, each test or task its own. */
   groups: ScheduleGroup[];
+  /** Long readings: day entries over the days they take at your pace, not timed study
+   * (missing in older saved plans). */
+  readings?: ScheduleReading[];
+}
+
+export interface ScheduleReading {
+  /** First and last day (YYYY-MM-DD, inclusive) shown. */
+  start_date: string;
+  end_date: string;
+  days: number;
+  /** It runs past the planned days. */
+  continues: boolean;
+  pages: number;
+  per_day: number;
+  late: boolean;
+  title: string;
+  /** "Course - Reading". */
+  label: string;
+  course_id: number | null;
+  course_name: string;
+  course_short: string;
+  color: string;
+  section_id: number | null;
+  section_number: number | null;
+  needed_by: number | null;
+  needed_for: string;
+  files: { id: number; name: string; pages: number }[];
+  detail: string;
 }
 
 export interface BusySlot {
