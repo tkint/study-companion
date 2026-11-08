@@ -5,8 +5,8 @@ times, deadlines and unavailabilities if asked, and the date it was printed.
 
 Readable first:
 - Study blocks are grouped by course like the web calendar (``app.planner.groups``): one box
-  "09:00-10:00 - Spanish - Study" in the course's colour listing what to study, and each test
-  or task its own box ("10:00-10:30 - Spanish - Test 1").
+  "Spanish - Study" in the course's colour listing what to study, and each test
+  or task its own box ("Spanish - Test 1"; no times in the boxes, the grid shows them).
 - The time grid covers only the hours that week uses, so boxes are as tall as possible.
 - Text is never cut: it wraps, the font gets smaller when a box is short, and a box that still
   can't hold its text grows downwards.
@@ -71,13 +71,6 @@ def _minutes(hhmm: str) -> int:
     return 1440 if hhmm == "24:00" else int(hhmm[:2]) * 60 + int(hhmm[3:5])
 
 
-def _item(b: dict) -> str:
-    title = b.get("title", "")
-    if b.get("parts", 1) > 1:
-        title += f" ({'review' if b.get('kind') == 'recall' else 'part'} {b['part']}/{b['parts']})"
-    return title
-
-
 def _rgb(hex_color: str) -> tuple[float, float, float]:
     h = hex_color.lstrip("#")
     return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))  # type: ignore[return-value]
@@ -98,11 +91,7 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
         if not first <= day <= last:
             continue
         e = local(g["end"])[1] or 1440
-        work: list[str] = []
-        if g["kind"] != "task":  # a task's title is its work; a study box lists what to study
-            for b in g["blocks"]:
-                if (w := _item(b)) and w not in work:
-                    work.append(w)
+        work = groups.work_lines(g["blocks"]) if g["kind"] != "task" else []
         entry = Entry(day, s, max(e, s + 5), "study", g["label"], [("", w) for w in work])
         entry.color = g["color"]
         out.append(entry)
@@ -135,7 +124,7 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
             if not first <= day <= last:
                 continue
             name = ("Done: " if dl.get("done") else "Due: ") + dl.get("name", "")
-            course = dl.get("course_name") or dl.get("course_shortname") or ""
+            course = groups.course_title(dl.get("course_name") or dl.get("course_shortname") or "")
             out.append(Entry(day, s, s + 30, "due", name, [("", course)] if course else [], _hm(s)))
     for e in out:
         if e.kind in ("study", "busy"):
@@ -146,17 +135,17 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
 
 def reading_label(r: dict) -> str:
     """"Literature 3 - Read: Novel 1" (just "Read: Novel 1" without a course)."""
-    course = r.get("course_name") or ""
+    course = groups.course_title(r.get("course_name") or "")
     return f"{course + ' - ' if course else ''}Read: {r.get('title', '')}"
 
 
 def _paragraphs(e: Entry) -> list[tuple[str, str]]:
-    """(text, font) paragraphs of a box: the time and title in bold, then the work."""
+    """(text, font) paragraphs of a box: the title in bold, then the work, one per line.
+    No times: the grid shows them. A deadline keeps its time (it is a moment, not a span)."""
     if e.kind == "busy":
-        return [(e.time, BOLD), (e.title, ITALIC)]
-    paras = [(f"{e.time} - {e.title}", BOLD)]
-    many = len(e.items) > 1
-    return paras + [(("- " if many else "") + w, REGULAR) for _, w in e.items if w]
+        return [(e.title, ITALIC)]
+    title = f"{e.time} {e.title}" if e.kind == "due" else e.title
+    return [(title, BOLD)] + [(w, REGULAR) for _, w in e.items if w]
 
 
 def _layout(paras: list[tuple[str, str]], width: float, height: float) -> tuple[float, list]:

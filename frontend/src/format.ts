@@ -49,6 +49,13 @@ export function courseColor(id: number | null): string {
   return id == null ? "#64748b" : PALETTE[Math.abs(id) % PALETTE.length];
 }
 
+/** A course name without the academic year in front ("2026/2027-A3FPH12 Phonologie" ->
+ * "A3FPH12 Phonologie"), like the server's ``groups.course_title``. */
+export function courseTitle(name: string): string {
+  const out = (name || "").replace(/^\s*(?:19|20)\d\d\s*[/-]\s*(?:19|20)?\d\d\s*[-–:]?\s*(?=\S)/, "").trim();
+  return out || (name || "").trim();
+}
+
 export function minutesLabel(m: number): string {
   const h = Math.floor(m / 60);
   const r = m % 60;

@@ -4,7 +4,7 @@ that week's Monday (``2026-11-09``), laid out like the calendar:
 - your name and the week on top, then a column per day (Monday to Sunday) and a row per
   quarter hour, covering only the hours that week uses (like the printed weeks);
 - study sessions grouped by course (``app.planner.groups``) in merged cells at their times,
-  in the course's colour: "09:00-10:00 - Spanish - Study" and what to study under it;
+  in the course's colour: "Spanish - Study" and what to study under it, one per line (no times);
   each test or task its own cell;
 - a row under the day names for long readings (every day they run), deadlines and days off,
   and breaks in grey at their times, if asked;
@@ -53,12 +53,12 @@ def _lines(text: str, width: int = DAY_WIDTH) -> int:
 
 
 def _text(e: Entry) -> Rich:
-    """A cell's rich text: the time and title in bold, then what to study."""
+    """A cell's rich text: the title in bold, then what to study, one per line (no times:
+    the rows show them)."""
     if e.kind == "busy":
-        return [(f"{e.time}\n{e.title}", False)]
-    many = len(e.items) > 1
-    work = "".join("\n" + ("- " if many else "") + w for _, w in e.items if w)
-    return [(f"{e.time} - {e.title}", True), (work, False)]
+        return [(e.title, False)]
+    work = "".join("\n" + w for _, w in e.items if w)
+    return [(e.title, True), (work, False)]
 
 
 def _plain(value) -> str:

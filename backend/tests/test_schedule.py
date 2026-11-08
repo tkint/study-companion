@@ -425,25 +425,35 @@ def test_groups_by_course_with_tasks_apart():
         ("Literature 3 - Study", 30, 1), ("Flashcards", 15, 1)]
     assert out[0]["color"] == out[1]["color"] == groups.course_color(3) != out[2]["color"]
     assert out[3]["color"] == groups.NO_COURSE
-    # The web calendar's week and month views: course short name and section numbers only.
-    assert [g["short"] for g in out] == ["Spanish · Study", "Spanish · Test 1",
-                                         "Literature 3 · Study", "Flashcards"]
+    # What each entry covers: nothing for a task (its title is its work).
+    assert [g["work"] for g in out] == [["Sec"], [], ["Sec"], ["Flashcard review"]]
 
 
-def test_short_labels_show_section_numbers():
+def test_entry_names_and_merged_parts():
+    """The user's own example: the year in front of the course name goes, the parts of one
+    piece of work become one line."""
     from app.planner import groups
 
-    def b(start, n, kind="deep"):
+    course = "2026/2027-A3FPH12 Phonologie de l'Anglais 3"
+    work = "COURSE WORKBOOK and SUGGESTED WORKING CALENDAR"
+
+    def b(start, title, part=1, parts=1, kind="deep"):
         return {"date": "2026-11-09", "start": start, "end": start + 900, "minutes": 15,
-                "kind": kind, "title": f"A long section title {n}", "course_id": 1,
-                "course_name": "Linear Algebra", "course_short": "LA", "item_kind": "section",
-                "section_number": n}
+                "kind": kind, "title": title, "part": part, "parts": parts, "course_id": 1,
+                "course_name": course, "course_short": "A3FPH12", "item_kind": "section"}
 
     h = 9 * 3600
-    out = groups.group([b(h, 2), b(h + 900, 3, "recall"), b(h + 1800, 4), b(h + 2700, 7)])
-    assert len(out) == 1 and out[0]["short"] == "LA · §2–4, 7"
-    assert out[0]["label"] == "Linear Algebra - Study"  # the dialog and exports keep the name
-    assert groups.sections_text([5, 6]) == "§5, 6" and groups.sections_text([None]) == ""
+    out = groups.group([b(h, "Enseignante : Céline Horgues"), b(h + 900, work, 1, 4),
+                        b(h + 1800, work, 2, 4), b(h + 2700, work, 3, 4),
+                        b(h + 3600, "Vowels", 2, 2, "recall")])
+    assert len(out) == 1
+    assert out[0]["label"] == "A3FPH12 Phonologie de l'Anglais 3 - Study"
+    assert out[0]["work"] == ["Enseignante : Céline Horgues", f"{work} parts 1-3/4",
+                              "Vowels review 2/2"]
+    assert groups.work_lines([b(0, "X", 1, 4), b(0, "X", 3, 4)]) == ["X parts 1, 3/4"]
+    for name, shown in [("2026-2027 - Statistics", "Statistics"), ("2026/27: Maths", "Maths"),
+                        ("Linear Algebra", "Linear Algebra"), ("2026", "2026"), ("", "")]:
+        assert groups.course_title(name) == shown
 
 
 def test_start_date(settings, engine, morning):
@@ -578,12 +588,13 @@ def test_xlsx_week_layout(settings):
     assert cells["A6"] == "09:00" and "A7" not in cells and cells["A8"] == "09:30"
     # Back-to-back study of one course is one merged cell listing the work.
     study = cells["B6"]
-    assert study.startswith("09:00-09:45 - Linear Algebra - Study")
-    assert "- Matrices" in study and long.strip() in study
+    # No times in the cells (the rows show them), no bullets: the work one per line.
+    assert study.startswith("Linear Algebra - Study\nMatrices\n")
+    assert long.strip() in study and "09:00" not in study and "- Matrices" not in study
     merges = book["2026-11-09"]["merges"]
     assert "B6:B8" in merges
-    assert cells["C18"] == "12:00-13:00\nLunch" and "C18:C21" in merges  # 12:00 = 6 + 12 rows
-    assert cells["D26"].startswith("14:00-15:00 - Linear Algebra - Study") and "D26:D29" in merges
+    assert cells["C18"] == "Lunch" and "C18:C21" in merges  # 12:00 = 6 + 12 rows
+    assert cells["D26"] == "Linear Algebra - Study\nVectors" and "D26:D29" in merges
     # The last block ends at 15:00: the grid has a 15:00 row (half an hour more), no further.
     assert cells["A30"] == "15:00" and "A31" not in cells and "A32" not in cells
     import zipfile

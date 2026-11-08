@@ -196,10 +196,11 @@ hide them). It opens on the *Week* view (also *Month* and
 time is grouped by course, one colour per course, the same in the calendar, the feed and the
 PDF: back-to-back study of a course (reading and active recall) is one entry like
 `09:00-10:00 Spanish - Study`, and each test or task is its own entry named after it
-(`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. To keep the *Week*
-and *Month* views easy to read, their entries show no times and just the course's short name
-with the section numbers or the task (`SPA · §2–4`, `SPA · Test 1`, `📖 LIT3 · §8` for a long
-reading); *List* and the entry's dialog keep the full names. Tap an entry for what
+(`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. To keep it easy to
+read, the blocks show no times (the grid does), course names lose the academic year in front
+(`2026/2027-A3FPH12 Phonologie` shows as `A3FPH12 Phonologie`), and in the *Week* and *Day*
+views a study entry lists what it covers, one line each, with the parts of one piece of work
+merged (`Course workbook parts 1-3/4`). The PDF and Excel exports show the same. Tap an entry for what
 to do and its files, or a deadline for details and *Mark done*. The entry's dialog also has:
 
 - **✨ Build the session prompt**: opens the prompt builder filled in for that entry (its course,
@@ -282,7 +283,7 @@ calendar › Upload from file*).
 **Export › Export as PDF** makes a PDF of one or more weeks (from the week shown), one landscape
 page per week like a printed timetable: your name from Moodle and the week at the top, a column
 per day (Monday to Friday, plus the weekend when something is planned), your study sessions at
-their times, grouped by course like the calendar (`09:00-10:00 - Spanish - Study` in the
+their times, grouped by course like the calendar (`Spanish - Study` in the
 course's colour, listing what to study; each test or task its own box),
 deadlines, breaks and days off if you want them, and the date it was printed. The grid only
 covers the hours that week uses, plus half an hour so the last end time has its row (a
