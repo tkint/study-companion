@@ -9,9 +9,20 @@ export type Route =
   | { name: "plan" }
   | { name: "time" }
   | { name: "calendar" }
-  | { name: "prompt"; course?: number }
+  | { name: "prompt"; course?: number; prefill?: PromptPrefill }
   | { name: "templates"; id?: string }
   | { name: "file"; id: number; course?: number };
+
+/** What a link into the prompt builder fills in (the calendar's "Build the session prompt"). */
+export interface PromptPrefill {
+  goal?: string;
+  topic?: string;
+  /** Section numbers (as in the builder's section picker), first and last. */
+  sectionFrom?: number;
+  sectionTo?: number;
+  /** Time for the session, in minutes. */
+  minutes?: number;
+}
 
 export function parse(hash: string): Route {
   const [path, query = ""] = hash.replace(/^#/, "").split("?");
@@ -35,8 +46,17 @@ export function parse(hash: string): Route {
   if (parts[0] === "time") return { name: "time" };
   if (parts[0] === "calendar") return { name: "calendar" };
   if (parts[0] === "prompt") {
-    const course = params.get("course");
-    return { name: "prompt", course: course && /^\d+$/.test(course) ? Number(course) : undefined };
+    const goal = params.get("goal");
+    const topic = params.get("topic");
+    const prefill: PromptPrefill = {
+      goal: goal && /^\w{1,64}$/.test(goal) ? goal : undefined,
+      topic: topic ? topic.slice(0, 200) : undefined,
+      sectionFrom: num("section_from"),
+      sectionTo: num("section_to"),
+      minutes: num("minutes"),
+    };
+    const any = Object.values(prefill).some((v) => v !== undefined);
+    return { name: "prompt", course: num("course"), ...(any ? { prefill } : {}) };
   }
   if (parts[0] === "templates") {
     const id = parts[1] && /^\w{1,64}$/.test(parts[1]) ? parts[1] : undefined;
@@ -66,7 +86,17 @@ export const href = {
   dashboard: "#/",
   courses: "#/courses",
   calendar: "#/calendar",
-  prompt: (course?: number) => `#/prompt${course ? `?course=${course}` : ""}`,
+  prompt: (course?: number, prefill: PromptPrefill = {}) => {
+    const q = new URLSearchParams();
+    if (course) q.set("course", String(course));
+    if (prefill.goal) q.set("goal", prefill.goal);
+    if (prefill.topic) q.set("topic", prefill.topic);
+    if (prefill.sectionFrom != null) q.set("section_from", String(prefill.sectionFrom));
+    if (prefill.sectionTo != null) q.set("section_to", String(prefill.sectionTo));
+    if (prefill.minutes) q.set("minutes", String(Math.round(prefill.minutes)));
+    const qs = q.toString();
+    return `#/prompt${qs ? `?${qs}` : ""}`;
+  },
   templates: (id?: string) => `#/templates${id ? `/${id}` : ""}`,
   course: (id: number, section?: number) => `#/course/${id}${section ? `?section=${section}` : ""}`,
   study: (opts: { course?: number; section?: number; all?: boolean; due?: boolean } = {}) => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { request, ApiError } from "../api";
 import { Status, useLoad } from "../components/common";
 import { when } from "../format";
-import { href } from "../router";
+import { href, type PromptPrefill } from "../router";
 import styled from "styled-components";
 import {
   Alert, Button, Card, Check, Empty, Field, FieldRow, Fieldset, Input, Lead, Loading, Pre, Segmented, Select, Small,
@@ -116,7 +116,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export default function Prompt({ course }: { course?: number }) {
+export default function Prompt({ course, prefill }: { course?: number; prefill?: PromptPrefill }) {
   const { data, error } = useLoad(() => request<Options>("/api/prompt/options"), []);
   if (!data) return <Status error={error} loading />;
   if (!data.courses.length) {
@@ -127,23 +127,34 @@ export default function Prompt({ course }: { course?: number }) {
       </>
     );
   }
-  return <Form options={data} initialCourse={course} />;
+  return <Form options={data} initialCourse={course} prefill={prefill} />;
 }
 
-function Form({ options, initialCourse }: { options: Options; initialCourse?: number }) {
+/** Hours for a session of ``minutes``, to the half hour (at least half an hour). */
+function sessionHours(minutes: number): number {
+  return Math.max(0.5, Math.round(minutes / 30) / 2);
+}
+
+function Form({ options, initialCourse, prefill }: { options: Options; initialCourse?: number; prefill?: PromptPrefill }) {
   const first = options.courses.find((c) => c.id === initialCourse) ?? options.courses[0];
+  // A link from the calendar fills in its goal, sections and time (only what this course has).
+  const fill = prefill && first.id === initialCourse ? prefill : undefined;
+  const numbers = new Set(first.sections.map((s) => s.number));
+  const fillFrom = fill?.sectionFrom != null && numbers.has(fill.sectionFrom) ? fill.sectionFrom : "";
+  const fillTo = fill?.sectionTo != null && numbers.has(fill.sectionTo) ? fill.sectionTo : fillFrom;
+  const fillGoal = options.goals.some((g) => g.id === fill?.goal) ? fill?.goal : undefined;
   const [courses, setCourses] = useState<number[]>([first.id]);
-  const [period, setPeriod] = useState<Period>("2months");
+  const [period, setPeriod] = useState<Period>(fillFrom !== "" ? "sections" : "2months");
   const [from, setFrom] = useState(shift(options.today, -61));
   const [to, setTo] = useState(options.today);
-  const [secFrom, setSecFrom] = useState<number | "">("");
-  const [secTo, setSecTo] = useState<number | "">("");
-  const [goal, setGoal] = useState(options.goals[0]?.id ?? "");
-  const [topic, setTopic] = useState("");
+  const [secFrom, setSecFrom] = useState<number | "">(fillFrom);
+  const [secTo, setSecTo] = useState<number | "">(fillTo);
+  const [goal, setGoal] = useState(fillGoal ?? options.goals[0]?.id ?? "");
+  const [topic, setTopic] = useState(fill?.topic ?? "");
   const [depth, setDepth] = useState("standard");
   const [language, setLanguage] = useState("course");
-  const [timeMode, setTimeMode] = useState<TimeMode>("daily");
-  const [hoursTotal, setHoursTotal] = useState(6);
+  const [timeMode, setTimeMode] = useState<TimeMode>(fill?.minutes ? "total" : "daily");
+  const [hoursTotal, setHoursTotal] = useState(fill?.minutes ? sessionHours(fill.minutes) : 6);
   const [hoursPerDay, setHoursPerDay] = useState(2);
   const [days, setDays] = useState(7);
   const [deadlines, setDeadlines] = useState(true);
@@ -241,6 +252,12 @@ function Form({ options, initialCourse }: { options: Options; initialCourse?: nu
           connector on). It reads only the material the prompt names.{" "}
           <a href={href.templates()}>Edit the templates</a>
         </Lead>
+        {fill && (
+          <Alert $tone="primary" role="status">
+            Filled in from your calendar{fill.topic ? <>: <strong>{fill.topic}</strong></> : ""}. Adjust anything
+            below, then copy the prompt. <a href={href.calendar}>Back to the calendar</a>
+          </Alert>
+        )}
 
         <Fieldset>
           <legend>Course</legend>

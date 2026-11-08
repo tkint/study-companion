@@ -513,6 +513,8 @@ export interface Schedule {
   preview: boolean;
   /** Your name on Moodle (header of the printed weeks), "" before the first sync. */
   owner?: string;
+  /** The source site's address (no trailing slash), "" before the first sync. */
+  site_url?: string;
   /** Your unavailabilities over the schedule's days, as timestamps. */
   busy: BusySlot[];
   /** The blocks as shown (calendar, PDF, feed): back-to-back study of one course is one

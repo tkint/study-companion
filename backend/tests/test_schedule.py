@@ -10,7 +10,7 @@ from app.api import ics
 from app.db import make_engine, session
 from app.extract.index import extract_files, index_structure
 from app.main import create_app
-from app.models import StudyQuestion
+from app.models import Site, StudyQuestion
 from app.planner import published, schedule
 from app.planner.schedule import Generator, ScheduleError
 
@@ -264,6 +264,21 @@ def c(settings, engine):
     return client
 
 
+def test_api_site_url(engine, c):
+    """The source site's address (for links to a section at the source), never anything else."""
+    with session(engine) as s:
+        s.add(Site(id=1, url="https://moodle.example.edu/", fullname="Ada"))
+        s.commit()
+    out = c.get("/api/schedule").json()
+    assert out["site_url"] == "https://moodle.example.edu" and out["owner"] == "Ada"
+    with session(engine) as s:
+        site = s.get(Site, 1)
+        site.url = "javascript:alert(1)"
+        s.add(site)
+        s.commit()
+    assert c.get("/api/schedule").json()["site_url"] == ""
+
+
 def test_api(settings, engine, c):
     anon = TestClient(create_app(settings), follow_redirects=False)
     assert anon.get("/api/schedule").status_code == 401
@@ -272,6 +287,7 @@ def test_api(settings, engine, c):
     assert out["config"]["days"] == 14 and {"days", "courses", "notes", "unscheduled"} <= out.keys()
     assert out["published_at"] and out["preview"] is False
     assert "owner" in out  # Moodle name for the printed weeks ("" before the first sync)
+    assert out["site_url"] == ""  # no site yet: the calendar shows no source link
     assert c.post("/api/schedule/settings", json={"buffer_days": 2},
                   headers={"Sec-Fetch-Site": "cross-site"}).status_code == 401
     assert c.post("/api/schedule/settings", json={"buffer_days": 9},

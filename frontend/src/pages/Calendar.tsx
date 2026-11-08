@@ -8,13 +8,13 @@ import type { DatesSetArg, EventClickArg, EventInput, EventSourceFuncArg } from 
 import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup, type ScheduleReading } from "../api";
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
-import { DeadlineItem } from "../components/DeadlineList";
+import { EventDialog, type Selected } from "../components/EventDialog";
 import { ExportWeeks } from "../components/ExportWeeks";
 import { ReminderSettings } from "../components/Reminders";
-import { BlockRow, ReadingDetails, Summary } from "../components/ScheduleBlock";
+import { Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor } from "../format";
-import { DayHead, minutes, PlanRow } from "./Plan";
+import { minutes, PlanRow } from "./Plan";
 import { Alert, Banner, Button, Check, DetailsCard, Dropdown, Late, Lead, List, MenuItem, Modal, Muted, Row, Small } from "../ui";
 
 // One calendar for everything (issue: unified study calendar): the published study schedule
@@ -183,7 +183,7 @@ export default function Calendar() {
   const [draft, setDraft] = useState<ScheduleConfig | null>(null);
   const [preview, setPreview] = useState<Schedule | null>(null);
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
-  const [selected, setSelected] = useState<{ deadline?: Deadline; group?: ScheduleGroup; reading?: ScheduleReading } | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | "xlsx" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
@@ -442,33 +442,11 @@ export default function Calendar() {
 
       <ReminderSettings />
 
-      <Modal open={!!selected} onClose={close}
-        label={selected?.group ? selected.group.label : selected?.reading ? selected.reading.label : "Deadline"}>
-        {selected?.reading && <ReadingDetails reading={selected.reading} />}
-        {selected?.deadline && (
-          <List $animate={false}>
-            <DeadlineItem
-              d={selected.deadline}
-              onChange={(d) => {
-                setSelected({ deadline: d });
-                ref.current?.getApi().getEventSourceById("deadlines")?.refetch();
-              }}
-            />
-          </List>
-        )}
-        {selected?.group && (
-          <>
-            <h2 style={{ margin: 0 }}>{selected.group.label}</h2>
-            <DayHead as="h3">
-              <span>{new Date(selected.group.start * 1000).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</span>
-            </DayHead>
-            <List $animate={false}>
-              {selected.group.blocks.map((b) => <BlockRow key={b.start} block={b} timeZone={shown.timezone} />)}
-            </List>
-          </>
-        )}
-        <Button $variant="ghost" $block onClick={close}>Close</Button>
-      </Modal>
+      <EventDialog selected={selected} site={saved.site_url ?? ""} timeZone={shown.timezone} onClose={close}
+        onDeadline={(d) => {
+          setSelected({ deadline: d });
+          ref.current?.getApi().getEventSourceById("deadlines")?.refetch();
+        }} />
       <Modal open={dialog === "subscribe"} onClose={closeDialog} label="Subscribe to your study calendar">
         <h2 style={{ margin: 0 }}>Subscribe</h2>
         <CalendarFeed />
