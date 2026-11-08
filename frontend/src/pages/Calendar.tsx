@@ -9,7 +9,7 @@ import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGr
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
 import { DeadlineItem } from "../components/DeadlineList";
-import { ExportPdf } from "../components/ExportPdf";
+import { ExportWeeks } from "../components/ExportWeeks";
 import { ReminderSettings } from "../components/Reminders";
 import { BlockRow, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
@@ -21,7 +21,8 @@ import { Alert, Banner, Button, Check, DetailsCard, Dropdown, Late, Lead, List, 
 // (app/planner/published.py), Moodle deadlines and your unavailabilities, in FullCalendar.
 // The schedule settings are a form: changes show at once as a preview in the calendar, and
 // Save publishes them, which is what the subscribed feed (/calendar.ics) and the printed
-// weeks show. Subscribe, or Export (menu): as PDF (one page per week, built by the server) or ICS.
+// weeks show. Subscribe, or Export (menu): as PDF (one page per week) or Excel (one sheet per
+// week), both built by the server, or ICS.
 
 // FullCalendar's own CSS, re-coloured with the theme.
 const CalendarCard = styled.div`
@@ -167,7 +168,7 @@ export default function Calendar() {
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const [selected, setSelected] = useState<{ deadline?: Deadline; group?: ScheduleGroup } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | null>(null);
+  const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | "xlsx" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const views = useMemo(() => (narrow() ? PHONE_VIEWS : WIDE_VIEWS), []);
@@ -322,6 +323,7 @@ export default function Calendar() {
         <Button $variant="primary" $size="sm" onClick={() => setDialog("subscribe")}>Subscribe</Button>
         <Dropdown text label="Export" trigger="Export ▾" open={exportOpen} onOpenChange={setExportOpen}>
           <MenuItem onClick={() => { setExportOpen(false); setDialog("pdf"); }}>Export as PDF</MenuItem>
+          <MenuItem onClick={() => { setExportOpen(false); setDialog("xlsx"); }}>Export as Excel</MenuItem>
           <MenuItem onClick={() => { setExportOpen(false); window.location.href = "/calendar.ics?download=1"; }}>
             Export as ICS
           </MenuItem>
@@ -448,7 +450,9 @@ export default function Calendar() {
         <CalendarFeed />
         <Button $variant="ghost" $block onClick={closeDialog}>Close</Button>
       </Modal>
-      <ExportPdf open={dialog === "pdf"} onClose={closeDialog} start={visible ?? saved.today} />
+      {(dialog === "pdf" || dialog === "xlsx") && (
+        <ExportWeeks format={dialog} open onClose={closeDialog} start={visible ?? saved.today} />
+      )}
     </>
   );
 }

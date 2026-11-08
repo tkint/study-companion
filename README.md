@@ -33,7 +33,7 @@ university SSO. Set up nightly backups with **[docs/backups.md](docs/backups.md)
 **[docs/web-ui.md](docs/web-ui.md)** covers the dashboard, adding the app to your phone's home
 screen, subscribing to your deadlines from your phone or Outlook calendar, and the prompt
 builder, Claude's notes, study mode (flashcards), study time, reminders, the catch-up plan and the study
-calendar (timed schedule, deadlines, subscription, `.ics` download and printing weeks to PDF).
+calendar (timed schedule, deadlines, subscription, `.ics` download, printing weeks to PDF and exporting them to Excel).
 **[docs/connector.md](docs/connector.md)** adds the Claude connector on claude.ai
 (`https://<DOMAIN>/mcp`), so Claude on your phone and computer can read your courses and save
 its summaries, questions and quiz results back to the app.
