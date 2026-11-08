@@ -1,5 +1,6 @@
-"""ICS (iCalendar, RFC 5545) feed: deadlines and study entries in one calendar (breaks and
-days off are left out), and its secret URL.
+"""ICS (iCalendar, RFC 5545) feed: deadlines and the plan's study sessions (one event per
+session, its tasks in the description) in one calendar, and its secret URL. The download
+and the subscription are the same feed of the same published plan.
 
 Phone and Outlook calendars subscribe to a URL and can't sign in, so the feed is protected
 by a token in the query string (``/calendar.ics?token=...``). The token is an HMAC of
@@ -19,7 +20,7 @@ from sqlalchemy.engine import Engine
 from app.accounts import USER_ID
 from app.db import session
 from app.models import CalendarFeed
-from app.planner import groups
+from app.planner import tasks
 
 PRODID = "-//Study Companion//Study calendar//EN"
 
@@ -159,39 +160,72 @@ def _paras(paras: list[str]) -> str:
     return _escape("\n\n".join(paras))
 
 
-def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool) -> list[str]:
-    """One busy VEVENT per study entry, grouped by course like the web calendar and the
-    printed weeks (``app.planner.groups``): "Spanish - Study", "Spanish - Test 1". The
-    description starts with a link that opens the entry in Study Companion, on its own line,
-    then each piece of work in its own paragraph (what to do, the files), then the Moodle
-    links. With ``day_alarm``, the first entry of each day has an alarm at its start with
-    the day's agenda."""
+# RFC 7986 COLOR takes a CSS colour name: the nearest one to each course colour.
+CSS_COLOR = {"#2563eb": "royalblue", "#db2777": "mediumvioletred", "#059669": "seagreen",
+             "#d97706": "darkorange", "#7c3aed": "blueviolet", "#0891b2": "darkcyan",
+             "#dc2626": "crimson", "#65a30d": "olivedrab", "#64748b": "slategray"}
+PRIORITY = {"high": "high priority", "medium": "medium priority"}
+
+
+def _clock(ts: int, tz) -> str:
+    return datetime.fromtimestamp(ts, tz).strftime("%H:%M")
+
+
+def task_line(t: dict, tz) -> str:
+    """One task of a session, on one line: "- Section 1: Workbook (parts 1-2/3) · 1 h 40 ·
+    needed by Fri 20 Nov"."""
+    bits = [t.get("title") or "Task"]
+    if t.get("part"):
+        bits[0] += f" ({t['part']})"
+    if t.get("priority") in PRIORITY and not t.get("done"):
+        bits.append(PRIORITY[t["priority"]])
+    if t.get("minutes"):
+        bits.append(_human(t["minutes"]))
+    if t.get("due"):
+        what = "needed by" if t.get("kind") in ("study", "review", "reading") else "due"
+        bits.append(f"{what} {datetime.fromtimestamp(t['due'], tz):%a %d %b %H:%M}")
+    if t.get("due_for"):
+        bits.append(f"for “{t['due_for']}”")
+    if t.get("late") and not t.get("done"):
+        bits.append("late")
+    return ("- [x] " if t.get("done") else "- ") + " · ".join(bits)
+
+
+def _session_events(sessions: list[dict], plan_days: list[dict], base_url: str, stamp: str,
+                    day_alarm: bool, tz) -> list[str]:
+    """One busy VEVENT per study session (one course, ``app.planner.groups``), never one per
+    task: the course as its title, and in its description the session's tasks one per line
+    (``app.planner.tasks``, the same as the web calendar), then links. With ``day_alarm``,
+    the first session of each day has an alarm at its start with the day's agenda."""
     lines: list[str] = []
     position: dict[str, int] = {}
-    entries = groups.group(blocks)
+    tasks_of = {d["date"]: {t["key"]: t for t in d.get("tasks", [])} for d in plan_days}
     by_day: dict[str, list[dict]] = {}
-    for g in entries:
+    for g in sessions:
         by_day.setdefault(g["date"], []).append(g)
-    for g in entries:
+    for g in sessions:
         n = position[g["date"]] = position.get(g["date"], 0) + 1
         url = focus_url(base_url, g["start"]) if base_url else ""
-        paras = [f"Open in Study Companion:\n{url}"] if url else []
+        head = [g["label"], f"{_clock(g['start'], tz)}–{_clock(g['end'], tz)} "
+                f"({_human(g.get('minutes', 0))})"]
+        paras = ["\n".join(head)]
+        day = tasks_of.get(g["date"], {})
+        work = [day[k] for k in g.get("task_keys", []) if k in day]
+        if work:
+            paras.append("Tasks:\n" + "\n".join(task_line(t, tz) for t in work))
         moodle: list[str] = []
+        files: list[str] = []
         for b in g["blocks"]:
-            title = b.get("title", "")
-            if b.get("parts", 1) > 1:
-                step = "review" if b.get("kind") == "recall" else "part"
-                title += f" ({step} {b['part']}/{b['parts']})"
-            para = [title]
-            if b.get("detail"):
-                para.append(b["detail"])
-            files = b.get("files") or []
-            if files:
-                para.append("Files: " + ", ".join(
-                    f["name"] + (f" ({f['pages']} p.)" if f.get("pages") else "") for f in files))
-            paras.append("\n".join(para))
             if b.get("url") and b["url"] not in moodle:
                 moodle.append(b["url"])
+            for f in b.get("files") or []:
+                name = f["name"] + (f" ({f['pages']} p.)" if f.get("pages") else "")
+                if name not in files:
+                    files.append(name)
+        if files:
+            paras.append("Files: " + ", ".join(files))
+        if url:
+            paras.append(f"Open in Study Companion:\n{url}")
         if moodle:
             paras.append("On Moodle:\n" + "\n".join(moodle))
         lines += [
@@ -203,49 +237,19 @@ def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool
             f"SUMMARY:{_escape(g['label'])}",
             f"DESCRIPTION:{_paras(paras)}",
             "TRANSP:OPAQUE",
-            f"CATEGORIES:{_escape(g.get('course_name') or 'Study Companion')}",
+            f"CATEGORIES:{_escape(g.get('course_code') or g['label'] or 'Study Companion')}",
         ]
+        color = CSS_COLOR.get((g.get("color") or "").lower())
+        if color:
+            lines.append(f"COLOR:{color}")
         if url:
             lines.append(f"URL:{url}")
         if day_alarm and n == 1:
-            day = by_day[g["date"]]
-            total = sum(x.get("minutes", 0) for x in day)
+            day_sessions = by_day[g["date"]]
+            total = sum(x.get("minutes", 0) for x in day_sessions)
             agenda = (f"Study time: {_human(total)} planned, "
-                      + ", ".join(x["label"] for x in day))
+                      + ", ".join(x["label"] for x in day_sessions))
             lines += _alarm(agenda, "PT0M")
-        lines.append("END:VEVENT")
-    return lines
-
-
-def _reading_events(readings: list[dict], base_url: str, stamp: str) -> list[str]:
-    """One all-day VEVENT per long reading, over the days it runs, marked free: reading is
-    done in your own time, beside the study blocks."""
-    lines: list[str] = []
-    for r in readings:
-        try:
-            first = date.fromisoformat(r["start_date"])
-            end = date.fromisoformat(r["end_date"]) + timedelta(days=1)
-        except (KeyError, TypeError, ValueError):
-            continue
-        course = r.get("course_name") or ""
-        summary = f"{course + ' - ' if course else ''}Read: {r.get('title', '')}"
-        url = focus_url(base_url, int(datetime(first.year, first.month, first.day).timestamp())) \
-            if base_url else ""
-        paras = [f"Open in Study Companion:\n{url}"] if url else []
-        paras.append(r.get("detail") or summary)
-        lines += [
-            "BEGIN:VEVENT",
-            f"UID:reading-{r.get('section_id') or 0}-{first:%Y%m%d}@study-companion",
-            f"DTSTAMP:{stamp}",
-            f"DTSTART;VALUE=DATE:{first:%Y%m%d}",
-            f"DTEND;VALUE=DATE:{end:%Y%m%d}",
-            f"SUMMARY:{_escape(summary)}",
-            f"DESCRIPTION:{_paras(paras)}",
-            "TRANSP:TRANSPARENT",
-            f"CATEGORIES:{_escape(course or 'Study Companion')}",
-        ]
-        if url:
-            lines.append(f"URL:{url}")
         lines.append("END:VEVENT")
     return lines
 
@@ -253,14 +257,22 @@ def _reading_events(readings: list[dict], base_url: str, stamp: str) -> list[str
 def build_ics(items: list[dict], now: int | None = None, name: str = "Study Companion",
               alarms: tuple[int, ...] | list[int] = (1440,),
               blocks: list[dict] | None = None, base_url: str = "",
-              day_alarm: bool = False, readings: list[dict] | None = None) -> str:
+              day_alarm: bool = False, plan: dict | None = None, tz=None) -> str:
     """The calendar feed: one VEVENT per deadline at its due time, with an alarm per lead
-    time in ``alarms`` (minutes before) until it is done, one per study entry of the
-    published schedule and an all-day one per long reading. Breaks, unavailabilities and days off are not events: the feed only
-    holds what you do (the web calendar and the PDF can show them)."""
+    time in ``alarms`` (minutes before) until it is done, and one per study session of the
+    published plan (``plan``: its ``sessions`` and ``plan_days``; or built from ``blocks``),
+    its tasks in the description. Tasks without a time slot (long readings), breaks,
+    unavailabilities and days off are not events."""
+    tz = tz or timezone.utc
     stamp = _dt(int(now if now is not None else time.time()))
+    if plan is None or "sessions" not in plan:
+        days: dict[str, list[dict]] = {}
+        for b in blocks or []:
+            days.setdefault(b.get("date") or "", []).append(b)
+        plan = tasks.build({"days": [{"date": d, "blocks": bs} for d, bs in sorted(days.items())
+                                     if d]}, tz)
     lines = _header(name)
     lines += _deadline_events(items, stamp, alarms, base_url)
-    lines += _block_events(blocks or [], base_url, stamp, day_alarm)
-    lines += _reading_events(readings or [], base_url, stamp)
+    lines += _session_events(plan.get("sessions", []), plan.get("plan_days", []), base_url,
+                             stamp, day_alarm, tz)
     return _finish(lines)

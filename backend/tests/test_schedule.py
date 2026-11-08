@@ -186,9 +186,11 @@ def test_ics_export(settings, engine, morning):
     assert text.count("BEGIN:VEVENT") == len(groups.group([b.to_dict() for b in plan.blocks]))
     assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
     unfolded = text.replace("\r\n ", "")
-    assert "SUMMARY:LA – Linear Algebra" in unfolded and "\\n\\nMatrices" in unfolded
-    # The link to the entry in the app comes first, on its own line; paragraphs are spaced.
-    assert "DESCRIPTION:Open in Study Companion:\\nhttps://study.example.ch/#/calendar?at=" in unfolded
+    # One event per course session: the course as title, its tasks one per line.
+    assert "SUMMARY:LA – Linear Algebra" in unfolded and "COLOR:seagreen" in unfolded
+    assert "DESCRIPTION:LA – Linear Algebra\\n" in unfolded
+    assert "Tasks:\\n- Section 2: Matrices" in unfolded
+    assert "\\n\\nOpen in Study Companion:\\nhttps://study.example.ch/#/calendar?at=" in unfolded
     assert "URL:https://study.example.ch/#/calendar?at=" in unfolded
     first = plan.blocks[0]
     stamp = datetime.fromtimestamp(first.start, tz=timezone.utc)
@@ -716,8 +718,8 @@ def test_readings_follow_deadlines(settings, engine, morning):
 
 
 def test_readings_in_exports(settings, engine, c):
-    """The calendar feed has an all-day event per reading (free time), the PDF and Excel
-    weeks show it on each of its days."""
+    """A reading has no time slot: no event in the calendar feed (it is a task of the days
+    it runs); the PDF and Excel show it on each of its days."""
     from io import BytesIO
 
     from pypdf import PdfReader
@@ -727,9 +729,9 @@ def test_readings_in_exports(settings, engine, c):
     plan = c.get("/api/schedule").json()
     assert plan["readings"][0]["title"] == "Novel 1"
     feed = c.get("/calendar.ics").text.replace("\r\n ", "")
-    assert "SUMMARY:Literature 3 - Read: Novel 1" in feed
-    start = plan["readings"][0]["start_date"].replace("-", "")
-    assert f"DTSTART;VALUE=DATE:{start}" in feed and "TRANSP:TRANSPARENT" in feed
+    assert "Read: Novel 1" not in feed and "VALUE=DATE" not in feed
+    days = [d for d in plan["plan_days"] if d["date"] == plan["readings"][0]["start_date"]]
+    assert any(t["title"] == "Read: Novel 1" and t["session_id"] is None for t in days[0]["tasks"])
     first = plan["readings"][0]["start_date"]
     pdf = PdfReader(BytesIO(c.get(f"/api/schedule.pdf?from={first}").content))
     assert "Read: Novel 1" in pdf.pages[0].extract_text()

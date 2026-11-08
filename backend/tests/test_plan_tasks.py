@@ -174,3 +174,47 @@ def test_sessions_per_course_a_day(settings, engine):
     blocks = [b for d in plan["days"] for b in d["blocks"]]
     assert sum(len(s["blocks"]) for s in view["sessions"]) == len(blocks)
     assert all(s["task_keys"] for s in view["sessions"])
+
+
+def test_ics_one_event_per_session_with_its_tasks(settings):
+    from app.api import ics
+
+    tz = settings.tz
+    data = _plan(tz)
+    view = tasks.build(data, tz, {"section-11": True})
+    text = ics.build_ics([], now=NOW, plan=view, base_url="https://s.example/", tz=tz)
+    unfolded = text.replace("\r\n ", "")
+    assert unfolded.count("BEGIN:VEVENT") == len(view["sessions"]) == 4
+    assert "SUMMARY:A3FPH12 – Phonologie de l'Anglais 3" in unfolded
+    assert "COLOR:mediumvioletred" in unfolded  # course 1's colour, as a CSS name
+    event = next(e for e in unfolded.split("BEGIN:VEVENT") if "SUMMARY:A3FPH12" in e)
+    desc = event.split("DESCRIPTION:")[1].split("\r\n")[0]
+    assert desc.startswith("A3FPH12 – Phonologie de l'Anglais 3\\n09:15–11:25 (2 h 10)")
+    lines = desc.split("\\n")
+    tasks_at = lines.index("Tasks:")
+    assert lines[tasks_at + 1].startswith("- [x] Section 1: Workbook (parts 1-2/3) · 1 h 40 · "
+                                          "needed by Fri 20 Nov 23:59")
+    assert lines[tasks_at + 2] == "- Exercise 1 · medium priority · 30 min · due Thu 12 Nov 12:00"
+    # No event for a task without a time slot (the reading, the hand-in on its due day).
+    assert "Novel" not in unfolded and "Due: Exercise" not in unfolded
+
+
+def test_ics_download_and_feed_are_the_same(settings, engine):
+    from app.api import ics
+
+    c = TestClient(create_app(settings), follow_redirects=False)
+    c.post("/login", data={"password": PASSWORD})
+    token = ics.feed_token(engine, settings.secret_key)
+    anon = TestClient(create_app(settings))
+
+    def events(text):
+        return [e.split("END:VEVENT")[0] for e in text.replace("\r\n ", "").split("BEGIN:VEVENT")[1:]]
+
+    def strip(e):
+        return "\r\n".join(x for x in e.split("\r\n") if not x.startswith("DTSTAMP"))
+
+    down = events(c.get("/calendar.ics?download=1").text)
+    feed = events(anon.get(f"/calendar.ics?token={token}").text)
+    assert down and [strip(e) for e in down] == [strip(e) for e in feed]
+    sessions = c.get("/api/schedule").json()["sessions"]
+    assert sum(1 for e in feed if "UID:schedule-" in e) == len(sessions)
