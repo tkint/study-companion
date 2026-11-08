@@ -207,7 +207,10 @@ same settings, e.g. after you finished sections.
   (free time inside your study window), the length of a focus block, the break between blocks
   (none by default, so a course's blocks join into one entry),
   and a **buffer** of days before deadlines (work is planned to finish that many days early).
-  **Study from / until** sets the window blocks go in.
+  **Study from / until** sets the window blocks go in. **Start on** (today by default) lets
+  the plan begin on a later day, e.g. a new term or after holidays: nothing is planned before
+  it, **Plan ahead** counts its days from there, and the calendar opens on that day. Once the
+  date has passed, the plan simply starts each day from today again.
 - **Course weights:** a course with weight 2 gets about twice the time of one with weight 1;
   0 leaves it out. The slider shows the share you asked for and the share planned. Courses
   stay together for up to about two focus blocks, then take turns when another has work, and

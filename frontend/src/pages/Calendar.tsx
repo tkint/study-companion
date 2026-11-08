@@ -195,6 +195,12 @@ export default function Calendar() {
 
   const shown = (dirty && preview) || saved;
 
+  // A plan that starts later (start date in the settings) opens on its first day.
+  const startsOn = shown && shown.start && shown.start > shown.today ? shown.start : null;
+  useEffect(() => {
+    if (startsOn) ref.current?.getApi().gotoDate(startsOn);
+  }, [startsOn]);
+
   // A link from the subscribed calendar opens its entry (or the day of its deadline).
   useEffect(() => {
     if (!saved) return;
