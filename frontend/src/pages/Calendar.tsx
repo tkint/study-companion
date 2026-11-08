@@ -3,26 +3,33 @@ import styled from "styled-components";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import listPlugin from "@fullcalendar/list";
-import type { DatesSetArg, EventClickArg, EventContentArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
-import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup, type ScheduleReading } from "../api";
+import type { DatesSetArg, DayCellContentArg, DayHeaderContentArg, EventClickArg, EventContentArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
+import { api, type Deadline, type PlanDay, type PlanTask, type Schedule, type ScheduleConfig, type ScheduleSession } from "../api";
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
+import { DayTasks } from "../components/DayTasks";
+import { addDays, DayStrip, DayTimeline, isoDay, longDate } from "../components/DayTimeline";
 import { EventDialog, type Selected } from "../components/EventDialog";
 import { ExportWeeks } from "../components/ExportWeeks";
 import { ReminderSettings } from "../components/Reminders";
-import { Summary } from "../components/ScheduleBlock";
+import { clock, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor, courseTitle } from "../format";
 import { minutes, PlanRow } from "./Plan";
-import { Alert, Banner, Button, Check, DetailsCard, Dropdown, Late, Lead, List, MenuItem, Modal, Muted, Row, Small } from "../ui";
+import {
+  Alert, Banner, Button, Card, Check, DetailsCard, Dropdown, IconButton, Late, Lead, List, MenuItem, Modal, Muted, Row,
+  Segmented, Small,
+} from "../ui";
 
-// One calendar for everything (issue: unified study calendar): the published study schedule
-// (app/planner/published.py), Moodle deadlines and your unavailabilities, in FullCalendar.
-// The schedule settings are a form: changes show at once as a preview in the calendar, and
-// Save publishes them, which is what the subscribed feed (/calendar.ics) and the printed
-// weeks show. Subscribe, or Export (menu): as PDF (one page per week) or Excel (one sheet per
-// week), both built by the server, or ICS.
+// One calendar for everything (issue: unified study calendar): the published study plan
+// (app/planner/published.py) in two parts. The calendar is for time: one block per course
+// session, Moodle deadlines and your unavailabilities. The focused day's task list is for
+// doing: what to accomplish that day, grouped by course, with ticks (app/planner/tasks.py).
+// Desktop: calendar on the left, the focused day's tasks on the right. Phone: a week strip,
+// the day's timeline, then its tasks (or a Schedule / Tasks switch).
+// The schedule settings are a form: changes show at once as a preview, and Save publishes
+// them, which is what the subscribed feed (/calendar.ics) and the exports show. Subscribe, or
+// Export (menu): as PDF or Excel, both built by the server, or ICS.
 
 // FullCalendar's own CSS, re-coloured with the theme.
 const CalendarCard = styled.div`
@@ -35,7 +42,7 @@ const CalendarCard = styled.div`
   --fc-page-bg-color: ${({ theme }) => theme.colors.surface};
   --fc-neutral-bg-color: ${({ theme }) => theme.colors.surfaceSunken};
   --fc-list-event-hover-bg-color: ${({ theme }) => theme.colors.surfaceSunken};
-  --fc-today-bg-color: ${({ theme }) => theme.colors.primarySoft};
+  --fc-today-bg-color: transparent;
   --fc-now-indicator-color: ${({ theme }) => theme.colors.danger};
   --fc-bg-event-color: ${({ theme }) => theme.colors.textMuted};
   --fc-bg-event-opacity: .14;
@@ -59,7 +66,14 @@ const CalendarCard = styled.div`
   .fc-overdue .fc-event-title, .fc-overdue .fc-list-event-title { font-weight: 700; }
   .fc-timegrid-event.fc-deadline, .fc-daygrid-event.fc-deadline { border-style: dashed; font-weight: 650; }
   .fc .fc-timegrid-slot { height: 2.1em; }
-  .fc .fc-work { font-size: .72rem; line-height: 1.25; opacity: .92; }
+  .fc .fc-session { overflow: hidden; line-height: 1.25; padding: 1px 2px; }
+  .fc .fc-session strong { display: block; font-size: .78rem; font-weight: 700; overflow-wrap: anywhere; }
+  .fc .fc-session span { display: block; font-size: .7rem; opacity: .9; font-variant-numeric: tabular-nums; }
+  .fc .fc-day-today .fc-col-header-cell-cushion, .fc .fc-day-today .fc-daygrid-day-number { color: ${({ theme }) => theme.colors.primaryStrong}; }
+  .fc .fc-focused { background: color-mix(in srgb, ${({ theme }) => theme.colors.primary} 9%, transparent); }
+  .fc th.fc-focused { box-shadow: inset 0 -3px 0 ${({ theme }) => theme.colors.primary}; }
+  .fc th.fc-focused .fc-col-header-cell-cushion { color: ${({ theme }) => theme.colors.primaryStrong}; }
+  .fc .fc-col-header-cell-cushion, .fc .fc-daygrid-day-number { cursor: pointer; }
   .fc-flashcards { opacity: .85; }
   .fc-late { outline: 2px solid ${({ theme }) => theme.colors.warning}; }
   &[data-preview="true"] .fc-study { opacity: .75; border-style: dashed; }
@@ -87,12 +101,65 @@ const DialogHead = styled.div`
 `;
 
 
-const narrow = () => window.matchMedia("(max-width: 640px)").matches;
+
+// Desktop: calendar and the focused day's tasks side by side, the calendar wider.
+const Split = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  ${({ theme }) => theme.media.desktop} {
+    grid-template-columns: minmax(0, 7fr) minmax(300px, 3fr);
+  }
+`;
+
+const Side = styled(Card)`
+  ${({ theme }) => theme.media.desktop} {
+    position: sticky;
+    top: calc(${({ theme }) => theme.layout.topbar} + 12px);
+    max-height: calc(100vh - ${({ theme }) => theme.layout.topbar} - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+`;
+
+const DayHead = styled.header`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  & h2 { flex: 1 1 auto; margin: 0; font-size: ${({ theme }) => theme.fontSizes.lg}; text-align: center; }
+`;
+
+const DaySub = styled(Muted)`
+  display: block;
+  margin-bottom: 10px;
+  text-align: center;
+`;
+
+const PhoneStack = styled.div`
+  display: grid;
+  gap: 12px;
+`;
+
+const PHONE = "(max-width: 640px)";
+
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(PHONE).matches);
+  useEffect(() => {
+    const m = window.matchMedia(PHONE);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return narrow;
+}
 
 // The view you picked last opens next time (per device; week by default).
 const VIEW_KEY = "calendar-view";
-const WIDE_VIEWS = ["timeGridWeek", "dayGridMonth", "listWeek"];
-const PHONE_VIEWS = ["timeGridWeek", "timeGridDay", "listWeek", "dayGridMonth"];
+const VIEWS = ["timeGridWeek", "timeGridDay", "dayGridMonth"];
+const PHONE_VIEW_KEY = "calendar-phone-view";
+type PhoneView = "day" | "schedule" | "tasks";
 
 function load(key: string): string | null {
   try {
@@ -119,52 +186,43 @@ function focusAt(): number | null {
   return at && /^\d{9,11}$/.test(at) ? Number(at) : null;
 }
 
-function lastView(allowed: string[]): string {
+function lastView(): string {
   const v = load(VIEW_KEY);
-  return v && allowed.includes(v) ? v : "timeGridWeek";
+  return v && VIEWS.includes(v) ? v : "timeGridWeek";
 }
 const PREVIEW_DELAY = 600;
 
-/** In the week and day views a study entry lists what it covers under its name. */
-function timeGridContent(arg: EventContentArg) {
-  const work = (arg.event.extendedProps.group as ScheduleGroup | undefined)?.work ?? [];
-  if (!work.length) return true; // FullCalendar's own rendering
+/** A session block: the course (identifier and name), then its times and duration. No
+ * tasks in it: they are in the day's task list. */
+function sessionContent(arg: EventContentArg) {
+  const s = arg.event.extendedProps.session as ScheduleSession | undefined;
+  if (!s) return true; // FullCalendar's own rendering
+  const tz = arg.event.extendedProps.timeZone as string | undefined;
+  if (s.minutes < 40) {
+    // A short session: one line, the course identifier and the times.
+    return (
+      <div className="fc-session" title={`${s.label}\n${clock(s.start, tz)}–${clock(s.end, tz)} · ${minutes(s.minutes)}`}>
+        <span><b>{s.course_code || s.label}</b> {clock(s.start, tz)}–{clock(s.end, tz)}</span>
+      </div>
+    );
+  }
   return (
-    <div className="fc-event-main-frame">
-      <div className="fc-event-title">{arg.event.title}</div>
-      {work.map((w, i) => <div key={i} className="fc-work">{w}</div>)}
+    <div className="fc-session" title={`${s.label}\n${clock(s.start, tz)}–${clock(s.end, tz)} · ${minutes(s.minutes)}`}>
+      <strong>{s.label}</strong>
+      <span>{clock(s.start, tz)}–{clock(s.end, tz)} · {minutes(s.minutes)}</span>
     </div>
   );
 }
 
-/** One study entry, grouped by course like the printed weeks ("Spanish - Study",
- * "Spanish - Test 1"), in the course's colour. */
-function groupEvent(g: ScheduleGroup): EventInput {
+function sessionEvent(s: ScheduleSession, timeZone: string): EventInput {
   return {
-    id: `g${g.start}`,
-    title: g.label,
-    start: new Date(g.start * 1000),
-    end: new Date(g.end * 1000),
-    color: g.color,
-    classNames: ["fc-study", `fc-${g.kind}`, ...(g.late ? ["fc-late"] : []), ...(g.end * 1000 < Date.now() ? ["fc-done"] : [])],
-    extendedProps: { group: g },
-  };
-}
-
-/** A long reading: an all-day entry over the days it takes ("Literature 3 - Read: Novel 1"). */
-function readingEvent(r: ScheduleReading): EventInput {
-  const end = new Date(`${r.end_date}T12:00:00`);
-  end.setDate(end.getDate() + 1);
-  const next = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
-  return {
-    id: `r${r.section_id ?? 0}-${r.start_date}`,
-    title: `📖 ${r.course_name ? courseTitle(r.course_name) + " - " : ""}${r.title}`,
-    start: r.start_date,
-    end: next,
-    allDay: true,
-    color: r.color,
-    classNames: ["fc-reading", ...(r.late ? ["fc-late"] : [])],
-    extendedProps: { reading: r },
+    id: s.id,
+    title: s.label,
+    start: new Date(s.start * 1000),
+    end: new Date(s.end * 1000),
+    color: s.color,
+    classNames: ["fc-study", `fc-${s.kind}`, ...(s.late ? ["fc-late"] : []), ...(s.end * 1000 < Date.now() ? ["fc-done"] : [])],
+    extendedProps: { session: s, timeZone },
   };
 }
 
@@ -189,6 +247,19 @@ function savedAt(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+function dayStart(iso: string): number {
+  return Math.floor(new Date(`${iso}T00:00:00`).getTime() / 1000);
+}
+
+/** "3 of 5 tasks left · 2 h 15 planned". */
+function daySummary(day: PlanDay | undefined, isDone: (t: PlanTask) => boolean): string {
+  if (!day) return "";
+  const left = day.tasks.filter((t) => !isDone(t)).length;
+  const parts = [day.tasks.length ? `${left} of ${day.tasks.length} task${day.tasks.length === 1 ? "" : "s"} left` : ""];
+  if (day.minutes) parts.push(`${minutes(day.minutes)} planned`);
+  return parts.filter(Boolean).join(" · ");
+}
+
 export default function Calendar() {
   const ref = useRef<FullCalendar>(null);
   const [saved, setSaved] = useState<Schedule | null>(null);
@@ -201,16 +272,28 @@ export default function Calendar() {
   const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | "xlsx" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
-  const views = useMemo(() => (narrow() ? PHONE_VIEWS : WIDE_VIEWS), []);
-  const initialView = useMemo(() => lastView(views), [views]);
+  const narrow = useNarrow();
+  const initialView = useMemo(() => lastView(), []);
   const [exportOpen, setExportOpen] = useState(false);
   const [showBreaks, setShowBreaks] = useState(() => load(BREAKS_KEY) !== "0");
+  // The focused day (YYYY-MM-DD): its tasks are listed, the calendar highlights it.
+  const [focus, setFocus] = useState<string>(() => isoDay(new Date()));
+  const range = useRef<{ start: string; end: string } | null>(null);
+  const [ticks, setTicks] = useState<Record<string, boolean>>({});
+  const [tickError, setTickError] = useState<string | null>(null);
+  const [phoneView, setPhoneView] = useState<PhoneView>(() => {
+    const v = load(PHONE_VIEW_KEY);
+    return v === "schedule" || v === "tasks" ? v : "day";
+  });
+  const [dayDeadlines, setDayDeadlines] = useState<Deadline[]>([]);
+  const [deadlineVersion, setDeadlineVersion] = useState(0);
 
   useEffect(() => {
     api.schedule()
       .then((s) => {
         setSaved(s);
         setDraft(s.config);
+        setFocus(s.start && s.start > s.today ? s.start : s.today);
       })
       .catch((e: Error) => setLoadError(e.message));
   }, []);
@@ -225,33 +308,55 @@ export default function Calendar() {
   }, [dirty]);
 
   const shown = (dirty && preview) || saved;
+  const timeZone = shown?.timezone ?? "";
 
   // A plan that starts later (start date in the settings) opens on its first day.
   const startsOn = shown && shown.start && shown.start > shown.today ? shown.start : null;
   useEffect(() => {
-    if (startsOn) ref.current?.getApi().gotoDate(startsOn);
+    if (startsOn) setFocus(startsOn);
   }, [startsOn]);
+
+  // The calendar follows the focused day when it is outside the period shown.
+  useEffect(() => {
+    const r = range.current;
+    if (!r || focus < r.start || focus >= r.end) ref.current?.getApi().gotoDate(focus);
+  }, [focus, narrow]);
 
   // A link from the subscribed calendar opens its entry (or the day of its deadline).
   useEffect(() => {
     if (!saved) return;
-    const focus = () => {
+    const open = () => {
       const at = focusAt();
       if (at === null) return;
-      const group = saved.groups.find((g) => g.start <= at && at < g.end);
-      ref.current?.getApi().gotoDate(new Date(at * 1000));
+      const session = (saved.sessions ?? []).find((g) => g.start <= at && at < g.end);
+      setFocus(session ? session.date : isoDay(new Date(at * 1000)));
       setDialog(null);
-      setSelected(group ? { group } : null);
+      setSelected(session ? { session } : null);
       window.history.replaceState(null, "", "#/calendar");
     };
-    focus();
-    window.addEventListener("hashchange", focus);
-    return () => window.removeEventListener("hashchange", focus);
+    open();
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
   }, [saved]);
+
+  const days = useMemo(() => new Map((shown?.plan_days ?? []).map((d) => [d.date, d])), [shown]);
+  const sessions = useMemo(() => shown?.sessions ?? [], [shown]);
+  const isDone = useCallback((t: PlanTask) => ticks[t.key] ?? t.done, [ticks]);
+
+  // The phone's timeline shows the focused day's deadlines.
+  useEffect(() => {
+    if (!narrow) return;
+    let live = true;
+    const start = dayStart(focus);
+    api.deadlines(start, dayStart(addDays(focus, 1)))
+      .then((items) => { if (live) setDayDeadlines(items); })
+      .catch(() => { if (live) setDayDeadlines([]); });
+    return () => { live = false; };
+  }, [narrow, focus, deadlineVersion]);
 
   const scheduleEvents = useMemo<EventInput[]>(() => {
     if (!shown) return [];
-    const blocks = (shown.groups ?? []).map(groupEvent);
+    const blocks = sessions.map((s) => sessionEvent(s, timeZone));
     const busy = (showBreaks ? shown.busy : []).map((u) => ({
       id: `u${u.start}`,
       title: u.reason || "Unavailable",
@@ -260,9 +365,8 @@ export default function Calendar() {
       allDay: u.all_day,
       display: "background",
     }));
-    const readings = (shown.readings ?? []).map(readingEvent);
-    return [...blocks, ...readings, ...busy];
-  }, [shown, showBreaks]);
+    return [...blocks, ...busy];
+  }, [shown, sessions, showBreaks, timeZone]);
 
   const deadlineSource = useCallback(async (info: EventSourceFuncArg) => {
     try {
@@ -278,6 +382,30 @@ export default function Calendar() {
 
   const close = useCallback(() => setSelected(null), []);
   const closeDialog = useCallback(() => setDialog(null), []);
+
+  const refetchDeadlines = useCallback(() => {
+    ref.current?.getApi().getEventSourceById("deadlines")?.refetch();
+    setDeadlineVersion((v) => v + 1);
+  }, []);
+
+  const tick = useCallback(async (t: PlanTask, done: boolean) => {
+    setTicks((m) => ({ ...m, [t.key]: done }));
+    setTickError(null);
+    try {
+      await api.tickTask(t.key, done);
+      if (t.key.startsWith("deadline-")) refetchDeadlines();
+    } catch (e) {
+      setTicks((m) => ({ ...m, [t.key]: !done }));
+      setTickError((e as Error).message);
+    }
+  }, [refetchDeadlines]);
+
+  const openTask = useCallback((t: PlanTask) => {
+    const session = t.session_id ? sessions.find((s) => s.id === t.session_id) : undefined;
+    if (session) return setSelected({ session });
+    const reading = t.kind === "reading" ? shown?.readings?.find((r) => `reading-${r.section_id ?? 0}` === t.key) : undefined;
+    if (reading) setSelected({ reading });
+  }, [sessions, shown]);
 
   if (!saved || !draft || !shown) return <Status error={loadError} loading />;
 
@@ -309,6 +437,7 @@ export default function Calendar() {
       setSaved(out);
       setDraft(out.config);
       setPreview(null);
+      setTicks({});
       setState({ busy: false, error: null });
       return true;
     } catch (e) {
@@ -326,32 +455,64 @@ export default function Calendar() {
 
   function onClick(arg: EventClickArg) {
     const p = arg.event.extendedProps;
-    if (!p.deadline && !p.group && !p.reading) return;
+    if (!p.deadline && !p.session) return;
     arg.jsEvent.preventDefault();
-    setSelected({
-      deadline: p.deadline as Deadline | undefined,
-      group: p.group as ScheduleGroup | undefined,
-      reading: p.reading as ScheduleReading | undefined,
-    });
+    const session = p.session as ScheduleSession | undefined;
+    if (session) setFocus(session.date);
+    setSelected({ deadline: p.deadline as Deadline | undefined, session });
   }
 
   function onDates(arg: DatesSetArg) {
     store(VIEW_KEY, arg.view.type);
-    // Export from the period shown: this week if it includes today, else its first week.
     const { currentStart: start, currentEnd: end } = arg.view;
+    const first = isoDay(start);
+    const last = isoDay(end);
+    range.current = { start: first, end: last };
+    const today = saved?.today ?? isoDay(new Date());
+    // The focused day stays in the period shown: today when it is in it, else its first day.
+    setFocus((f) => (f >= first && f < last ? f : today >= first && today < last ? today : first));
+    // Export from the period shown: this week if it includes today, else its first week.
     const now = Date.now();
-    const iso = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-    setVisible(now >= start.getTime() && now < end.getTime() ? null : iso);
+    setVisible(now >= start.getTime() && now < end.getTime() ? null : first);
   }
 
+  const focusClass = (arg: DayHeaderContentArg | DayCellContentArg) => (isoDay(arg.date) === focus ? ["fc-focused"] : []);
   const status = state.busy ? "Updating…" : state.error ? <Late>{state.error}</Late> : null;
+  const focusDay = days.get(focus);
+  const sessionTasks = selected?.session
+    ? (selected.session.task_keys ?? [])
+      .map((k) => days.get(selected.session!.date)?.tasks.find((t) => t.key === k))
+      .filter((t): t is PlanTask => !!t)
+    : [];
+
+  const dayHead = (
+    <>
+      <DayHead>
+        <IconButton type="button" aria-label="Previous day" onClick={() => setFocus(addDays(focus, -1))}>‹</IconButton>
+        <h2>{longDate(focus)}</h2>
+        <IconButton type="button" aria-label="Next day" onClick={() => setFocus(addDays(focus, 1))}>›</IconButton>
+      </DayHead>
+      <DaySub $small>
+        {daySummary(focusDay, isDone) || "Nothing planned"}
+        {focus !== shown.today && (
+          <> · <Button $variant="ghost" $size="sm" onClick={() => setFocus(shown.today)}>Today</Button></>
+        )}
+      </DaySub>
+    </>
+  );
+  const taskList = (
+    <>
+      {tickError && <Alert>Could not save the tick: {tickError}</Alert>}
+      <DayTasks day={focusDay} sessions={sessions} done={isDone} onTick={tick} onOpen={openTask} timeZone={timeZone} />
+    </>
+  );
 
   return (
     <>
       <h1>Calendar</h1>
       <Lead $small>
-        Your study plan with times, your deadlines and the times you can't study, in one calendar. Change the settings,
-        check the preview, then save: your subscribed calendar follows.
+        When to study each course, and what to get done each day. Change the settings, check the preview, then save:
+        your subscribed calendar and the exports follow.
       </Lead>
       <Row>
         <Button $variant="soft" $size="sm" onClick={() => setDialog("settings")}>⚙ Settings</Button>
@@ -385,43 +546,68 @@ export default function Calendar() {
       )}
       {error && <Alert>Could not load deadlines: {error}</Alert>}
       {shown.notes.map((n, i) => <Alert key={i} $tone="warning">{n}</Alert>)}
-      <Summary data={shown} />
+      {!narrow && <Summary data={shown} />}
 
-      <CalendarCard data-preview={dirty}>
-        <FullCalendar
-          ref={ref}
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
-          initialView={initialView}
-          headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: views.join(","),
-          }}
-          buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day", list: "List" }}
-          views={{
-            // No times in the blocks: their place in the grid says it, the dialog has it.
-            timeGrid: { displayEventTime: false, eventContent: timeGridContent },
-            dayGrid: { displayEventTime: false },
-            listWeek: { buttonText: "List" },
-          }}
-          firstDay={1}
-          height="auto"
-          nowIndicator
-          allDaySlot
-          scrollTime={draft.day_start}
-          slotMinTime={draft.day_start < "07:00" ? draft.day_start : "07:00"}
-          slotMaxTime="24:00"
-          dayMaxEventRows={4}
-          eventDisplay="block"
-          eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-          slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-          noEventsContent="Nothing planned in this period."
-          events={scheduleEvents}
-          eventSources={eventSources}
-          eventClick={onClick}
-          datesSet={onDates}
-        />
-      </CalendarCard>
+      {narrow ? (
+        <PhoneStack>
+          <DayStrip focus={focus} today={shown.today} days={days} onFocus={setFocus} />
+          {dayHead}
+          <Segmented role="group" aria-label="Show">
+            {(["day", "schedule", "tasks"] as PhoneView[]).map((v) => (
+              <button key={v} type="button" aria-pressed={phoneView === v}
+                onClick={() => { setPhoneView(v); store(PHONE_VIEW_KEY, v); }}>
+                {v === "day" ? "Both" : v === "schedule" ? "Schedule" : "Tasks"}
+              </button>
+            ))}
+          </Segmented>
+          {phoneView !== "tasks" && (
+            <DayTimeline date={focus} sessions={sessions} busy={showBreaks ? shown.busy : []} deadlines={dayDeadlines}
+              timeZone={timeZone} onOpen={(s) => setSelected({ session: s })} onDeadline={(d) => setSelected({ deadline: d })} />
+          )}
+          {phoneView !== "schedule" && <Card aria-label="Tasks of the day">{taskList}</Card>}
+          <Summary data={shown} />
+        </PhoneStack>
+      ) : (
+        <Split>
+          <CalendarCard data-preview={dirty}>
+            <FullCalendar
+              ref={ref}
+              plugins={[dayGridPlugin, timeGridPlugin]}
+              initialView={initialView}
+              initialDate={focus}
+              headerToolbar={{ left: "prev,next today", center: "title", right: VIEWS.join(",") }}
+              buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day" }}
+              views={{
+                timeGrid: { displayEventTime: false, eventContent: sessionContent },
+                dayGrid: { displayEventTime: true },
+              }}
+              firstDay={1}
+              height="auto"
+              nowIndicator
+              allDaySlot={showBreaks}
+              scrollTime={draft.day_start}
+              slotMinTime={draft.day_start < "07:00" ? draft.day_start : "07:00"}
+              slotMaxTime="24:00"
+              dayMaxEventRows={4}
+              eventDisplay="block"
+              eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
+              slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
+              navLinks
+              navLinkDayClick={(date) => setFocus(isoDay(date))}
+              dayHeaderClassNames={focusClass}
+              dayCellClassNames={focusClass}
+              events={scheduleEvents}
+              eventSources={eventSources}
+              eventClick={onClick}
+              datesSet={onDates}
+            />
+          </CalendarCard>
+          <Side as="aside" aria-label="Tasks of the focused day">
+            {dayHead}
+            {taskList}
+          </Side>
+        </Split>
+      )}
 
       {shown.unscheduled.length > 0 && (
         <DetailsCard>
@@ -457,10 +643,11 @@ export default function Calendar() {
 
       <ReminderSettings />
 
-      <EventDialog selected={selected} site={saved.site_url ?? ""} timeZone={shown.timezone} onClose={close}
+      <EventDialog selected={selected} site={saved.site_url ?? ""} timeZone={timeZone} onClose={close}
+        tasks={sessionTasks} done={isDone} onTick={tick}
         onDeadline={(d) => {
           setSelected({ deadline: d });
-          ref.current?.getApi().getEventSourceById("deadlines")?.refetch();
+          refetchDeadlines();
         }} />
       <Modal open={dialog === "subscribe"} onClose={closeDialog} label="Subscribe to your study calendar">
         <h2 style={{ margin: 0 }}>Subscribe</h2>

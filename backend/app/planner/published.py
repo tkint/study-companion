@@ -128,7 +128,7 @@ def _with_busy(settings: Settings, engine: Engine, data: dict) -> dict:
     first, last = busy_range(data)
     view = tasks.build(data, settings.tz, tasks.marks(engine, data))
     return {**data, "busy": busy(data["config"], first, last, settings.tz),
-            "sessions": view["sessions"], "groups": view["sessions"],
+            "sessions": view["sessions"],
             "plan_days": view["plan_days"]}
 
 

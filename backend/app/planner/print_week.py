@@ -86,7 +86,7 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
         return dt.date(), dt.hour * 60 + dt.minute
 
     blocks = [b for d in plan.get("days", []) for b in d.get("blocks", [])]
-    for g in plan.get("groups") or groups.group(blocks):
+    for g in plan.get("sessions") or groups.group(blocks):
         day, s = local(g["start"])
         if not first <= day <= last:
             continue

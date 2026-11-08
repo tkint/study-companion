@@ -1,17 +1,18 @@
 import styled from "styled-components";
-import type { Deadline, ScheduleBlock, ScheduleGroup, ScheduleReading } from "../api";
+import type { Deadline, PlanTask, ScheduleBlock, ScheduleReading, ScheduleSession } from "../api";
 import { courseColor, sourceLabel } from "../format";
 import { minutes } from "../pages/Plan";
 import { href, type PromptPrefill } from "../router";
-import { Button, List, Modal, Muted, Row, Swatch } from "../ui";
+import { Button, Fold, List, Modal, Muted, Row, Swatch } from "../ui";
 import { DeadlineItem } from "./DeadlineList";
+import { TaskList, TaskRow } from "./DayTasks";
 import { BlockRow, clock, ReadingDetails } from "./ScheduleBlock";
 
-// The details of a calendar entry (a study block, a long reading or a deadline): what it is,
-// links to it in the app and at the source, and a shortcut to the prompt builder filled in
-// for that session.
+// The details of a calendar entry (a course's study session, a long reading or a deadline):
+// what it is, its tasks with their ticks, links to it in the app and at the source, and a
+// shortcut to the prompt builder filled in for that session.
 
-export type Selected = { deadline?: Deadline; group?: ScheduleGroup; reading?: ScheduleReading };
+export type Selected = { deadline?: Deadline; session?: ScheduleSession; reading?: ScheduleReading };
 
 interface Links {
   /** The section (or course) in the app. */
@@ -38,7 +39,7 @@ function taskGoal(kind: string | null | undefined): string {
   return kind === "assign" ? "assignment" : kind === "quiz" ? "exam_prep" : "study_session";
 }
 
-function groupLinks(g: ScheduleGroup, site: string): Links {
+function sessionLinks(g: ScheduleSession, site: string): Links {
   const course = g.course_id;
   if (course == null) {
     return g.kind === "flashcards" ? { app: { href: href.study({ due: true }), label: "Review cards" } } : {};
@@ -48,7 +49,7 @@ function groupLinks(g: ScheduleGroup, site: string): Links {
   const task = g.blocks.find((b) => b.item_kind && b.item_kind !== "section");
   const nums = sections.map((b) => b.section_number as number);
   const prefill: PromptPrefill = { minutes: g.minutes };
-  if (g.kind === "task" && task) {
+  if (!sections.length && task) {
     prefill.goal = taskGoal(task.item_kind);
     prefill.topic = task.needed_for || task.title;
   } else {
@@ -91,7 +92,7 @@ function deadlineLinks(d: Deadline): Links {
 }
 
 export function eventLinks(sel: Selected, site: string): Links {
-  if (sel.group) return groupLinks(sel.group, site);
+  if (sel.session) return sessionLinks(sel.session, site);
   if (sel.reading) return readingLinks(sel.reading, site);
   if (sel.deadline) return deadlineLinks(sel.deadline);
   return {};
@@ -109,6 +110,11 @@ const Sub = styled(Muted)`
   margin-top: 2px;
 `;
 
+const TasksHead = styled.h3`
+  margin: 4px 0;
+  font-size: ${({ theme }) => theme.fontSizes.md};
+`;
+
 const Actions = styled(Row)`
   gap: 8px;
   ${({ theme }) => theme.media.phone} {
@@ -121,8 +127,8 @@ function longDay(ts: number): string {
 }
 
 function header(sel: Selected, timeZone: string): { title: string; sub: string; color: string } {
-  if (sel.group) {
-    const g = sel.group;
+  if (sel.session) {
+    const g = sel.session;
     return {
       title: g.label,
       sub: `${longDay(g.start)} · ${clock(g.start, timeZone)}–${clock(g.end, timeZone)} · ${minutes(g.minutes)}`,
@@ -141,14 +147,18 @@ function header(sel: Selected, timeZone: string): { title: string; sub: string; 
   };
 }
 
-export function EventDialog({ selected, site, timeZone, onClose, onDeadline }: {
+export function EventDialog({ selected, site, timeZone, onClose, onDeadline, tasks = [], done, onTick }: {
   selected: Selected | null;
   site: string;
   timeZone: string;
   onClose: () => void;
   onDeadline: (d: Deadline) => void;
+  /** The session's tasks (its task_keys on its day), with their ticks. */
+  tasks?: PlanTask[];
+  done?: (t: PlanTask) => boolean;
+  onTick?: (t: PlanTask, done: boolean) => void;
 }) {
-  const open = !!(selected && (selected.group || selected.reading || selected.deadline));
+  const open = !!(selected && (selected.session || selected.reading || selected.deadline));
   if (!open || !selected) return null;
   const head = header(selected, timeZone);
   const links = eventLinks(selected, site);
@@ -183,10 +193,21 @@ export function EventDialog({ selected, site, timeZone, onClose, onDeadline }: {
           <DeadlineItem d={selected.deadline} onChange={onDeadline} showCourse={false} />
         </List>
       )}
-      {selected.group && (
-        <List $animate={false}>
-          {selected.group.blocks.map((b) => <BlockRow key={b.start} block={b} timeZone={timeZone} />)}
-        </List>
+      {selected.session && tasks.length > 0 && done && onTick && (
+        <section aria-label="Tasks of this session">
+          <TasksHead>Tasks</TasksHead>
+          <TaskList>
+            {tasks.map((t) => <TaskRow key={t.key} task={t} done={done(t)} onTick={onTick} timeZone={timeZone} />)}
+          </TaskList>
+        </section>
+      )}
+      {selected.session && (
+        <Fold>
+          <summary>Planned blocks</summary>
+          <List $animate={false}>
+            {selected.session.blocks.map((b: ScheduleBlock) => <BlockRow key={b.start} block={b} timeZone={timeZone} />)}
+          </List>
+        </Fold>
       )}
       <Button $variant="ghost" $block onClick={onClose}>Close</Button>
     </Modal>

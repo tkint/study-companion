@@ -426,24 +426,84 @@ export interface ScheduleConfig {
 
 export type BlockKind = "deep" | "practice" | "recall" | "flashcards";
 
-export interface ScheduleGroup {
+/** A course-level study session (backend: app/planner/groups.py): back-to-back blocks of
+ * one course, its quizzes and assignments included. What to do in it is its tasks. */
+export interface ScheduleSession {
+  id: string;
   date: string;
   start: number;
   end: number;
   minutes: number;
   course_id: number | null;
+  /** The course identifier ("A3FPH12"), "" when there is none. */
+  course_code: string;
+  /** The course name without the identifier ("Phonologie de l'Anglais 3"). */
   course_name: string;
-  kind: "study" | "task" | "flashcards";
+  kind: "study" | "flashcards";
   title: string;
-  /** "Course - Study", "Course - Test 1", or "Flashcards". */
+  /** "A3FPH12 – Phonologie de l'Anglais 3", or "Flashcards". */
   label: string;
-  /** What a study entry covers, one line each, parts merged ("Workbook parts 1-3/4");
-   * empty for a task (missing in older servers). */
-  work?: string[];
+  /** What the session covers, one line each, parts merged (for its dialog). */
+  work: string[];
+  /** A short line on what it is for: "Section 1: Workbook + 2 more". */
+  objective: string;
+  /** Its tasks (PlanTask.key), in order. */
+  task_keys: string[];
   /** The course's colour (same as courseColor). */
   color: string;
   late: boolean;
   blocks: ScheduleBlock[];
+}
+
+/** @deprecated the name before sessions were course-level. */
+export type ScheduleGroup = ScheduleSession;
+
+export type TaskKind = "study" | "review" | "assignment" | "quiz" | "event" | "flashcards" | "reading";
+export type TaskPriority = "high" | "medium" | "low";
+
+/** One task of a day (backend: app/planner/tasks.py): what to accomplish, independent of
+ * the calendar's time slots. */
+export interface PlanTask {
+  /** Stable across days: "section-12", "deadline-5", "recall-12-1", "reading-14". */
+  key: string;
+  kind: TaskKind;
+  title: string;
+  course_id: number | null;
+  course_code: string;
+  course_name: string;
+  course_label: string;
+  color: string;
+  section_id: number | null;
+  section_number: number | null;
+  deadline_id: number | null;
+  /** When it is due (a hand-in) or needed by (a section, for due_for). */
+  due: number | null;
+  due_for: string;
+  /** Planned effort that day, in minutes (0 for a reading: see pages). */
+  minutes: number;
+  pages?: number;
+  /** "part 2/4" when the work runs over several days, else "". */
+  part: string;
+  /** The session it belongs to that day, null without a time slot. */
+  session_id: string | null;
+  priority: TaskPriority;
+  late: boolean;
+  done: boolean;
+  url: string;
+  files: { id: number; name: string; pages: number }[];
+  detail: string;
+}
+
+export interface PlanDay {
+  date: string;
+  weekday: string;
+  minutes: number;
+  session_ids: string[];
+  /** Grouped by course (see courses), then by priority and urgency. */
+  tasks: PlanTask[];
+  courses: { course_id: number | null; course_code: string; course_name: string; course_label: string; color: string; keys: string[] }[];
+  /** Tasks not done yet. */
+  open: number;
 }
 
 export interface ScheduleBlock {
@@ -520,9 +580,10 @@ export interface Schedule {
   site_url?: string;
   /** Your unavailabilities over the schedule's days, as timestamps. */
   busy: BusySlot[];
-  /** The blocks as shown (calendar, PDF, feed): back-to-back study of one course is one
-   * "Course - Study" entry, each test or task its own. */
-  groups: ScheduleGroup[];
+  /** The blocks as shown everywhere (calendar, PDF, Excel, feed): course-level sessions. */
+  sessions: ScheduleSession[];
+  /** Each day's tasks, with their completion. */
+  plan_days: PlanDay[];
   /** Long readings: day entries over the days they take at your pace, not timed study
    * (missing in older saved plans). */
   readings?: ScheduleReading[];
@@ -647,6 +708,9 @@ export const api = {
   /** Save the settings and publish the schedule they give (the calendar feed follows). */
   setSchedule: (c: Partial<ScheduleConfig>) =>
     request<Schedule>("/api/schedule/settings", { method: "POST", body: JSON.stringify(c) }),
+  /** Tick (or untick) a task of the plan; the calendar doesn't change. */
+  tickTask: (key: string, done: boolean) =>
+    request<{ key: string; done: boolean }>("/api/plan/tasks", { method: "POST", body: JSON.stringify({ key, done }) }),
   previewSchedule: (c: Partial<ScheduleConfig>) =>
     request<Schedule>("/api/schedule/preview", { method: "POST", body: JSON.stringify(c) }),
   setDeadlinePrefs: (id: number, prefs: ItemPrefs) =>
