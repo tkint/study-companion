@@ -13,7 +13,9 @@ Pipeline:
    deadlines, trimmed to your catch-up goal). Each item must be done ``buffer_days`` before
    the date it is needed by, which leaves a contingency margin before hard deadlines.
 3. **Picking the next block.** Earliest deadline first whenever the work due by a deadline
-   would no longer fit in the capacity left before it; otherwise courses take turns in
+   would no longer fit in the capacity left before it (when it can't fit at all, only its
+   assignments and quizzes go first: its reading shares the turns with a double weight, so
+   one late course doesn't take every block); otherwise courses take turns in
    proportion to their weight (a weight of 2 gets twice the time of a weight of 1; 0 leaves
    the course out), with a bonus for courses with a deadline in the next week, and never
    one course for longer than about two focus blocks when another one has work (each course's
@@ -42,7 +44,7 @@ from app.config import Settings
 from app.db import session
 from app.materials import enrolled_courses
 from app.models import ScheduleSettings, StudyQuestion
-from app.planner import DEADLINE_MINUTES, Planner, PlanItem, fmt_minutes
+from app.planner import DEADLINE_MINUTES, MAX_SECTION_MINUTES, Planner, PlanItem, fmt_minutes
 
 USER = 1
 DAY = 86400
@@ -59,6 +61,7 @@ RECALL_OFFSETS = (1, 4)  # days after a section is finished
 FLASHCARD_MINUTES = 15
 URGENT_LOAD = 0.85  # work due by D over capacity until D that makes it urgent
 SOON = 7 * DAY  # a course with a deadline this close gets a bonus
+BEHIND_BONUS = 2.0  # weight bonus of a course whose needed reading can't fit before its deadline
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 _TIME = re.compile(r"^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -695,13 +698,23 @@ class Generator:
             return None, False
         dated = sorted((w for w in works if w.deadline is not None), key=lambda w: w.deadline)
         demand = 0
+        behind: set[int] = set()  # courses whose sections can't all fit before their deadline
         for w in dated:  # earliest deadline first when the load before a deadline is high
             demand += w.remaining
             room = self._capacity_until(days, i, used, w.deadline)
             if demand >= URGENT_LOAD * room:
-                first = min((x for x in dated if x.deadline <= w.deadline),
-                            key=lambda x: (x.deadline, x.item.key()))
-                return first, True
+                due = [x for x in dated if x.deadline <= w.deadline]
+                order = lambda x: (x.deadline, x.item.key())  # noqa: E731
+                if demand <= room:  # it still fits: nothing else until it's done
+                    return min(due, key=order), True
+                # It can't all fit anyway: hand-ins still come first, but the reading they
+                # need no longer takes every block (that would make every other course late
+                # too); its course gets a bigger share of the turns instead.
+                tasks = [x for x in due if x.kind == "practice"]
+                if tasks:
+                    return min(tasks, key=order), True
+                behind = {x.course for x in due}
+                break
         heads: dict[int, Work] = {}
         for w in works:  # works keep the plan's order within a course
             heads.setdefault(w.course, w)
@@ -717,7 +730,9 @@ class Generator:
         def score(c: int) -> tuple:
             w = weights.get(c, 1.0)
             head = heads[c]
-            if head.deadline is not None and head.deadline - now_day <= SOON:
+            if c in behind:
+                w *= BEHIND_BONUS
+            elif head.deadline is not None and head.deadline - now_day <= SOON:
                 w *= 1.5
             return (served.get(c, 0) / w, head.item.key())
 
@@ -756,6 +771,10 @@ class Generator:
             lines.append(f"Read and review section {it.section_number}: {it.title}"
                          + (f" ({it.pages} pages in total)" if it.pages else "") + ".")
             lines.append("Then try to recall the key points without the material.")
+            if it.minutes >= MAX_SECTION_MINUTES:
+                lines.append(f"Long reading: the time planned is capped at "
+                             f"{fmt_minutes(MAX_SECTION_MINUTES)}, so skim it and focus on what "
+                             "the course asks for.")
             if it.questions:
                 lines.append(f"{it.questions} flashcards saved for this section.")
         elif it.kind == "assign":

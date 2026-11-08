@@ -144,7 +144,10 @@ Open it from **Today › Full plan**. It is built by rules, without AI:
 1. **What is left**: every non-empty section of your enrolled courses that Moodle doesn't show as
    completed and you haven't marked studied, plus open assignments, quizzes and events.
 2. **Time**: reading time from page counts (about 3 minutes per PDF page, 1.5 per slide, 4 per
-   Word/HTML part, at least 15 minutes per section); 2 h per assignment, 45 min per quiz.
+   Word/HTML part, at least 15 minutes and at most 5 h per section); 2 h per assignment, 45 min
+   per quiz. A file in a section twice (e.g. in a folder and as a file) counts once, and a file
+   whose text couldn't be extracted (a big scan) counts for at most 30 pages, so a section with
+   a novel or an anthology stays one sensible item: skim long readings.
 3. **Order**: by the date each item is needed by (a deadline's due date; for a section, the
    earliest open deadline in it or in a later section of the same course), then by grade
    weight, then section order, so courses without deadlines take turns.
@@ -215,7 +218,9 @@ same settings, e.g. after you finished sections.
 - **Course weights:** a course with weight 2 gets about twice the time of one with weight 1;
   0 leaves it out. The slider shows the share you asked for and the share planned. Courses
   stay together for up to about two focus blocks, then take turns when another has work, and
-  work for a close deadline comes first.
+  work for a close deadline comes first. When a course's reading can't all fit before its
+  deadline anyway, its assignments and quizzes still come first but its reading only gets a
+  double share of the turns, so one course that is behind never takes every block.
 - **Breaks and days off:** **days off** (weekdays with no study at all, e.g. Sunday), **every
   day** breaks (e.g. 12:00-14:00 Meal), weekly slots (classes, work, training) and specific
   days or hours (appointments, travel, all-day off). Blocks never overlap them.

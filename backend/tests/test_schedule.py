@@ -565,3 +565,79 @@ def test_xlsx_writer_names_and_escaping():
     assert book.sheet("2026-11-09").name == "2026-11-09 (2)"
     cells = _xlsx(book.render())["2026-11-09"]["cells"]
     assert cells == {"A1": "bad  chars & <tags>", "A2": "bold plain"}
+
+
+def add_literature(engine, sections=4, essay_in=None):
+    """Course 13 "Literature 3": each section holds a whole novel (600 extracted pages), the
+    same novel again in a folder, and a big scan whose pages are only guessed from its size."""
+    from app.models import Course, Deadline, File, FileText, Module, Section
+
+    with session(engine) as s:
+        s.add(Course(id=13, shortname="LIT3", fullname="Literature 3", enrolled=True,
+                     folder="LIT3"))
+        for n in range(1, sections + 1):
+            sid, mid = 1300 + n, 13000 + 10 * n
+            s.add(Section(id=sid, course_id=13, number=n, name=f"Novel {n}"))
+            s.flush()
+            for j, mod in enumerate(("resource", "folder", "resource")):
+                s.add(Module(id=mid + j, course_id=13, section_id=sid, modname=mod,
+                             name=f"Reading {n}.{j}", position=j))
+            s.flush()
+            fid = 1300 + 10 * n
+            for j, (name, size, mod) in enumerate((("novel.pdf", 3_000_000, mid),
+                                                   ("novel.pdf", 3_000_000, mid + 1),
+                                                   ("scan.pdf", 80_000_000, mid + 2))):
+                s.add(File(id=fid + j, module_id=mod, course_id=13, section_id=sid,
+                           filename=name, mimetype="application/pdf", filesize=size,
+                           timemodified=NOW - 10 * DAY, status="ok"))
+            s.flush()
+            s.add(FileText(file_id=fid, status="ok", pages=600, chars=10**6))
+            s.add(FileText(file_id=fid + 1, status="ok", pages=600, chars=10**6))
+            s.add(FileText(file_id=fid + 2, status="too_large"))
+        if essay_in is not None:
+            s.add(Module(id=13999, course_id=13, section_id=1300 + sections, modname="assign",
+                         name="Essay", position=9))
+            s.flush()
+            s.add(Deadline(id=99, source="assign", source_id=99, course_id=13, module_id=13999,
+                           name="Essay", kind="due", due_at=NOW + essay_in * DAY, grade=20))
+        s.commit()
+
+
+def test_long_readings_stay_one_sensible_item(engine):
+    """A novel, its copy in a folder and a big scan don't turn a section into 100+ blocks."""
+    from app.materials import load_course
+    from app.planner import GUESSED_PAGES, MAX_SECTION_MINUTES, section_minutes
+
+    add_literature(engine, sections=1)
+    sec = load_course(engine, 13).section(1301)
+    minutes, pages = section_minutes(sec)
+    assert pages == 600 + GUESSED_PAGES  # the copy counts once, the scan's guess is capped
+    assert minutes == MAX_SECTION_MINUTES
+
+
+def test_one_course_does_not_flood_the_schedule(settings, engine, morning):
+    """Literature 3 has far more reading than fits before its essay: the essay still comes
+    first, but the other courses keep getting time and no item has dozens of parts."""
+    from app.models import Deadline
+
+    add_literature(engine, sections=6, essay_in=6)
+    with session(engine) as s:  # Statistics work with no deadline pressure
+        for i in range(4):
+            s.add(Deadline(id=60 + i, source="assign", source_id=60 + i, course_id=11,
+                           name=f"Série {i + 1}", kind="due", due_at=NOW + 40 * DAY, grade=10))
+        s.commit()
+    plan = generate(settings, engine, morning, beyond_target=True, daily_hours=4, buffer_days=0)
+    lit = [b for b in plan.blocks if b.item and b.item.course_id == 13]
+    others = [b for b in plan.blocks if b.item and b.item.course_id in (10, 11)]
+    assert lit and others
+    assert max(b.parts for b in plan.blocks) <= 7  # 5 h in 50 min blocks, plus a remainder
+    essay = [b for b in lit if b.item.kind == "assign"]
+    assert essay and max(b.end for b in essay) <= NOW + 6 * DAY
+    # Literature is behind, so it gets the bigger share, but not every block.
+    lit_min = sum(b.minutes for b in lit)
+    other_min = sum(b.minutes for b in others)
+    assert lit_min > other_min and other_min >= 0.2 * (lit_min + other_min)
+    week = [d for d in plan.days[:6] if d.blocks]
+    assert sum(1 for d in week if any(b.item and b.item.course_id != 13 for b in d.blocks)) >= 3
+    long = next(b for b in lit if b.kind == "deep")
+    assert "Long reading" in long.detail

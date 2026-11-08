@@ -2,7 +2,8 @@
 
 What is left to study: every non-empty section of your enrolled courses that you have not
 marked studied and that Moodle does not show as fully completed, plus the open assignment,
-quiz and calendar deadlines. Each item gets an estimated time (from page counts) and a
+quiz and calendar deadlines. Each item gets an estimated time (from page counts, at most 5 h
+for a section so a novel or a big scan stays one sensible item) and a
 *needed by* date: a deadline's own due date, and for a section the earliest open deadline
 in that section or a later one of the same course (later work builds on earlier sections).
 
@@ -38,6 +39,12 @@ from app.study import hours_per_day as saved_hours, section_counts, studied_sect
 MINUTES_PER_UNIT = {"page": 3.0, "slide": 1.5, "part": 4.0}
 MINUTES_PER_ACTIVITY = 5  # pages, links, books... without files
 MIN_SECTION_MINUTES = 15
+# A section is one study item: a novel, an anthology or a big scan in it must not turn into
+# dozens of focus blocks. Pages only guessed from the file size (scans, files too large to
+# extract) count for at most GUESSED_PAGES, and a section for at most MAX_SECTION_MINUTES
+# (skim long readings; the detail says so).
+GUESSED_PAGES = 30
+MAX_SECTION_MINUTES = 300
 DEADLINE_MINUTES = {"assign": 120, "quiz": 45, "event": 30}
 QUIET_MODULES = {"label", "forum", "feedback", "choice"}
 MAX_DAYS = 90
@@ -155,16 +162,25 @@ def _round5(minutes: float) -> int:
 
 
 def section_minutes(sec: SectionInfo) -> tuple[int, int]:
-    """Estimated (minutes, pages) to study a section."""
+    """Estimated (minutes, pages) to study a section, capped at ``MAX_SECTION_MINUTES``.
+
+    The same file twice in a section (a folder and a file resource) counts once."""
     minutes, pages = 0.0, 0
+    seen: set[tuple[str, int]] = set()
     for f in sec.files:
+        key = (f.row.filename.lower(), f.row.filesize)
+        if f.row.filesize and key in seen:
+            continue
+        seen.add(key)
         n = f.pages
+        if f.text is None or f.text.status not in {"ok", "empty"}:
+            n = min(n, GUESSED_PAGES)
         pages += n
         minutes += n * MINUTES_PER_UNIT.get(f.unit, 3.0)
     for m in sec.modules:
         if not m.files and m.row.modname not in QUIET_MODULES:
             minutes += MINUTES_PER_ACTIVITY
-    return _round5(max(MIN_SECTION_MINUTES, minutes)), pages
+    return _round5(min(MAX_SECTION_MINUTES, max(MIN_SECTION_MINUTES, minutes))), pages
 
 
 def _section_done(sec: SectionInfo) -> bool:
