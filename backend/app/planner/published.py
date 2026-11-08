@@ -20,7 +20,7 @@ from sqlalchemy.engine import Engine
 from app.config import Settings
 from app.db import session
 from app.models import PublishedSchedule
-from app.planner import groups, schedule
+from app.planner import schedule, tasks
 
 logger = logging.getLogger("app.planner.published")
 
@@ -85,7 +85,7 @@ def publish(settings: Settings, engine: Engine, now: float | None = None) -> dic
         row.published_at = ts
         s.add(row)
         s.commit()
-    return _with_busy(settings, {**data, "published_at": ts, "preview": False})
+    return _with_busy(settings, engine, {**data, "published_at": ts, "preview": False})
 
 
 def current(settings: Settings, engine: Engine, now: float | None = None) -> dict:
@@ -95,7 +95,7 @@ def current(settings: Settings, engine: Engine, now: float | None = None) -> dic
     if data is None:
         return publish(settings, engine, now)
     ts = int(now if now is not None else time.time())
-    return _with_busy(settings, {
+    return _with_busy(settings, engine, {
         **data, "today": datetime.fromtimestamp(ts, settings.tz).date().isoformat(),
         "config": schedule.load(engine), "published_at": at, "preview": False})
 
@@ -104,7 +104,7 @@ def preview(settings: Settings, engine: Engine, data: dict, now: float | None = 
     """The schedule the unsaved settings ``data`` would give. Raises ScheduleError."""
     config = schedule.draft(engine, data)
     plan = schedule.Generator(settings, engine, now=now, config=config).generate().to_dict()
-    return _with_busy(settings, {**plan, "published_at": None, "preview": True})
+    return _with_busy(settings, engine, {**plan, "published_at": None, "preview": True})
 
 
 def busy_range(data: dict) -> tuple[date, date]:
@@ -121,13 +121,15 @@ def busy_range(data: dict) -> tuple[date, date]:
     return first, start + timedelta(days=int(data["config"]["days"]) - 1)
 
 
-def _with_busy(settings: Settings, data: dict) -> dict:
-    """``data`` plus ``busy`` (your unavailabilities over its range) and ``groups`` (the
-    blocks as shown: by course, ``groups.group``), for the calendar view and the printed weeks."""
+def _with_busy(settings: Settings, engine: Engine, data: dict) -> dict:
+    """``data`` plus ``busy`` (your unavailabilities over its range), ``sessions`` (the
+    blocks as course-level study sessions) and ``plan_days`` (each day's tasks, with their
+    completion): ``app.planner.tasks``, what every view and export shows."""
     first, last = busy_range(data)
-    blocks = [b for d in data.get("days", []) for b in d.get("blocks", [])]
+    view = tasks.build(data, settings.tz, tasks.marks(engine, data))
     return {**data, "busy": busy(data["config"], first, last, settings.tz),
-            "groups": groups.group(blocks)}
+            "sessions": view["sessions"], "groups": view["sessions"],
+            "plan_days": view["plan_days"]}
 
 
 def nightly(settings: Settings, engine: Engine, now: float | None = None) -> bool:

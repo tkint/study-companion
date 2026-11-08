@@ -1,11 +1,10 @@
-"""How the study blocks of a schedule are shown: grouped by course, the same way everywhere
-(web calendar, PDF export, ICS feed).
+"""How the study blocks of a schedule are shown: as course-level **study sessions**, the
+same way everywhere (web calendar, PDF, Excel, ICS feed).
 
-- Back-to-back reading and active recall blocks of one course are one **Study** entry
-  ("09:00-10:00 Spanish - Study").
-- Tests and tasks (quizzes, assignments) are always their own entry, named after the work
-  ("10:00-10:30 Spanish - Test 1"); back-to-back parts of the same one stay together.
-- Flashcard reviews (no course) are a **Flashcards** entry.
+A session is time given to one course: back-to-back blocks of the same course (reading,
+active recall, quizzes, assignments) are one session ("09:00-10:30 A3FPH12 Phonologie de
+l'Anglais 3"). What to do in it is the session's *tasks* (``app.planner.tasks``), never part
+of the session itself. Flashcard reviews (no course) are a **Flashcards** session.
 
 Blocks count as back to back when the gap between them is at most ``GAP`` minutes.
 """
@@ -25,23 +24,11 @@ def course_color(course_id: int | None) -> str:
 
 
 def _kind(b: dict) -> str:
-    if b.get("kind") == "flashcards":
-        return "flashcards"
-    return "task" if b.get("kind") == "practice" else "study"
+    return "flashcards" if b.get("kind") == "flashcards" else "study"
 
 
 def _key(b: dict) -> tuple:
-    kind = _kind(b)
-    task = (b.get("item_kind"), b.get("deadline_id"), b.get("title")) if kind == "task" else None
-    return (b.get("date"), b.get("course_id"), kind, task)
-
-
-def _title(b: dict, kind: str) -> str:
-    if kind == "study":
-        return "Study"
-    if kind == "flashcards":
-        return "Flashcards"
-    return b.get("title") or b.get("label") or "Task"
+    return (b.get("date"), b.get("course_id"), _kind(b))
 
 
 # An academic year in front of a course name ("2026/2027-A3FPH12 ...", "2026-27 - ...").
@@ -52,6 +39,34 @@ def course_title(name: str) -> str:
     """The course name as shown: without the academic year in front
     ("2026/2027-A3FPH12 Phonologie" -> "A3FPH12 Phonologie")."""
     return _YEAR.sub("", name or "", count=1).strip() or (name or "").strip()
+
+
+def course_code(short: str, full: str = "") -> str:
+    """The course's identifier ("A3FPH12"): its short name without the academic year, or
+    the first word of the full name when that looks like a code."""
+    code = course_title(short or "")
+    if code:
+        return code
+    first = course_title(full or "").split(" ", 1)[0]
+    return first if re.fullmatch(r"[A-Z0-9][A-Z0-9_.-]{2,}", first) and any(
+        ch.isdigit() for ch in first) else ""
+
+
+def course_name(short: str, full: str) -> str:
+    """The course's name without its identifier in front ("Phonologie de l'Anglais 3")."""
+    name = course_title(full or short or "")
+    code = course_code(short, full)
+    if code and name.startswith(code) and name != code:
+        name = name[len(code):].lstrip(" -–:_").strip() or name
+    return name
+
+
+def course_label(short: str, full: str) -> str:
+    """Identifier and name, as a session's title: "A3FPH12 – Phonologie de l'Anglais 3"."""
+    code, name = course_code(short, full), course_name(short, full)
+    if code and name and name != code:
+        return f"{code} – {name}"
+    return name or code
 
 
 def _runs(nums: list[int]) -> str:
@@ -93,10 +108,11 @@ def work_lines(blocks: list[dict]) -> list[str]:
 
 
 def group(blocks: list[dict]) -> list[dict]:
-    """Blocks (``Block.to_dict``) as display entries, in time order: ``{date, start, end,
-    minutes, course_id, course_name, kind (study | task | flashcards), title, label, work,
-    color, late, blocks}``. ``course_name`` is ``course_title``; ``label`` is "Course - Title"
-    (just the title without a course); ``work`` is ``work_lines`` (empty for a task)."""
+    """Blocks (``Block.to_dict``) as course-level sessions, in time order: ``{id, date,
+    start, end, minutes, course_id, course_code, course_name, kind (study | flashcards),
+    title, label, work, color, late, blocks}``. ``label`` is ``course_label`` ("Flashcards"
+    without a course), ``title`` the same; ``work`` is ``work_lines`` (what the session
+    covers, for the session's dialog: the calendar itself never lists it)."""
     out: list[dict] = []
     for b in sorted(blocks, key=lambda b: b["start"]):
         kind = _kind(b)
@@ -107,16 +123,18 @@ def group(blocks: list[dict]) -> list[dict]:
             prev["late"] = prev["late"] or bool(b.get("late"))
             prev["blocks"].append(b)
             continue
-        course = course_title(b.get("course_name") or b.get("course_short") or "")
-        title = _title(b, kind)
+        short, full = b.get("course_short") or "", b.get("course_name") or ""
+        label = "Flashcards" if kind == "flashcards" else (
+            course_label(short, full) or "Study")
         out.append({
-            "_key": _key(b), "date": b.get("date"), "start": b["start"], "end": b["end"],
-            "minutes": b.get("minutes", 0), "course_id": b.get("course_id"), "course_name": course,
-            "kind": kind, "title": title, "label": f"{course} - {title}" if course else title,
+            "_key": _key(b), "id": f"s{b['start']}", "date": b.get("date"), "start": b["start"],
+            "end": b["end"], "minutes": b.get("minutes", 0), "course_id": b.get("course_id"),
+            "course_code": course_code(short, full) if kind != "flashcards" else "",
+            "course_name": course_name(short, full) if kind != "flashcards" else "",
+            "kind": kind, "title": label, "label": label,
             "color": course_color(b.get("course_id")), "late": bool(b.get("late")), "blocks": [b],
         })
     for g in out:
         del g["_key"]
-        # A task's title is its work; a study entry lists what to study.
-        g["work"] = [] if g["kind"] == "task" else work_lines(g["blocks"])
+        g["work"] = work_lines(g["blocks"])
     return out
