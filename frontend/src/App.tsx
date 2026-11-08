@@ -36,7 +36,7 @@ function Page({ route }: { route: Route }) {
     case "time":
       return <Time />;
     case "prompt":
-      return <Prompt course={route.course} />;
+      return <Prompt key={window.location.hash} course={route.course} prefill={route.prefill} />;
     case "templates":
       return <Templates id={route.id} />;
     case "file":

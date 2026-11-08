@@ -64,7 +64,8 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
   Navigation map in `src/nav.ts` (sections = tabs, their pages, page titles): a new page needs a line there.
   `pages/Calendar.tsx` is the unified calendar (published schedule + deadlines + unavailabilities, the
-  schedule settings form `components/ScheduleForm.tsx` with preview/save, `CalendarFeed.tsx`, `ExportWeeks.tsx`;
+  schedule settings form `components/ScheduleForm.tsx` with preview/save, `components/EventDialog.tsx` (an entry's
+  details: links in the app and at the source, a prompt-builder link filled in via `#/prompt?goal=&topic=&section_from=...`), `CalendarFeed.tsx`, `ExportWeeks.tsx`;
   Export menu: PDF from `/api/schedule.pdf`, Excel from `/api/schedule.xlsx`, or ICS; last view remembered in localStorage). `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
   Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
   Claude's Markdown is rendered by `src/components/Markdown.tsx` into React elements (no innerHTML).

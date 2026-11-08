@@ -197,7 +197,13 @@ time is grouped by course, one colour per course, the same in the calendar, the 
 PDF: back-to-back study of a course (reading and active recall) is one entry like
 `09:00-10:00 Spanish - Study`, and each test or task is its own entry named after it
 (`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. Tap an entry for what
-to do and its files, or a deadline for details and *Mark done*.
+to do and its files, or a deadline for details and *Mark done*. The entry's dialog also has:
+
+- **✨ Build the session prompt**: opens the prompt builder filled in for that entry (its course,
+  sections and length; an assignment or a quiz picks *Understand an assignment* or *Exam prep*
+  with its name as the topic). Adjust anything, then copy.
+- **Open section** (or **Open course**): the material in the app.
+- **At the source ↗**: the section, assignment or quiz on your Moodle site.
 
 ### Schedule settings (a form you save)
 

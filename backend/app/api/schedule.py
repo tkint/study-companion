@@ -35,10 +35,13 @@ def register(
         return JSONResponse({"error": "not signed in"}, status_code=401)
 
     def with_owner(data: dict) -> dict:
-        """Your name on Moodle, for the header of the printed weeks."""
+        """Your name on Moodle, for the header of the printed weeks, and the site's address,
+        so the calendar can link a section to its page at the source."""
         with session(engine) as s:
             site = s.get(Site, 1)
-        return {**data, "owner": site.fullname if site else ""}
+        url = (site.url if site else "").rstrip("/")
+        return {**data, "owner": site.fullname if site else "",
+                "site_url": url if url.startswith(("https://", "http://")) else ""}
 
     async def body(request: Request) -> dict | None:
         raw = await request.body()

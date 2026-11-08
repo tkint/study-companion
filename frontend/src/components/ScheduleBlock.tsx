@@ -8,7 +8,7 @@ import type { Tone } from "../styles/theme";
 import { Badge, Meta, Muted, Small, Stat, StatGrid, Swatch } from "../ui";
 
 // One study block of the published schedule (app/planner/schedule.py), and the schedule's
-// summary numbers. Used by the calendar page (block details) and nowhere else for now.
+// summary numbers. Used by the calendar page (its entry dialog: components/EventDialog.tsx).
 
 export const KIND_TONE: Record<ScheduleBlock["kind"], Tone> = {
   deep: "neutral",
@@ -80,29 +80,26 @@ function day(iso: string): string {
 export function ReadingDetails({ reading: r }: { reading: ScheduleReading }) {
   const link = r.course_id ? href.course(r.course_id, r.section_id ?? undefined) : undefined;
   return (
-    <>
-      <h2 style={{ margin: 0 }}>{r.label}</h2>
-      <WorkRow as="div" $late={r.late}>
-        <Swatch style={{ background: r.color }} aria-hidden="true" />
-        <WorkMain>
-          <Time>{day(r.start_date)}{r.days > 1 ? ` – ${day(r.end_date)}` : ""}{r.continues ? " and after" : ""}</Time>
-          <WorkTitle>{link ? <a href={link}>{r.title}</a> : r.title}</WorkTitle>
-          <Meta>
-            <Badge $tone="neutral">Reading</Badge>
-            <span>{r.pages} pages, about {r.per_day} a day</span>
-            {r.late && <Badge $tone="warning">late</Badge>}
-          </Meta>
-          {r.detail && <Detail $muted>{r.detail}</Detail>}
-          {r.files.length > 0 && (
-            <Files>
-              {r.files.map((f) => (
-                <a key={f.id} href={href.file(f.id, r.course_id ?? undefined)}>{f.name}{f.pages ? ` (${f.pages} p.)` : ""}</a>
-              ))}
-            </Files>
-          )}
-        </WorkMain>
-      </WorkRow>
-    </>
+    <WorkRow as="div" $late={r.late}>
+      <Swatch style={{ background: r.color }} aria-hidden="true" />
+      <WorkMain>
+        <Time>{day(r.start_date)}{r.days > 1 ? ` – ${day(r.end_date)}` : ""}{r.continues ? " and after" : ""}</Time>
+        <WorkTitle>{link ? <a href={link}>{r.title}</a> : r.title}</WorkTitle>
+        <Meta>
+          <Badge $tone="neutral">Reading</Badge>
+          <span>{r.pages} pages, about {r.per_day} a day</span>
+          {r.late && <Badge $tone="warning">late</Badge>}
+        </Meta>
+        {r.detail && <Detail $muted>{r.detail}</Detail>}
+        {r.files.length > 0 && (
+          <Files>
+            {r.files.map((f) => (
+              <a key={f.id} href={href.file(f.id, r.course_id ?? undefined)}>{f.name}{f.pages ? ` (${f.pages} p.)` : ""}</a>
+            ))}
+          </Files>
+        )}
+      </WorkMain>
+    </WorkRow>
   );
 }
 
