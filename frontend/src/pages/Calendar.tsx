@@ -4,7 +4,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
-import type { DatesSetArg, EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
+import type { DatesSetArg, EventClickArg, EventContentArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
 import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup, type ScheduleReading } from "../api";
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
@@ -13,7 +13,7 @@ import { ExportWeeks } from "../components/ExportWeeks";
 import { ReminderSettings } from "../components/Reminders";
 import { Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
-import { courseColor } from "../format";
+import { courseColor, courseTitle } from "../format";
 import { minutes, PlanRow } from "./Plan";
 import { Alert, Banner, Button, Check, DetailsCard, Dropdown, Late, Lead, List, MenuItem, Modal, Muted, Row, Small } from "../ui";
 
@@ -59,6 +59,7 @@ const CalendarCard = styled.div`
   .fc-overdue .fc-event-title, .fc-overdue .fc-list-event-title { font-weight: 700; }
   .fc-timegrid-event.fc-deadline, .fc-daygrid-event.fc-deadline { border-style: dashed; font-weight: 650; }
   .fc .fc-timegrid-slot { height: 2.1em; }
+  .fc .fc-work { font-size: .72rem; line-height: 1.25; opacity: .92; }
   .fc-flashcards { opacity: .85; }
   .fc-late { outline: 2px solid ${({ theme }) => theme.colors.warning}; }
   &[data-preview="true"] .fc-study { opacity: .75; border-style: dashed; }
@@ -124,6 +125,18 @@ function lastView(allowed: string[]): string {
 }
 const PREVIEW_DELAY = 600;
 
+/** In the week and day views a study entry lists what it covers under its name. */
+function timeGridContent(arg: EventContentArg) {
+  const work = (arg.event.extendedProps.group as ScheduleGroup | undefined)?.work ?? [];
+  if (!work.length) return true; // FullCalendar's own rendering
+  return (
+    <div className="fc-event-main-frame">
+      <div className="fc-event-title">{arg.event.title}</div>
+      {work.map((w, i) => <div key={i} className="fc-work">{w}</div>)}
+    </div>
+  );
+}
+
 /** One study entry, grouped by course like the printed weeks ("Spanish - Study",
  * "Spanish - Test 1"), in the course's colour. */
 function groupEvent(g: ScheduleGroup): EventInput {
@@ -145,7 +158,7 @@ function readingEvent(r: ScheduleReading): EventInput {
   const next = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
   return {
     id: `r${r.section_id ?? 0}-${r.start_date}`,
-    title: `📖 ${r.course_short ? r.course_short + ": " : ""}${r.title} (${r.per_day} p./day)`,
+    title: `📖 ${r.course_name ? courseTitle(r.course_name) + " - " : ""}${r.title}`,
     start: r.start_date,
     end: next,
     allDay: true,
@@ -158,7 +171,7 @@ function readingEvent(r: ScheduleReading): EventInput {
 function deadlineEvent(d: Deadline): EventInput {
   return {
     id: `d${d.id}`,
-    title: `📌 ${d.course_shortname ? d.course_shortname + ": " : ""}${d.name}`,
+    title: `📌 ${d.course_name ? courseTitle(d.course_name) + " - " : ""}${d.name}`,
     start: new Date(d.due_at * 1000),
     allDay: false,
     color: courseColor(d.course_id),
@@ -386,7 +399,9 @@ export default function Calendar() {
           }}
           buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day", list: "List" }}
           views={{
-            dayGridMonth: { displayEventTime: !narrow() },
+            // No times in the blocks: their place in the grid says it, the dialog has it.
+            timeGrid: { displayEventTime: false, eventContent: timeGridContent },
+            dayGrid: { displayEventTime: false },
             listWeek: { buttonText: "List" },
           }}
           firstDay={1}
