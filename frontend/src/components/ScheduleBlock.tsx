@@ -1,5 +1,5 @@
 import styled from "styled-components";
-import type { Schedule, ScheduleBlock } from "../api";
+import type { Schedule, ScheduleBlock, ScheduleReading } from "../api";
 import { courseColor } from "../format";
 import { href } from "../router";
 import { minutes } from "../pages/Plan";
@@ -63,12 +63,46 @@ export function Summary({ data }: { data: Schedule }) {
   return (
     <SummaryGrid aria-label="Schedule summary">
       <Stat $tone="primary"><strong>{minutes(data.total_minutes)}</strong><span>planned</span></Stat>
-      <Stat><strong>{minutes((k.deep ?? 0) + (k.practice ?? 0))}</strong><span>reading and practice</span></Stat>
+      <Stat><strong>{minutes((k.deep ?? 0) + (k.practice ?? 0))}</strong><span>study and practice</span></Stat>
       <Stat><strong>{minutes((k.recall ?? 0) + (k.flashcards ?? 0))}</strong><span>recall and cards</span></Stat>
       <Stat $tone={data.late ? "danger" : undefined}>
         <strong>{data.late}</strong><span>late</span>
       </Stat>
     </SummaryGrid>
+  );
+}
+
+function day(iso: string): string {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** A long reading: a day entry over several days at your reading pace, not a timed block. */
+export function ReadingDetails({ reading: r }: { reading: ScheduleReading }) {
+  const link = r.course_id ? href.course(r.course_id, r.section_id ?? undefined) : undefined;
+  return (
+    <>
+      <h2 style={{ margin: 0 }}>{r.label}</h2>
+      <WorkRow as="div" $late={r.late}>
+        <Swatch style={{ background: r.color }} aria-hidden="true" />
+        <WorkMain>
+          <Time>{day(r.start_date)}{r.days > 1 ? ` – ${day(r.end_date)}` : ""}{r.continues ? " and after" : ""}</Time>
+          <WorkTitle>{link ? <a href={link}>{r.title}</a> : r.title}</WorkTitle>
+          <Meta>
+            <Badge $tone="neutral">Reading</Badge>
+            <span>{r.pages} pages, about {r.per_day} a day</span>
+            {r.late && <Badge $tone="warning">late</Badge>}
+          </Meta>
+          {r.detail && <Detail $muted>{r.detail}</Detail>}
+          {r.files.length > 0 && (
+            <Files>
+              {r.files.map((f) => (
+                <a key={f.id} href={href.file(f.id, r.course_id ?? undefined)}>{f.name}{f.pages ? ` (${f.pages} p.)` : ""}</a>
+              ))}
+            </Files>
+          )}
+        </WorkMain>
+      </WorkRow>
+    </>
   );
 }
 

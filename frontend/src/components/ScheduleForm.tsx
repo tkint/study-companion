@@ -152,6 +152,9 @@ export function ScheduleForm({ draft: cfg, courses, today, onChange }: {
             onChange={(v) => change({ session_minutes: v })} />
           <Slider label="Break between blocks" value={cfg.break_minutes} min={0} max={30} step={5}
             format={(v) => (v ? minutes(v) : "none")} onChange={(v) => change({ break_minutes: v })} />
+          <Slider label="Reading pace" value={cfg.reading_pages_per_day ?? 30} min={5} max={150} step={5}
+            format={(v) => `${v} pages a day`} onChange={(v) => change({ reading_pages_per_day: v })}
+            hint="Books and other long readings are day entries, not timed blocks." />
           <Slider label="Buffer before deadlines" value={cfg.buffer_days} min={0} max={7} step={1}
             format={(v) => (v ? `${v} day${v === 1 ? "" : "s"}` : "none")} onChange={(v) => change({ buffer_days: v })} />
         </Grid>

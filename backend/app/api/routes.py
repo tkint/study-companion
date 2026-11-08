@@ -256,7 +256,8 @@ def register(
         return Response(
             ics.build_ics(items, now=now, alarms=prefs["deadline_alarms"], blocks=blocks,
                           base_url=str(request.base_url),
-                          day_alarm=prefs["daily_enabled"]),
+                          day_alarm=prefs["daily_enabled"],
+                          readings=plan.get("readings", [])),
             media_type="text/calendar; charset=utf-8",
             headers=headers,
         )

@@ -5,13 +5,13 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import type { DatesSetArg, EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
-import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup } from "../api";
+import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup, type ScheduleReading } from "../api";
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
 import { DeadlineItem } from "../components/DeadlineList";
 import { ExportWeeks } from "../components/ExportWeeks";
 import { ReminderSettings } from "../components/Reminders";
-import { BlockRow, Summary } from "../components/ScheduleBlock";
+import { BlockRow, ReadingDetails, Summary } from "../components/ScheduleBlock";
 import { ScheduleForm } from "../components/ScheduleForm";
 import { courseColor } from "../format";
 import { DayHead, minutes, PlanRow } from "./Plan";
@@ -138,6 +138,23 @@ function groupEvent(g: ScheduleGroup): EventInput {
   };
 }
 
+/** A long reading: an all-day entry over the days it takes ("Literature 3 - Read: Novel 1"). */
+function readingEvent(r: ScheduleReading): EventInput {
+  const end = new Date(`${r.end_date}T12:00:00`);
+  end.setDate(end.getDate() + 1);
+  const next = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  return {
+    id: `r${r.section_id ?? 0}-${r.start_date}`,
+    title: `📖 ${r.course_short ? r.course_short + ": " : ""}${r.title} (${r.per_day} p./day)`,
+    start: r.start_date,
+    end: next,
+    allDay: true,
+    color: r.color,
+    classNames: ["fc-reading", ...(r.late ? ["fc-late"] : [])],
+    extendedProps: { reading: r },
+  };
+}
+
 function deadlineEvent(d: Deadline): EventInput {
   return {
     id: `d${d.id}`,
@@ -166,7 +183,7 @@ export default function Calendar() {
   const [draft, setDraft] = useState<ScheduleConfig | null>(null);
   const [preview, setPreview] = useState<Schedule | null>(null);
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
-  const [selected, setSelected] = useState<{ deadline?: Deadline; group?: ScheduleGroup } | null>(null);
+  const [selected, setSelected] = useState<{ deadline?: Deadline; group?: ScheduleGroup; reading?: ScheduleReading } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"settings" | "subscribe" | "pdf" | "xlsx" | null>(null);
   const [visible, setVisible] = useState<string | null>(null);
@@ -230,7 +247,8 @@ export default function Calendar() {
       allDay: u.all_day,
       display: "background",
     }));
-    return [...blocks, ...busy];
+    const readings = (shown.readings ?? []).map(readingEvent);
+    return [...blocks, ...readings, ...busy];
   }, [shown, showBreaks]);
 
   const deadlineSource = useCallback(async (info: EventSourceFuncArg) => {
@@ -295,9 +313,13 @@ export default function Calendar() {
 
   function onClick(arg: EventClickArg) {
     const p = arg.event.extendedProps;
-    if (!p.deadline && !p.group) return;
+    if (!p.deadline && !p.group && !p.reading) return;
     arg.jsEvent.preventDefault();
-    setSelected({ deadline: p.deadline as Deadline | undefined, group: p.group as ScheduleGroup | undefined });
+    setSelected({
+      deadline: p.deadline as Deadline | undefined,
+      group: p.group as ScheduleGroup | undefined,
+      reading: p.reading as ScheduleReading | undefined,
+    });
   }
 
   function onDates(arg: DatesSetArg) {
@@ -420,7 +442,9 @@ export default function Calendar() {
 
       <ReminderSettings />
 
-      <Modal open={!!selected} onClose={close} label={selected?.group ? selected.group.label : "Deadline"}>
+      <Modal open={!!selected} onClose={close}
+        label={selected?.group ? selected.group.label : selected?.reading ? selected.reading.label : "Deadline"}>
+        {selected?.reading && <ReadingDetails reading={selected.reading} />}
         {selected?.deadline && (
           <List $animate={false}>
             <DeadlineItem

@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.engine import Engine
 
@@ -217,16 +217,50 @@ def _block_events(blocks: list[dict], base_url: str, stamp: str, day_alarm: bool
     return lines
 
 
+def _reading_events(readings: list[dict], base_url: str, stamp: str) -> list[str]:
+    """One all-day VEVENT per long reading, over the days it runs, marked free: reading is
+    done in your own time, beside the study blocks."""
+    lines: list[str] = []
+    for r in readings:
+        try:
+            first = date.fromisoformat(r["start_date"])
+            end = date.fromisoformat(r["end_date"]) + timedelta(days=1)
+        except (KeyError, TypeError, ValueError):
+            continue
+        course = r.get("course_name") or ""
+        summary = f"{course + ' - ' if course else ''}Read: {r.get('title', '')}"
+        url = focus_url(base_url, int(datetime(first.year, first.month, first.day).timestamp())) \
+            if base_url else ""
+        paras = [f"Open in Study Companion:\n{url}"] if url else []
+        paras.append(r.get("detail") or summary)
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:reading-{r.get('section_id') or 0}-{first:%Y%m%d}@study-companion",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART;VALUE=DATE:{first:%Y%m%d}",
+            f"DTEND;VALUE=DATE:{end:%Y%m%d}",
+            f"SUMMARY:{_escape(summary)}",
+            f"DESCRIPTION:{_paras(paras)}",
+            "TRANSP:TRANSPARENT",
+            f"CATEGORIES:{_escape(course or 'Study Companion')}",
+        ]
+        if url:
+            lines.append(f"URL:{url}")
+        lines.append("END:VEVENT")
+    return lines
+
+
 def build_ics(items: list[dict], now: int | None = None, name: str = "Study Companion",
               alarms: tuple[int, ...] | list[int] = (1440,),
               blocks: list[dict] | None = None, base_url: str = "",
-              day_alarm: bool = False) -> str:
+              day_alarm: bool = False, readings: list[dict] | None = None) -> str:
     """The calendar feed: one VEVENT per deadline at its due time, with an alarm per lead
-    time in ``alarms`` (minutes before) until it is done, and one per study entry of the
-    published schedule. Breaks, unavailabilities and days off are not events: the feed only
+    time in ``alarms`` (minutes before) until it is done, one per study entry of the
+    published schedule and an all-day one per long reading. Breaks, unavailabilities and days off are not events: the feed only
     holds what you do (the web calendar and the PDF can show them)."""
     stamp = _dt(int(now if now is not None else time.time()))
     lines = _header(name)
     lines += _deadline_events(items, stamp, alarms, base_url)
     lines += _block_events(blocks or [], base_url, stamp, day_alarm)
+    lines += _reading_events(readings or [], base_url, stamp)
     return _finish(lines)
