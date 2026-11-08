@@ -46,7 +46,9 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   timed study schedule (capacity, unavailabilities, course weights, recall blocks; `ScheduleSettings`), `api/schedule.py`
   its API (published schedule, preview, save, `/api/schedule.pdf`); `planner/groups.py` how blocks are shown (grouped by course, tests/tasks
   apart, course colours; web, PDF and ICS); `planner/print_week.py` the
-  timetable PDF (one landscape page per week) drawn with `app/pdf.py`, a tiny PDF writer (no dependency); `planner/published.py` the saved schedule the calendar
+  timetable PDF (one landscape page per week) drawn with `app/pdf.py`, a tiny PDF writer (no dependency);
+  `planner/sheet_week.py` the same weeks as an Excel workbook (one sheet per week named by its Monday,
+  `/api/schedule.xlsx`) written with `app/xlsx.py`, a tiny .xlsx writer (no dependency); `planner/published.py` the saved schedule the calendar
   view, printed weeks and ICS feed show (`PublishedSchedule`, history, nightly re-plan, unavailabilities)
 - `backend/app/study_time.py` study sessions (web timer, manual, Claude's `log_study_time`), totals, streak;
   `backend/app/reminders.py` reminder settings, deadline alarms + an alarm on each day's first study block in the ICS feed, `/api/reminders`
@@ -61,8 +63,8 @@ the source of truth; work one milestone at a time and open one PR per milestone.
   `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
   Navigation map in `src/nav.ts` (sections = tabs, their pages, page titles): a new page needs a line there.
   `pages/Calendar.tsx` is the unified calendar (published schedule + deadlines + unavailabilities, the
-  schedule settings form `components/ScheduleForm.tsx` with preview/save, `CalendarFeed.tsx`, `ExportPdf.tsx`;
-  Export menu: PDF from `/api/schedule.pdf` or ICS; last view remembered in localStorage). `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
+  schedule settings form `components/ScheduleForm.tsx` with preview/save, `CalendarFeed.tsx`, `ExportWeeks.tsx`;
+  Export menu: PDF from `/api/schedule.pdf`, Excel from `/api/schedule.xlsx`, or ICS; last view remembered in localStorage). `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).
   Login and settings stay server-rendered. Files from Moodle: only PDF/images/text inline.
   Claude's Markdown is rendered by `src/components/Markdown.tsx` into React elements (no innerHTML).
   Styling: styled-components only (no CSS files, no utility classes). Tokens in `src/styles/theme.ts`

@@ -264,6 +264,14 @@ deadlines, breaks and days off if you want them, and the date it was printed. Th
 covers the hours that week uses, and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
 the server builds it, so nothing goes through the print dialog.
 
+**Export › Export as Excel** downloads the same weeks as an Excel workbook (`.xlsx`, opens in
+Excel, LibreOffice, Numbers or Google Sheets): one sheet per week, named by its Monday
+(`2026-11-09`), with your name and the week on top, a column per day (Monday to Sunday) and a
+row per quarter hour over the hours that week uses. Study sessions are merged cells at their
+times in the course's colour, listing what to study; deadlines and days off sit in a row under
+the day names and breaks in grey, if you want them. The day names and times stay put when you
+scroll, rows grow so text isn't cut, and each sheet prints one landscape page wide.
+
 ## Ask AI (prompt builder)
 
 Builds a ready-to-paste prompt for your AI assistant (Claude, ChatGPT, Gemini…, with the connector from
