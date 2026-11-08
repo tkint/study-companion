@@ -404,3 +404,30 @@ def test_groups_by_course_with_tasks_apart():
         ("Literature 3 - Study", 30, 1), ("Flashcards", 15, 1)]
     assert out[0]["color"] == out[1]["color"] == groups.course_color(3) != out[2]["color"]
     assert out[3]["color"] == groups.NO_COURSE
+
+
+def test_start_date(settings, engine, morning):
+    today = local(settings, morning).date()
+    start = today + timedelta(days=5)
+    plan = generate(settings, engine, morning, start_date=start.isoformat(), days=7,
+                    beyond_target=True)
+    assert plan.start == start and plan.today == today
+    assert plan.days and plan.days[0].day >= start and plan.days[-1].day < start + timedelta(days=7)
+    assert all(local(settings, b.start).date() >= start for b in plan.blocks)
+    # A start day gets its full study window, not "what's left of today".
+    assert local(settings, plan.days[0].blocks[0].start).hour == 8
+    assert any("starts on" in n for n in plan.notes)
+    out = plan.to_dict()
+    assert out["start"] == start.isoformat() and out["today"] == today.isoformat()
+    # The busy range follows the horizon from the start date.
+    assert published.busy_range(out)[1] == start + timedelta(days=6)
+    # A start date that has passed (or none) means today.
+    past = generate(settings, engine, morning, start_date=(today - timedelta(days=3)).isoformat())
+    assert past.start == today and past.days[0].day == today
+    assert generate(settings, engine, morning, start_date="").start == today
+    saved = schedule.save(engine, {"start_date": start.isoformat()}, now=morning)
+    assert saved["start_date"] == start.isoformat()
+    assert schedule.save(engine, {"start_date": None})["start_date"] == ""
+    for bad in ("2026-02-30", "tomorrow", 20261110):
+        with pytest.raises(ScheduleError):
+            schedule.save(engine, {"start_date": bad})

@@ -102,12 +102,17 @@ def preview(settings: Settings, engine: Engine, data: dict, now: float | None = 
 
 
 def busy_range(data: dict) -> tuple[date, date]:
-    """From the first day kept in ``data`` (or today) to the end of the planning horizon."""
+    """From the first day kept in ``data`` (or today) to the end of the planning horizon,
+    which counts from the plan's start (today or a later start date)."""
     today = date.fromisoformat(data["today"])
     first = today
     if data.get("days"):
         first = min(first, date.fromisoformat(data["days"][0]["date"]))
-    return first, today + timedelta(days=int(data["config"]["days"]) - 1)
+    try:
+        start = max(today, date.fromisoformat(data.get("start") or data["today"]))
+    except ValueError:
+        start = today
+    return first, start + timedelta(days=int(data["config"]["days"]) - 1)
 
 
 def _with_busy(settings: Settings, data: dict) -> dict:

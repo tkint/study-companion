@@ -164,6 +164,10 @@ export function ScheduleForm({ draft: cfg, courses, today, onChange }: {
             <Input type="time" step={900} value={cfg.day_end === "24:00" ? "23:59" : cfg.day_end}
               onChange={(e) => /^\d\d:\d\d$/.test(e.target.value) && change({ day_end: e.target.value === "23:59" ? "24:00" : e.target.value })} />
           </Field>
+          <Field>Start on
+            <Input type="date" min={today} value={cfg.start_date > today ? cfg.start_date : today}
+              onChange={(e) => change({ start_date: e.target.value > today ? e.target.value : "" })} />
+          </Field>
           <Field>Plan ahead
             <Select value={cfg.days} onChange={(e) => change({ days: Number(e.target.value) })}>
               {[7, 14, 21, 30, 45, 60].concat([7, 14, 21, 30, 45, 60].includes(cfg.days) ? [] : [cfg.days])
@@ -171,6 +175,12 @@ export function ScheduleForm({ draft: cfg, courses, today, onChange }: {
             </Select>
           </Field>
         </Inline>
+        {cfg.start_date > today && (
+          <Small $muted>
+            Nothing is planned before this day (a new term, back from holidays).{" "}
+            <Button type="button" $variant="soft" $size="sm" onClick={() => change({ start_date: "" })}>Start today</Button>
+          </Small>
+        )}
         <Toggles>
           <Check><input type="checkbox" checked={cfg.recall} onChange={(e) => change({ recall: e.target.checked })} />
             Spaced active recall</Check>

@@ -395,6 +395,8 @@ export interface DatedUnavailability {
 }
 
 export interface ScheduleConfig {
+  /** "" = today; a later date (YYYY-MM-DD) starts the plan then. */
+  start_date: string;
   days: number;
   daily_hours: number;
   max_daily_hours: number;
@@ -485,6 +487,8 @@ export interface ScheduleCourse {
 
 export interface Schedule {
   today: string;
+  /** The first planned day: today or the later start date (missing in older saved plans). */
+  start?: string;
   generated_at: number;
   timezone: string; // the server's TIMEZONE: block times are shown in it
   config: ScheduleConfig;

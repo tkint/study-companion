@@ -3,6 +3,8 @@ blocks with start and end times, around your unavailabilities, exportable as ``.
 
 Pipeline:
 
+0. **Start.** The plan starts today, or on ``start_date`` when that is later (a new
+   term, back from holidays); the ``days`` of the horizon count from there.
 1. **Capacity.** Each day has a study window (``day_start``-``day_end``). Weekly
    unavailabilities (classes, work, training) and dated ones (appointments, travel) are cut
    out of it. What you can study that day is your hours per day, but never more than the
@@ -62,6 +64,7 @@ _TIME = re.compile(r"^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 DEFAULTS: dict = {
+    "start_date": "",  # "" = today; a later date starts the plan then
     "days": 14,
     "max_daily_hours": 6.0,
     "rest_hours": 2.0,
@@ -174,6 +177,19 @@ def validate(data: dict, current: dict) -> dict:
     for key in ("day_start", "day_end"):
         if key in data:
             out[key] = _time(data[key], key)
+    if "start_date" in data:
+        raw = data["start_date"]
+        if raw is None or raw == "":
+            out["start_date"] = ""
+        else:
+            try:
+                if not isinstance(raw, str) or not _DATE.match(raw):
+                    raise ValueError
+                date.fromisoformat(raw)
+            except ValueError:
+                raise ScheduleError('start_date must look like "2026-11-10" (or be empty for '
+                                    "today)") from None
+            out["start_date"] = raw
     if _minutes(out["day_end"]) - _minutes(out["day_start"]) < 60:
         raise ScheduleError("the study window (day_start to day_end) must be at least 1 hour")
     for key in ("recall", "include_optional", "beyond_target", "auto_update"):
@@ -369,6 +385,7 @@ class Day:
 @dataclass
 class Schedule:
     today: date
+    start: date  # the first planned day: today, or the later start date
     generated_at: int
     config: dict
     days: list[Day]
@@ -388,7 +405,8 @@ class Schedule:
         for b in blocks:
             by_kind[b.kind] = by_kind.get(b.kind, 0) + b.minutes
         return {
-            "today": self.today.isoformat(), "generated_at": self.generated_at,
+            "today": self.today.isoformat(), "start": self.start.isoformat(),
+            "generated_at": self.generated_at,
             "timezone": self.timezone,
             "config": self.config, "weekdays": list(WEEKDAYS),
             "total_minutes": sum(b.minutes for b in blocks),
@@ -417,6 +435,16 @@ def _subtract(free: list[tuple[int, int]], cut: tuple[int, int]) -> list[tuple[i
     return out
 
 
+def start_day(config: dict, today: date) -> date:
+    """The first planned day: ``start_date`` when it is after ``today``, else today."""
+    raw = config.get("start_date") or ""
+    try:
+        start = date.fromisoformat(raw) if raw else today
+    except ValueError:
+        start = today
+    return max(start, today)
+
+
 class Generator:
     def __init__(self, settings: Settings, engine: Engine, now: float | None = None,
                  config: dict | None = None) -> None:
@@ -426,6 +454,7 @@ class Generator:
         self.now = int(now if now is not None else time.time())
         self.today = datetime.fromtimestamp(self.now, self.tz).date()
         self.config = config if config is not None else load(engine)
+        self.start = start_day(self.config, self.today)
 
     # -- time helpers
 
@@ -458,7 +487,10 @@ class Generator:
         notes: list[str] = []
         horizon = int(cfg["days"])
         planner = Planner(self.settings, self.engine, now=self.now)
-        end_day = self.today + timedelta(days=horizon)
+        end_day = self.start + timedelta(days=horizon)
+        later = self.start > self.today
+        if later:
+            notes.append(f"The plan starts on {self.start:%A %d %B}.")
         horizon_end = self._ts(end_day + timedelta(days=30), 0)
         found = planner.items(None, None, horizon_end, cfg["include_optional"])
         items = found.items
@@ -489,11 +521,12 @@ class Generator:
         target = int(round(cfg["daily_hours"] * 60))
         cap = int(round(cfg["max_daily_hours"] * 60))
         for i in range(horizon):
-            d = self.today + timedelta(days=i)
-            free, blocked = self._free(d, i == 0)
+            d = self.start + timedelta(days=i)
+            first = d == self.today
+            free, blocked = self._free(d, first)
             total = sum(e - s for s, e in free)
             room = max(0, total - rest)
-            if i == 0:  # today: what's left of the day, within today's share of rest
+            if first:  # today: what's left of the day, within today's share of rest
                 full = sum(e - s for s, e in self._free(d, False)[0])
                 room = max(0, total - max(0, rest - (full - total)))
             days.append(Day(d, total, min(target, cap, room), blocked))
@@ -531,7 +564,8 @@ class Generator:
             if has_cards and day.capacity >= 2 * MIN_BLOCK:
                 spot = place(FLASHCARD_MINUTES, day.capacity, True)
                 if spot:
-                    due = f"{cards_due} card{'s' if cards_due != 1 else ''} due. " if i == 0 else ""
+                    due = (f"{cards_due} card{'s' if cards_due != 1 else ''} due. "
+                           if day.day == self.today else "")
                     day.blocks.append(Block(day.day, self._ts(day.day, spot[0]),
                                             self._ts(day.day, spot[0] + spot[1]), "flashcards", None,
                                             detail=f"{due}Review the flashcards due today in the "
@@ -625,12 +659,13 @@ class Generator:
             notes.append("Some work only fits after the date it is needed by: add hours per day, "
                          "free up time or lower the weight of other courses.")
         if unscheduled:
+            span = f"the {horizon} days from {self.start:%d %B}" if later else f"the next {horizon} days"
             notes.append(f"{fmt_minutes(sum(i.minutes for i in unscheduled))} of work doesn't fit "
-                         f"in the next {horizon} days.")
+                         f"in {span}.")
         if not any(d.capacity for d in days):
             notes.append("No free study time: check your study window, unavailabilities and "
                          "rest hours.")
-        return Schedule(self.today, self.now, cfg, days, unscheduled, course_rows, notes,
+        return Schedule(self.today, self.start, self.now, cfg, days, unscheduled, course_rows, notes,
                         cards_due, self.settings.timezone)
 
     def _work(self, item: PlanItem) -> Work:
