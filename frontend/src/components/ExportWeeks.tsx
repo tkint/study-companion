@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
 import { Button, Check, Field, FieldRow, Input, Modal, Row, Select, Small, Toggles } from "../ui";
 
-// Export the saved schedule as a PDF: one A4 landscape page per week, like a printed
-// timetable (built by the server, app/planner/print_week.py). Open shows it in a new tab;
-// Download saves the file. Nothing is printed unless you print it yourself.
+// Export weeks of the saved schedule, built by the server:
+// - PDF: one A4 landscape page per week, like a printed timetable (app/planner/print_week.py).
+//   Open shows it in a new tab; Download saves the file.
+// - Excel: one sheet per week named by its Monday, a column per day and a row per quarter hour
+//   (app/planner/sheet_week.py). Download only (a browser can't show it).
+
+export type WeeksFormat = "pdf" | "xlsx";
+
+const FORMATS = {
+  pdf: { name: "PDF", what: "One page per week: a column per day, your study blocks at their times." },
+  xlsx: {
+    name: "Excel",
+    what: "One sheet per week, named by its Monday: a column per day, your study blocks at their times.",
+  },
+} as const;
 
 function addDays(iso: string, n: number): string {
   return new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
@@ -21,7 +33,8 @@ function short(iso: string, year = false): string {
   });
 }
 
-export function ExportPdf({ open, onClose, start }: {
+export function ExportWeeks({ format, open, onClose, start }: {
+  format: WeeksFormat;
   open: boolean;
   onClose: () => void;
   /** A date in the first week to export (the week shown in the calendar). */
@@ -39,12 +52,13 @@ export function ExportPdf({ open, onClose, start }: {
   const q = new URLSearchParams({ from: first, weeks: String(weeks) });
   if (!withDeadlines) q.set("deadlines", "0");
   if (!withBusy) q.set("busy", "0");
-  const url = `/api/schedule.pdf?${q}`;
+  const url = `/api/schedule.${format}?${q}`;
+  const { name, what } = FORMATS[format];
 
   return (
-    <Modal open={open} onClose={onClose} label="Export as PDF">
-      <h2 style={{ margin: 0 }}>Export as PDF</h2>
-      <Small $muted>One page per week: a column per day, your study blocks at their times.</Small>
+    <Modal open={open} onClose={onClose} label={`Export as ${name}`}>
+      <h2 style={{ margin: 0 }}>Export as {name}</h2>
+      <Small $muted>{what}</Small>
       <FieldRow>
         <Field>Week of
           <Input type="date" value={first} onChange={(e) => e.target.value && setFirst(mondayOf(e.target.value))} />
@@ -65,8 +79,11 @@ export function ExportPdf({ open, onClose, start }: {
         {short(first)} – {short(addDays(first, weeks * 7 - 1), true)}
       </Small>
       <Row>
-        <Button as="a" $variant="primary" href={url} target="_blank" rel="noopener" onClick={onClose}>Open PDF</Button>
-        <Button as="a" $variant="outline" href={url} download={`study-plan-${first}.pdf`} onClick={onClose}>Download</Button>
+        {format === "pdf" && (
+          <Button as="a" $variant="primary" href={url} target="_blank" rel="noopener" onClick={onClose}>Open PDF</Button>
+        )}
+        <Button as="a" $variant={format === "pdf" ? "outline" : "primary"} href={url}
+          download={`study-plan-${first}.${format}`} onClick={onClose}>Download</Button>
         <Button $variant="ghost" onClick={onClose}>Close</Button>
       </Row>
     </Modal>

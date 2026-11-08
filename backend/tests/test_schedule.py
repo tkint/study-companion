@@ -431,3 +431,125 @@ def test_start_date(settings, engine, morning):
     for bad in ("2026-02-30", "tomorrow", 20261110):
         with pytest.raises(ScheduleError):
             schedule.save(engine, {"start_date": bad})
+
+
+def _xlsx(content: bytes) -> dict:
+    """Sheet name -> {cell ref: text}, and the merges, read with the standard library."""
+    import re
+    import zipfile
+    from io import BytesIO
+    from xml.etree import ElementTree as ET
+
+    ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    z = zipfile.ZipFile(BytesIO(content))
+    assert z.testzip() is None
+    for name in z.namelist():  # every part is well-formed XML
+        ET.fromstring(z.read(name))
+    book = ET.fromstring(z.read("xl/workbook.xml"))
+    names = [s.get("name") for s in book.find("m:sheets", ns)]
+    out = {}
+    for i, name in enumerate(names, 1):
+        root = ET.fromstring(z.read(f"xl/worksheets/sheet{i}.xml"))
+        cells = {c.get("r"): "".join(t.text or "" for t in c.iter(f"{{{ns['m']}}}t"))
+                 for c in root.iter(f"{{{ns['m']}}}c")}
+        merges = [m.get("ref") for m in root.iter(f"{{{ns['m']}}}mergeCell")]
+        out[name] = {"cells": {k: v for k, v in cells.items() if v}, "merges": merges,
+                     "frozen": root.find(".//m:pane", ns) is not None}
+        assert all(re.fullmatch(r"[A-Z]+\d+:[A-Z]+\d+", m) for m in merges)
+    return out
+
+
+def test_xlsx_export(settings, engine, c):
+    anon = TestClient(create_app(settings), follow_redirects=False)
+    assert anon.get("/api/schedule.xlsx").status_code == 401
+    assert c.get("/api/schedule.xlsx?weeks=9").status_code == 400
+    assert c.get("/api/schedule.xlsx?from=soon").status_code == 400
+    c.post("/api/schedule/settings", headers=SAME_ORIGIN, json={
+        "weekly": [{"day": d, "start": "12:00", "end": "13:00", "reason": "Lunch"} for d in range(7)]})
+    plan = c.get("/api/schedule").json()
+    first = plan["days"][0]["date"]
+    res = c.get(f"/api/schedule.xlsx?weeks=2&from={first}")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    monday = date.fromisoformat(first) - timedelta(days=date.fromisoformat(first).weekday())
+    assert res.headers["content-disposition"] == (
+        f'attachment; filename="study-plan-{monday.isoformat()}.xlsx"')
+    book = _xlsx(res.content)
+    # One sheet per week, named by its Monday.
+    assert list(book) == [monday.isoformat(), (monday + timedelta(days=7)).isoformat()]
+    week = book[monday.isoformat()]
+    assert week["cells"]["A1"] == "Study plan" and week["cells"]["A2"].startswith("Week of Monday")
+    assert week["cells"]["B4"].startswith("Monday") and week["cells"]["H4"].startswith("Sunday")
+    both = "\n".join(v for sheet in book.values() for v in sheet["cells"].values())
+    assert "Lunch" in both and " - Study" in both and week["merges"] and week["frozen"]
+    blocks = [b for d in plan["days"] for b in d["blocks"]]
+    assert any(b["title"][:8] in both for b in blocks)
+    no_busy = _xlsx(c.get(f"/api/schedule.xlsx?busy=0&weeks=2&from={first}").content)
+    assert "Lunch" not in "\n".join(v for s in no_busy.values() for v in s["cells"].values())
+
+
+def test_xlsx_week_layout(settings):
+    from datetime import date as d_
+
+    from app.planner import sheet_week
+
+    tz = settings.tz
+
+    def ts(day, h, m):
+        return int(datetime(2026, 11, day, h, m, tzinfo=tz).timestamp())
+
+    def block(day, h, m, minutes, title, cid=1, kind="deep"):
+        return {"start": ts(day, h, m), "end": ts(day, h, m) + minutes * 60, "kind": kind,
+                "title": title, "label": "Deep work", "parts": 1, "part": 1, "course_id": cid,
+                "course_name": "Linear Algebra", "course_short": "LA", "item_kind": "section"}
+
+    long = "A very long section title that would never fit on one line of a narrow column " * 3
+    plan = {"config": {"day_start": "08:00", "day_end": "22:00"}, "days": [{"blocks": [
+        block(9, 9, 0, 30, "Matrices"), block(9, 9, 30, 15, long),
+        block(11, 14, 0, 60, "Vectors"),
+    ]}], "busy": [
+        {"date": "2026-11-10", "start": ts(10, 12, 0), "end": ts(10, 13, 0), "reason": "Lunch"},
+        {"date": "2026-11-13", "all_day": True, "reason": "Holiday"},
+    ]}
+    deadlines = [{"due_at": ts(12, 23, 59), "name": "Assignment 2", "course_name": "Linear Algebra"}]
+    out = sheet_week.render(plan, deadlines, d_(2026, 11, 11), 1, tz, owner="Ada <Lovelace> & co")
+    book = _xlsx(out)
+    assert list(book) == ["2026-11-09"]
+    cells = book["2026-11-09"]["cells"]
+    assert cells["A1"] == "Ada <Lovelace> & co"
+    assert cells["A2"] == "Week of Monday 9 November 2026 to Sunday 15 November 2026"
+    assert cells["B4"] == "Monday 9 Nov" and cells["F4"] == "Friday 13 Nov"
+    # Deadlines and days off in the row under the day names.
+    assert cells["E5"] == "23:59 Due: Assignment 2 (Linear Algebra)" and cells["F5"] == "Holiday"
+    # The grid starts at 09:00 (first block), a row per quarter hour.
+    assert cells["A6"] == "09:00" and "A7" not in cells and cells["A8"] == "09:30"
+    # Back-to-back study of one course is one merged cell listing the work.
+    study = cells["B6"]
+    assert study.startswith("09:00-09:45 - Linear Algebra - Study")
+    assert "- Matrices" in study and long.strip() in study
+    merges = book["2026-11-09"]["merges"]
+    assert "B6:B8" in merges
+    assert cells["C18"] == "12:00-13:00\nLunch" and "C18:C21" in merges  # 12:00 = 6 + 12 rows
+    assert cells["D26"].startswith("14:00-15:00 - Linear Algebra - Study") and "D26:D29" in merges
+    import zipfile
+    from io import BytesIO
+    sheet = zipfile.ZipFile(BytesIO(out)).read("xl/worksheets/sheet1.xml").decode()
+    assert 'customHeight="1"' in sheet  # the long cell's rows grew so the text isn't cut
+    assert 'orientation="landscape"' in sheet
+
+
+def test_xlsx_writer_names_and_escaping():
+    from app import xlsx
+
+    assert xlsx.col_name(1) == "A" and xlsx.col_name(26) == "Z" and xlsx.col_name(27) == "AA"
+    assert xlsx.sheet_name("a/b:c*d?[e]") == "a-b-c-d--e-"
+    assert len(xlsx.sheet_name("x" * 50)) == 31
+    assert xlsx.sheet_name("Week", {"week"}) == "Week (2)"
+    book = xlsx.Workbook(title='a "b" <c>')
+    ws = book.sheet("2026-11-09")
+    ws.set(1, 1, "bad \x00\x07 chars & <tags>")
+    ws.set(2, 1, [("bold", True), (" plain", False)], xlsx.Style(fill="#2563eb"))
+    assert book.sheet("2026-11-09").name == "2026-11-09 (2)"
+    cells = _xlsx(book.render())["2026-11-09"]["cells"]
+    assert cells == {"A1": "bad  chars & <tags>", "A2": "bold plain"}

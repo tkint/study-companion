@@ -18,8 +18,9 @@ from app.config import Settings
 from app.db import session
 from app.models import Site
 from app.api import ui
-from app.planner import print_week, published, schedule
+from app.planner import print_week, published, schedule, sheet_week
 
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_BODY = 32768  # room for 50 weekly and 100 dated unavailabilities
 
 
@@ -81,12 +82,9 @@ def register(
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(with_owner(published.publish(settings, engine)))
 
-    @app.get("/api/schedule.pdf")
-    async def schedule_pdf(request: Request) -> Response:
-        """The saved schedule as a PDF, one page per week: ``from`` (a date in the first week,
-        default this week), ``weeks`` (1-8), ``deadlines`` and ``busy`` (0 to leave out)."""
-        if not is_authenticated(request):
-            return unauthorized()
+    def export_weeks(request: Request) -> dict | JSONResponse:
+        """What the PDF and Excel exports share: ``from`` (a date in the first week, default
+        this week), ``weeks`` (1-8), ``deadlines`` and ``busy`` (0 to leave out)."""
         q = request.query_params
         now = int(time.time())
         today = datetime.fromtimestamp(now, settings.tz).date()
@@ -103,10 +101,39 @@ def register(
         plan = with_owner(published.current(settings, engine, now=now))
         deadlines = ui.deadlines(engine, start=start - 86400, end=end + 86400, now=now,
                                  include_ignored=False)
-        body = print_week.render(plan, deadlines, monday, weeks, settings.tz, owner=plan["owner"],
-                                 printed=today, with_deadlines=q.get("deadlines") != "0",
-                                 with_busy=q.get("busy") != "0")
+        return {"plan": plan, "deadlines": deadlines, "monday": monday, "weeks": weeks,
+                "today": today, "with_deadlines": q.get("deadlines") != "0",
+                "with_busy": q.get("busy") != "0"}
+
+    @app.get("/api/schedule.pdf")
+    async def schedule_pdf(request: Request) -> Response:
+        """The saved schedule as a PDF, one page per week (``export_weeks`` for the query)."""
+        if not is_authenticated(request):
+            return unauthorized()
+        x = export_weeks(request)
+        if isinstance(x, JSONResponse):
+            return x
+        body = print_week.render(x["plan"], x["deadlines"], x["monday"], x["weeks"], settings.tz,
+                                 owner=x["plan"]["owner"], printed=x["today"],
+                                 with_deadlines=x["with_deadlines"], with_busy=x["with_busy"])
         return Response(body, media_type="application/pdf", headers={
-            "Content-Disposition": f'inline; filename="study-plan-{monday.isoformat()}.pdf"',
+            "Content-Disposition": f'inline; filename="study-plan-{x["monday"].isoformat()}.pdf"',
+            "Cache-Control": "private, no-store",
+        })
+
+    @app.get("/api/schedule.xlsx")
+    async def schedule_xlsx(request: Request) -> Response:
+        """The saved schedule as an Excel workbook, one sheet per week named by its Monday
+        (``export_weeks`` for the query)."""
+        if not is_authenticated(request):
+            return unauthorized()
+        x = export_weeks(request)
+        if isinstance(x, JSONResponse):
+            return x
+        body = sheet_week.render(x["plan"], x["deadlines"], x["monday"], x["weeks"], settings.tz,
+                                 owner=x["plan"]["owner"], with_deadlines=x["with_deadlines"],
+                                 with_busy=x["with_busy"])
+        return Response(body, media_type=XLSX, headers={
+            "Content-Disposition": f'attachment; filename="study-plan-{x["monday"].isoformat()}.xlsx"',
             "Cache-Control": "private, no-store",
         })
