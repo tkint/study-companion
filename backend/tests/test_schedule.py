@@ -431,3 +431,15 @@ def test_start_date(settings, engine, morning):
     for bad in ("2026-02-30", "tomorrow", 20261110):
         with pytest.raises(ScheduleError):
             schedule.save(engine, {"start_date": bad})
+
+
+def test_later_start_date_clears_passed_blocks(settings, engine, morning):
+    published.publish(settings, engine, now=morning)
+    noon = morning + 5 * 3600
+    kept = published.publish(settings, engine, now=noon)
+    assert any(b["end"] <= noon for d in kept["days"] for b in d["blocks"])  # history kept
+    start = local(settings, morning).date() + timedelta(days=3)
+    schedule.save(engine, {"start_date": start.isoformat()}, now=noon)
+    out = published.publish(settings, engine, now=noon)
+    assert out["days"] and all(d["date"] >= start.isoformat() for d in out["days"])
+    assert published.current(settings, engine, now=noon)["days"][0]["date"] >= start.isoformat()

@@ -42,8 +42,11 @@ def _stored(engine: Engine) -> tuple[dict | None, int]:
 
 
 def _merge_history(old: dict | None, new: dict, now: int) -> dict:
-    """``new`` with the blocks of ``old`` that ended before ``now`` (within HISTORY_DAYS)."""
-    if not old:
+    """``new`` with the blocks of ``old`` that ended before ``now`` (within HISTORY_DAYS).
+
+    A plan that starts on a later day (``start_date``) keeps nothing from before it, not even
+    blocks that already passed: the calendar shows no study before the start."""
+    if not old or new.get("start", new["today"]) > new["today"]:
         return new
     today = new["today"]
     oldest = (date.fromisoformat(today) - timedelta(days=HISTORY_DAYS)).isoformat()
