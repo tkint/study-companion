@@ -396,6 +396,11 @@ def test_pdf_groups_by_course_and_never_cuts_text(settings):
     text = PdfReader(BytesIO(body)).pages[0].extract_text()
     assert "..." not in text and "Linear Algebra - Study" in text and "Statistics" in text
     assert "narrow" in text and "column" in text  # the end of the long title is there
+    # The grid goes on half an hour past the last end, so that end time has its row.
+    late = {**plan, "days": [{"blocks": [block(8, 0, 30, "Matrices", "Linear Algebra"),
+                                        block(16, 0, 60, "Vectors", "Linear Algebra")]}]}
+    text = PdfReader(BytesIO(print_week.render(late, [], day, 1, tz))).pages[0].extract_text()
+    assert "16:30" in text and "17:00" in text and "17:30" not in text
 
 
 def test_groups_by_course_with_tasks_apart():
@@ -420,6 +425,25 @@ def test_groups_by_course_with_tasks_apart():
         ("Literature 3 - Study", 30, 1), ("Flashcards", 15, 1)]
     assert out[0]["color"] == out[1]["color"] == groups.course_color(3) != out[2]["color"]
     assert out[3]["color"] == groups.NO_COURSE
+    # The web calendar's week and month views: course short name and section numbers only.
+    assert [g["short"] for g in out] == ["Spanish · Study", "Spanish · Test 1",
+                                         "Literature 3 · Study", "Flashcards"]
+
+
+def test_short_labels_show_section_numbers():
+    from app.planner import groups
+
+    def b(start, n, kind="deep"):
+        return {"date": "2026-11-09", "start": start, "end": start + 900, "minutes": 15,
+                "kind": kind, "title": f"A long section title {n}", "course_id": 1,
+                "course_name": "Linear Algebra", "course_short": "LA", "item_kind": "section",
+                "section_number": n}
+
+    h = 9 * 3600
+    out = groups.group([b(h, 2), b(h + 900, 3, "recall"), b(h + 1800, 4), b(h + 2700, 7)])
+    assert len(out) == 1 and out[0]["short"] == "LA · §2–4, 7"
+    assert out[0]["label"] == "Linear Algebra - Study"  # the dialog and exports keep the name
+    assert groups.sections_text([5, 6]) == "§5, 6" and groups.sections_text([None]) == ""
 
 
 def test_start_date(settings, engine, morning):
@@ -560,6 +584,8 @@ def test_xlsx_week_layout(settings):
     assert "B6:B8" in merges
     assert cells["C18"] == "12:00-13:00\nLunch" and "C18:C21" in merges  # 12:00 = 6 + 12 rows
     assert cells["D26"].startswith("14:00-15:00 - Linear Algebra - Study") and "D26:D29" in merges
+    # The last block ends at 15:00: the grid has a 15:00 row (half an hour more), no further.
+    assert cells["A30"] == "15:00" and "A31" not in cells and "A32" not in cells
     import zipfile
     from io import BytesIO
     sheet = zipfile.ZipFile(BytesIO(out)).read("xl/worksheets/sheet1.xml").decode()

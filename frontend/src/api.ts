@@ -437,6 +437,9 @@ export interface ScheduleGroup {
   title: string;
   /** "Course - Study", "Course - Test 1", or "Flashcards". */
   label: string;
+  course_short?: string;
+  /** What the week and month views show: "LA · §2, 3", "LA · Test 1", "Flashcards". */
+  short?: string;
   /** The course's colour (same as courseColor). */
   color: string;
   late: boolean;

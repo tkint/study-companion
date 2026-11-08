@@ -196,7 +196,10 @@ hide them). It opens on the *Week* view (also *Month* and
 time is grouped by course, one colour per course, the same in the calendar, the feed and the
 PDF: back-to-back study of a course (reading and active recall) is one entry like
 `09:00-10:00 Spanish - Study`, and each test or task is its own entry named after it
-(`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. Tap an entry for what
+(`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. To keep the *Week*
+and *Month* views easy to read, their entries show no times and just the course's short name
+with the section numbers or the task (`SPA · §2–4`, `SPA · Test 1`, `📖 LIT3 · §8` for a long
+reading); *List* and the entry's dialog keep the full names. Tap an entry for what
 to do and its files, or a deadline for details and *Mark done*. The entry's dialog also has:
 
 - **✨ Build the session prompt**: opens the prompt builder filled in for that entry (its course,
@@ -282,7 +285,8 @@ per day (Monday to Friday, plus the weekend when something is planned), your stu
 their times, grouped by course like the calendar (`09:00-10:00 - Spanish - Study` in the
 course's colour, listing what to study; each test or task its own box),
 deadlines, breaks and days off if you want them, and the date it was printed. The grid only
-covers the hours that week uses, and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
+covers the hours that week uses, plus half an hour so the last end time has its row (a
+session ending at 17:00 sits above a 17:00 row), and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
 the server builds it, so nothing goes through the print dialog.
 
 **Export › Export as Excel** downloads the same weeks as an Excel workbook (`.xlsx`, opens in

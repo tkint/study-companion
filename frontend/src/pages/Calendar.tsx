@@ -4,7 +4,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
-import type { DatesSetArg, EventClickArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
+import type { DatesSetArg, EventClickArg, EventContentArg, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
 import { api, type Deadline, type Schedule, type ScheduleConfig, type ScheduleGroup, type ScheduleReading } from "../api";
 import { Status } from "../components/common";
 import { CalendarFeed } from "../components/CalendarFeed";
@@ -124,17 +124,27 @@ function lastView(allowed: string[]): string {
 }
 const PREVIEW_DELAY = 600;
 
+/** "LA · §2" (just the second part without a course). */
+function short(course: string, what: string): string {
+  return course ? `${course} · ${what}` : what;
+}
+
+/** The list view has room for the full name; the week and month views show the short one. */
+function listContent(arg: EventContentArg) {
+  return <>{(arg.event.extendedProps.full as string | undefined) ?? arg.event.title}</>;
+}
+
 /** One study entry, grouped by course like the printed weeks ("Spanish - Study",
  * "Spanish - Test 1"), in the course's colour. */
 function groupEvent(g: ScheduleGroup): EventInput {
   return {
     id: `g${g.start}`,
-    title: g.label,
+    title: g.short || g.label,
     start: new Date(g.start * 1000),
     end: new Date(g.end * 1000),
     color: g.color,
     classNames: ["fc-study", `fc-${g.kind}`, ...(g.late ? ["fc-late"] : []), ...(g.end * 1000 < Date.now() ? ["fc-done"] : [])],
-    extendedProps: { group: g },
+    extendedProps: { group: g, full: g.label },
   };
 }
 
@@ -145,13 +155,13 @@ function readingEvent(r: ScheduleReading): EventInput {
   const next = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
   return {
     id: `r${r.section_id ?? 0}-${r.start_date}`,
-    title: `📖 ${r.course_short ? r.course_short + ": " : ""}${r.title} (${r.per_day} p./day)`,
+    title: `📖 ${short(r.course_short || r.course_name, r.section_number ? `§${r.section_number}` : r.title)}`,
     start: r.start_date,
     end: next,
     allDay: true,
     color: r.color,
     classNames: ["fc-reading", ...(r.late ? ["fc-late"] : [])],
-    extendedProps: { reading: r },
+    extendedProps: { reading: r, full: `📖 ${r.course_short ? r.course_short + ": " : ""}${r.title} (${r.per_day} p./day)` },
   };
 }
 
@@ -386,8 +396,10 @@ export default function Calendar() {
           }}
           buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day", list: "List" }}
           views={{
-            dayGridMonth: { displayEventTime: !narrow() },
-            listWeek: { buttonText: "List" },
+            // No times in the blocks: their place in the grid says it, the dialog has it.
+            timeGrid: { displayEventTime: false },
+            dayGrid: { displayEventTime: false },
+            listWeek: { buttonText: "List", eventContent: listContent },
           }}
           firstDay={1}
           height="auto"
