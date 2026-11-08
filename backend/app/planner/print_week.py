@@ -204,7 +204,9 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
         else:
             lo = _minutes(config.get("day_start", "08:00"))
             hi = _minutes(config.get("day_end", "22:00"))
-        lo, hi = max(0, lo // 30 * 30), min(1440, -(-hi // 30) * 30)
+        # One more half hour after the last end, so the grid shows the end time
+        # (a block ending at 17:00 has a 17:00 row under it, not 16:30 as the last row).
+        lo, hi = max(0, lo // 30 * 30), min(1440, -(-hi // 30) * 30 + 30)
         if hi - lo < MIN_SPAN:
             hi = min(1440, lo + MIN_SPAN)
             lo = max(0, hi - MIN_SPAN)
