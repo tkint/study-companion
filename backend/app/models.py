@@ -429,3 +429,16 @@ class PublishedSchedule(SQLModel, table=True):
     user_id: int = Field(primary_key=True)
     data: str = "{}"
     published_at: int = 0
+
+
+class PlanTaskMark(SQLModel, table=True):
+    """A task of the study plan you ticked that has no mark of its own (an active recall
+    review, a day's flashcards, a long reading): ``app.planner.tasks``. Sections use
+    SectionMark, deadlines DeadlineMark."""
+
+    __table_args__ = (UniqueConstraint("user_id", "key"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(default=1, index=True)
+    key: str = Field(index=True, max_length=40)
+    done_at: int = 0

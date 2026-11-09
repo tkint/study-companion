@@ -18,7 +18,7 @@ from app.config import Settings
 from app.db import session
 from app.models import Site
 from app.api import ui
-from app.planner import print_week, published, schedule, sheet_week
+from app.planner import print_week, published, schedule, sheet_week, tasks
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_BODY = 32768  # room for 50 weekly and 100 dated unavailabilities
@@ -84,6 +84,23 @@ def register(
         except schedule.ScheduleError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(with_owner(published.publish(settings, engine)))
+
+    @app.post("/api/plan/tasks")
+    async def tick_task(request: Request) -> JSONResponse:
+        """Tick (or untick) a task of the plan: ``{"key": "section-12", "done": true}``.
+        The calendar doesn't change; returns the task's key and completion."""
+        if not is_authenticated(request) or not same_origin(request):
+            return unauthorized()
+        data = await body(request)
+        if data is None or not isinstance(data.get("done"), bool):
+            return JSONResponse({"error": 'send {"key": ..., "done": true|false}'}, status_code=400)
+        try:
+            found = tasks.set_done(engine, data.get("key"), data["done"])
+        except tasks.TaskError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if not found:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"key": data["key"], "done": data["done"]})
 
     def export_weeks(request: Request) -> dict | JSONResponse:
         """What the PDF and Excel exports share: ``from`` (a date in the first week, default

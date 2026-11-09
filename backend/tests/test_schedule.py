@@ -186,9 +186,11 @@ def test_ics_export(settings, engine, morning):
     assert text.count("BEGIN:VEVENT") == len(groups.group([b.to_dict() for b in plan.blocks]))
     assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
     unfolded = text.replace("\r\n ", "")
-    assert "SUMMARY:Linear Algebra - Study" in unfolded and "\\n\\nMatrices" in unfolded
-    # The link to the entry in the app comes first, on its own line; paragraphs are spaced.
-    assert "DESCRIPTION:Open in Study Companion:\\nhttps://study.example.ch/#/calendar?at=" in unfolded
+    # One event per course session: the course as title, its tasks one per line.
+    assert "SUMMARY:LA – Linear Algebra" in unfolded and "COLOR:seagreen" in unfolded
+    assert "DESCRIPTION:LA – Linear Algebra\\n" in unfolded
+    assert "Tasks:\\n- Section 2: Matrices" in unfolded
+    assert "\\n\\nOpen in Study Companion:\\nhttps://study.example.ch/#/calendar?at=" in unfolded
     assert "URL:https://study.example.ch/#/calendar?at=" in unfolded
     first = plan.blocks[0]
     stamp = datetime.fromtimestamp(first.start, tz=timezone.utc)
@@ -218,7 +220,11 @@ def test_daily_breaks_and_days_off(settings, engine, morning):
     schedule.save(engine, {"daily": config["daily"], "days_off": [6], "feed_unavailable": True})
     plan = generate(settings, engine, morning, days=7)
     assert plan.config["days_off"] == [6] and plan.blocks
-    assert any(d.blocked and d.blocked[0]["repeat"] == "off" for d in plan.days)
+    # Sunday is a day off (whichever day the test runs on: empty days at the end are dropped).
+    sunday = plan.today + timedelta(days=(6 - plan.today.weekday()) % 7)
+    gen = Generator(settings, engine, now=morning)
+    assert gen._free(sunday, False) == ([], [{"start": "00:00", "end": "24:00", "reason": "Day off",
+                                              "repeat": "off"}])
     for b in plan.blocks:
         start = local(settings, b.start)
         assert start.weekday() != 6
@@ -309,7 +315,7 @@ def test_api(settings, engine, c):
     res = c.get("/calendar.ics?download=1")
     assert res.status_code == 200 and res.headers["content-type"].startswith("text/calendar")
     assert res.headers["content-disposition"].startswith('attachment; filename="study-calendar-')
-    assert "UID:schedule-" in res.text and " - Study" in res.text
+    assert "UID:schedule-" in res.text and " – " in res.text
     # Breaks are not events in the feed (only the web calendar and the PDF show them).
     assert "SUMMARY:Lunch" not in res.text and "UID:assign-" in res.text
 
@@ -329,8 +335,17 @@ def test_pdf_export(settings, engine, c):
     assert res.status_code == 200 and res.headers["content-type"] == "application/pdf"
     assert res.headers["content-disposition"].startswith('inline; filename="study-plan-')
     pdf = PdfReader(BytesIO(res.content))
-    assert len(pdf.pages) == 2
-    assert pdf.pages[0].mediabox.width == 842 and pdf.pages[0].mediabox.height == 595
+    # The calendar (a landscape page per week), then a portrait page of tasks per day.
+    plan = c.get("/api/schedule").json()
+    first = date.fromisoformat(plan["today"]) - timedelta(days=date.fromisoformat(plan["today"]).weekday())
+    days = [d for d in plan["plan_days"] if d["tasks"]
+            and first.isoformat() <= d["date"] <= (first + timedelta(days=13)).isoformat()]
+    assert days and len(pdf.pages) == 2 + len(days)
+    assert [(p.mediabox.width, p.mediabox.height) for p in pdf.pages] == (
+        [(842, 595)] * 2 + [(595, 842)] * len(days))
+    page = pdf.pages[2].extract_text()
+    assert str(date.fromisoformat(days[0]["date"]).day) in page and "Notes" in page
+    assert days[0]["tasks"][0]["title"][:10] in page and days[0]["tasks"][0]["course_label"] in page
     text = pdf.pages[0].extract_text()
     assert "Study plan" in text and "Week of Monday" in text and "Printed on" in text
     assert "Lunch" in text and "Monday" in text and "Friday" in text
@@ -367,7 +382,8 @@ def test_pdf_groups_by_course_and_never_cuts_text(settings):
         return int(datetime(2026, 11, 9, h, m, tzinfo=tz).timestamp())
 
     def block(h, m, minutes, title, course, kind="deep", cid=1):
-        return {"start": ts(h, m), "end": ts(h, m) + minutes * 60, "kind": kind, "title": title,
+        return {"date": "2026-11-09", "start": ts(h, m), "end": ts(h, m) + minutes * 60,
+                "kind": kind, "title": title, "minutes": minutes,
                 "label": "Deep work", "parts": 1, "part": 1, "course_id": cid,
                 "course_name": course, "course_short": "LA", "item_kind": "section"}
 
@@ -380,13 +396,12 @@ def test_pdf_groups_by_course_and_never_cuts_text(settings):
         block(14, 0, 15, "Eigen", "Linear Algebra", "recall"),
     ]}]}
     out = print_week.entries(plan, [], day, day, tz)
+    # One session per run of a course, its quiz included; the box shows times, not tasks.
     assert [(e.time, e.title) for e in out] == [
-        ("08:00-08:45", "Linear Algebra - Study"), ("08:45-09:15", "Linear Algebra - Quiz 1"),
-        ("09:15-10:05", "Statistics - Study"), ("14:00-14:15", "Linear Algebra - Study")]
-    assert [w for _, w in out[0].items] == ["Matrices", "Vectors"]
-    assert out[1].items == []  # a task's title is its work
-    assert out[0].color == out[1].color != out[2].color  # one colour per course
-    assert all("LA" not in e.title for e in out)  # full course names only
+        ("08:00-09:15", "LA – Linear Algebra"), ("09:15-10:05", "LA – Statistics"),
+        ("14:00-14:15", "LA – Linear Algebra")]
+    assert out[0].items == [("", "08:00-09:15 · 1 h 15")]
+    assert out[0].color == out[2].color != out[1].color  # one colour per course
     lines = pdf.wrap(long, 60, 8)
     assert len(lines) > 2 and " ".join(lines) == long
     body = print_week.render(plan, [], day, 1, tz)
@@ -394,8 +409,16 @@ def test_pdf_groups_by_course_and_never_cuts_text(settings):
 
     from pypdf import PdfReader
     text = PdfReader(BytesIO(body)).pages[0].extract_text()
-    assert "..." not in text and "Linear Algebra - Study" in text and "Statistics" in text
-    assert "narrow" in text and "column" in text  # the end of the long title is there
+    assert "..." not in text and "LA – Linear Algebra" in text and "Statistics" in text
+    assert "narrow" not in text and "Matrices" not in text  # tasks aren't in the calendar
+    # The day's task list (second page) has them, the long title wrapped, not cut.
+    from app.planner import tasks
+    view = tasks.build(plan, tz)
+    pages = PdfReader(BytesIO(print_week.render({**plan, **view}, [], day, 1, tz))).pages
+    assert len(pages) == 2 and pages[1].mediabox.width == 595
+    listed = pages[1].extract_text()
+    assert "Matrices" in listed and "Quiz 1" in listed and "narrow" in listed and "column" in listed
+    assert "..." not in listed and "Monday 9 November 2026" in listed
     # The grid goes on half an hour past the last end, so that end time has its row.
     late = {**plan, "days": [{"blocks": [block(8, 0, 30, "Matrices", "Linear Algebra"),
                                         block(16, 0, 60, "Vectors", "Linear Algebra")]}]}
@@ -420,13 +443,12 @@ def test_groups_by_course_with_tasks_apart():
         {"date": "2026-11-09", "start": h + 12600, "end": h + 13500, "minutes": 15,
          "kind": "flashcards", "title": "Flashcard review", "course_id": None, "course_name": ""},
     ])
+    # One session per course: its quiz is part of it, not an entry of its own.
     assert [(g["label"], g["minutes"], len(g["blocks"])) for g in out] == [
-        ("Spanish - Study", 60, 2), ("Spanish - Test 1", 30, 2),
-        ("Literature 3 - Study", 30, 1), ("Flashcards", 15, 1)]
-    assert out[0]["color"] == out[1]["color"] == groups.course_color(3) != out[2]["color"]
-    assert out[3]["color"] == groups.NO_COURSE
-    # What each entry covers: nothing for a task (its title is its work).
-    assert [g["work"] for g in out] == [["Sec"], [], ["Sec"], ["Flashcard review"]]
+        ("Spanish", 90, 4), ("Literature 3", 30, 1), ("Flashcards", 15, 1)]
+    assert out[0]["color"] == groups.course_color(3) != out[1]["color"]
+    assert out[2]["color"] == groups.NO_COURSE
+    assert [g["work"] for g in out] == [["Sec", "Test 1"], ["Sec"], ["Flashcard review"]]
 
 
 def test_entry_names_and_merged_parts():
@@ -447,7 +469,8 @@ def test_entry_names_and_merged_parts():
                         b(h + 1800, work, 2, 4), b(h + 2700, work, 3, 4),
                         b(h + 3600, "Vowels", 2, 2, "recall")])
     assert len(out) == 1
-    assert out[0]["label"] == "A3FPH12 Phonologie de l'Anglais 3 - Study"
+    assert out[0]["label"] == "A3FPH12 – Phonologie de l'Anglais 3"
+    assert (out[0]["course_code"], out[0]["course_name"]) == ("A3FPH12", "Phonologie de l'Anglais 3")
     assert out[0]["work"] == ["Enseignante : Céline Horgues", f"{work} parts 1-3/4",
                               "Vowels review 2/2"]
     assert groups.work_lines([b(0, "X", 1, 4), b(0, "X", 3, 4)]) == ["X parts 1, 3/4"]
@@ -538,15 +561,22 @@ def test_xlsx_export(settings, engine, c):
     assert res.headers["content-disposition"] == (
         f'attachment; filename="study-plan-{monday.isoformat()}.xlsx"')
     book = _xlsx(res.content)
-    # One sheet per week, named by its Monday.
-    assert list(book) == [monday.isoformat(), (monday + timedelta(days=7)).isoformat()]
-    week = book[monday.isoformat()]
+    # A calendar sheet per week, then a task sheet per planning day (like the PDF).
+    nxt = monday + timedelta(days=7)
+    days = [d for d in plan["plan_days"] if d["tasks"]
+            and monday.isoformat() <= d["date"] <= (monday + timedelta(days=13)).isoformat()]
+    names = list(book)
+    assert names[:2] == [f"Calendar {monday.day} {monday:%b}", f"Calendar {nxt.day} {nxt:%b}"]
+    assert len(names) == 2 + len(days) and all(n.endswith(" – Tasks") for n in names[2:])
+    week = book[names[0]]
     assert week["cells"]["A1"] == "Study plan" and week["cells"]["A2"].startswith("Week of Monday")
     assert week["cells"]["B4"].startswith("Monday") and week["cells"]["H4"].startswith("Sunday")
     both = "\n".join(v for sheet in book.values() for v in sheet["cells"].values())
-    assert "Lunch" in both and " - Study" in both and week["merges"] and week["frozen"]
-    blocks = [b for d in plan["days"] for b in d["blocks"]]
-    assert any(b["title"][:8] in both for b in blocks)
+    assert "Lunch" in both and " – " in both and week["merges"] and week["frozen"]
+    lists = book[names[2]]["cells"]
+    assert lists["A4"] == "Done" and lists["B4"] == "Task"
+    assert days[0]["tasks"][0]["title"] in "\n".join(lists.values())
+    assert sum(1 for v in lists.values() if v in ("☐", "☑")) == len(days[0]["tasks"])
     no_busy = _xlsx(c.get(f"/api/schedule.xlsx?busy=0&weeks=2&from={first}").content)
     assert "Lunch" not in "\n".join(v for s in no_busy.values() for v in s["cells"].values())
 
@@ -577,8 +607,8 @@ def test_xlsx_week_layout(settings):
     deadlines = [{"due_at": ts(12, 23, 59), "name": "Assignment 2", "course_name": "Linear Algebra"}]
     out = sheet_week.render(plan, deadlines, d_(2026, 11, 11), 1, tz, owner="Ada <Lovelace> & co")
     book = _xlsx(out)
-    assert list(book) == ["2026-11-09"]
-    cells = book["2026-11-09"]["cells"]
+    assert list(book) == ["Calendar"]  # no tasks in this plan: no day sheets
+    cells = book["Calendar"]["cells"]
     assert cells["A1"] == "Ada <Lovelace> & co"
     assert cells["A2"] == "Week of Monday 9 November 2026 to Sunday 15 November 2026"
     assert cells["B4"] == "Monday 9 Nov" and cells["F4"] == "Friday 13 Nov"
@@ -589,12 +619,11 @@ def test_xlsx_week_layout(settings):
     # Back-to-back study of one course is one merged cell listing the work.
     study = cells["B6"]
     # No times in the cells (the rows show them), no bullets: the work one per line.
-    assert study.startswith("Linear Algebra - Study\nMatrices\n")
-    assert long.strip() in study and "09:00" not in study and "- Matrices" not in study
-    merges = book["2026-11-09"]["merges"]
+    assert study == "LA – Linear Algebra\n09:00-09:45 · 45 min"  # the session, not its tasks
+    merges = book["Calendar"]["merges"]
     assert "B6:B8" in merges
     assert cells["C18"] == "Lunch" and "C18:C21" in merges  # 12:00 = 6 + 12 rows
-    assert cells["D26"] == "Linear Algebra - Study\nVectors" and "D26:D29" in merges
+    assert cells["D26"] == "LA – Linear Algebra\n14:00-15:00 · 1 h" and "D26:D29" in merges
     # The last block ends at 15:00: the grid has a 15:00 row (half an hour more), no further.
     assert cells["A30"] == "15:00" and "A31" not in cells and "A32" not in cells
     import zipfile
@@ -714,8 +743,8 @@ def test_readings_follow_deadlines(settings, engine, morning):
 
 
 def test_readings_in_exports(settings, engine, c):
-    """The calendar feed has an all-day event per reading (free time), the PDF and Excel
-    weeks show it on each of its days."""
+    """A reading has no time slot: no event in the calendar feed (it is a task of the days
+    it runs); the PDF and Excel show it on each of its days."""
     from io import BytesIO
 
     from pypdf import PdfReader
@@ -725,15 +754,18 @@ def test_readings_in_exports(settings, engine, c):
     plan = c.get("/api/schedule").json()
     assert plan["readings"][0]["title"] == "Novel 1"
     feed = c.get("/calendar.ics").text.replace("\r\n ", "")
-    assert "SUMMARY:Literature 3 - Read: Novel 1" in feed
-    start = plan["readings"][0]["start_date"].replace("-", "")
-    assert f"DTSTART;VALUE=DATE:{start}" in feed and "TRANSP:TRANSPARENT" in feed
+    assert "Read: Novel 1" not in feed and "VALUE=DATE" not in feed
+    days = [d for d in plan["plan_days"] if d["date"] == plan["readings"][0]["start_date"]]
+    assert any(t["title"] == "Read: Novel 1" and t["session_id"] is None for t in days[0]["tasks"])
     first = plan["readings"][0]["start_date"]
     pdf = PdfReader(BytesIO(c.get(f"/api/schedule.pdf?from={first}").content))
-    assert "Read: Novel 1" in pdf.pages[0].extract_text()
+    assert "Read: Novel 1" not in pdf.pages[0].extract_text()  # not in the calendar
+    assert "Read: Novel 1" in pdf.pages[1].extract_text()  # in its days' task lists
     book = _xlsx(c.get(f"/api/schedule.xlsx?from={first}").content)
-    cells = "\n".join(v for sheet in book.values() for v in sheet["cells"].values())
-    assert "Literature 3 - Read: Novel 1 (30 pages)" in cells
+    sheets = list(book.values())
+    calendar = "\n".join(sheets[0]["cells"].values())
+    listed = "\n".join(sheets[1]["cells"].values())
+    assert "Read: Novel 1" not in calendar and "Read: Novel 1" in listed
 
 
 def test_one_course_does_not_flood_the_schedule(settings, engine, morning):

@@ -19,7 +19,8 @@ Pipeline:
    proportion to their weight (a weight of 2 gets twice the time of a weight of 1; 0 leaves
    the course out), with a bonus for courses with a deadline in the next week, and never
    one course for longer than about two focus blocks when another one has work (each course's
-   time stays in one piece, then the next course has its turn). Urgent work may
+   time stays in one piece, then the next course has its turn, and a course whose session
+   that day is over only comes back once every other course had its turn). Urgent work may
    stretch a day up to ``max_daily_hours``.
 4. **Readings.** Long readings (a novel, an anthology, a big scan: ``planner.is_reading``)
    are not timed: each is a day entry spanning the days it takes at
@@ -555,6 +556,7 @@ class Generator:
             last_course: int | None = None
             last_kind = ""
             run = 0  # minutes of the current run of one course
+            left_today: set[int] = set()  # courses whose session today is over
 
             def place(length: int, budget: int, allow_short: bool) -> tuple[int, int] | None:
                 nonlocal used
@@ -597,7 +599,8 @@ class Generator:
 
             while True:
                 pending = [r for r in recalls if r.release <= i]
-                work, urgent = self._pick(works, weights, served, last_course, run, i, days, used)
+                work, urgent = self._pick(works, weights, served, last_course, run, i, days, used,
+                                          left_today)
                 # Active recall joins its course's study time: just before that course's next
                 # block, or on its own when the course has no work left (or the day ends).
                 course_of = lambda r: r.item.course_id or 0  # noqa: E731
@@ -613,6 +616,8 @@ class Generator:
                         if recall(r):
                             placed = True
                             c = course_of(r)
+                            if last_course is not None and c != last_course:
+                                left_today.add(last_course)
                             run = run + RECALL_MINUTES if c == last_course else RECALL_MINUTES
                             last_course, last_kind = c, "recall"
                     if placed:
@@ -635,6 +640,8 @@ class Generator:
                 work.remaining -= take
                 served[work.course] = served.get(work.course, 0) + take
                 day.blocks.append(block)
+                if last_course is not None and work.course != last_course:
+                    left_today.add(last_course)
                 run = run + take if work.course == last_course else take
                 last_course, last_kind = work.course, work.kind
                 if work.remaining <= 0:
@@ -762,7 +769,7 @@ class Generator:
 
     def _pick(self, works: list[Work], weights: dict[int, float], served: dict[int, int],
               last_course: int | None, run: int, i: int, days: list[Day],
-              used: int) -> tuple[Work | None, bool]:
+              used: int, left_today: set[int] | None = None) -> tuple[Work | None, bool]:
         if not works:
             return None, False
         dated = sorted((w for w in works if w.deadline is not None), key=lambda w: w.deadline)
@@ -803,7 +810,9 @@ class Generator:
                 w *= BEHIND_BONUS
             elif head.deadline is not None and head.deadline - now_day <= SOON:
                 w *= 1.5
-            return (served.get(c, 0) / w, head.item.key())
+            # A course whose session today is over comes after the others: one session per
+            # course a day, not the same course cut in pieces between other courses.
+            return (c in (left_today or ()), served.get(c, 0) / w, head.item.key())
 
         return heads[min(candidates, key=score)], False
 

@@ -1,18 +1,15 @@
-"""The published study schedule as a PDF, one A4 landscape page per week, laid out like a
-printed timetable: your name and the week on top, a half-hour time grid with a column per day
-(Monday to Friday, plus Saturday or Sunday when something is on), study sessions at their
-times, deadlines and unavailabilities if asked, and the date it was printed.
+"""The published study plan as a PDF: first the calendar, then one page of tasks per day.
 
-Readable first:
-- Study blocks are grouped by course like the web calendar (``app.planner.groups``): one box
-  "Spanish - Study" in the course's colour listing what to study, and each test
-  or task its own box ("Spanish - Test 1"; no times in the boxes, the grid shows them).
-- The time grid covers only the hours that week uses, so boxes are as tall as possible.
-- Text is never cut: it wraps, the font gets smaller when a box is short, and a box that still
-  can't hold its text grows downwards.
-- Courses are named by their full name (no short code next to it).
-- Long readings (not timed) are a strip above the grid on each day they run, one line each
-  ("Literature 3 - Read: Novel 1 (30 pages)", shortened to fit the column).
+1. **Calendar**: one A4 landscape page per week, laid out like a printed timetable: your name
+   and the week on top, a half-hour time grid with a column per day (Monday to Friday, plus
+   Saturday or Sunday when something is on), a box per course session in the course's colour
+   (``app.planner.groups``: the course, its times; never its tasks), deadlines and
+   unavailabilities if asked, and the date it was printed. The grid covers only the hours
+   that week uses; text wraps and a box too short for it grows, nothing is cut.
+2. **Daily task lists**: one A4 portrait page per planning day with tasks
+   (``app.planner.tasks``, the same as the web page): the date, the tasks grouped by course
+   with the session times, a checkbox each (ticked when done), priority, deadline and effort,
+   and ruled lines for notes. The text gets smaller before a day takes a second page.
 
 Built with ``app.pdf`` (no PDF library). Times are in the server's TIMEZONE, like the plan.
 """
@@ -22,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from app.planner import groups
+from app.planner import groups, tasks
 from app.pdf import BOLD, ITALIC, REGULAR, SERIF, Document, Page, fit, text_width, wrap
 
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -33,10 +30,14 @@ MIN_SPAN = 180  # the grid shows at least 3 hours
 SIZES = (8.0, 7.5, 7.0, 6.5, 6.0, 5.5)
 
 W, H = 842.0, 595.0  # A4 landscape, points
+PW, PH = 595.0, 842.0  # A4 portrait (daily task lists)
+DAY_MARGIN = 42.0
+DAY_SCALES = (1.0, 0.92, 0.84, 0.76, 0.7)  # shrink a day's list before it takes two pages
+MUTED = (0.35, 0.35, 0.35)
+RULE = (0.75, 0.75, 0.75)
 MARGIN = 28.0
 HOURS_COL = 38.0
 HEAD_ROW = 20.0
-READ_ROW = 11.0  # one long reading in the strip above the grid
 PAD = 2.0
 
 INK = (0, 0, 0)
@@ -86,26 +87,15 @@ def entries(plan: dict, deadlines: list[dict], first: date, last: date, tz,
         return dt.date(), dt.hour * 60 + dt.minute
 
     blocks = [b for d in plan.get("days", []) for b in d.get("blocks", [])]
-    for g in plan.get("groups") or groups.group(blocks):
+    for g in plan.get("sessions") or groups.group(blocks):
         day, s = local(g["start"])
         if not first <= day <= last:
             continue
         e = local(g["end"])[1] or 1440
-        work = groups.work_lines(g["blocks"]) if g["kind"] != "task" else []
-        entry = Entry(day, s, max(e, s + 5), "study", g["label"], [("", w) for w in work])
+        span = f"{_hm(s)}-{_hm(e)} · {tasks.effort({'minutes': g.get('minutes') or e - s})}"
+        entry = Entry(day, s, max(e, s + 5), "study", g["label"], [("", span)])
         entry.color = g["color"]
         out.append(entry)
-    for r in plan.get("readings", []):  # long readings: a day entry on each of their days
-        try:
-            d, end = date.fromisoformat(r["start_date"]), date.fromisoformat(r["end_date"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        while d <= end:
-            if first <= d <= last:
-                out.append(Entry(d, 0, 0, "reading", reading_label(r),
-                                 [("", f"{r.get('per_day', 0)} pages")],
-                                 color=r.get("color") or groups.NO_COURSE))
-            d += timedelta(days=1)
     if with_busy:
         for u in plan.get("busy", []):
             day = date.fromisoformat(u["date"])
@@ -207,11 +197,7 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
 
         top = MARGIN + 38
         bottom = H - MARGIN - 18
-        # Long readings: a strip of their own between the day names and the time grid.
-        reads = max((sum(1 for e in mine if e.kind == "reading" and e.day == d) for d in days),
-                    default=0)
-        strip = reads * READ_ROW + (2 if reads else 0)
-        grid_top = top + HEAD_ROW + strip
+        grid_top = top + HEAD_ROW
         col_w = (W - 2 * MARGIN - HOURS_COL) / len(days)
         scale = (bottom - grid_top) / span
 
@@ -226,19 +212,6 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
         for i, d in enumerate(days):
             x = MARGIN + HOURS_COL + i * col_w
             page.centered(x + col_w / 2, top + 14, f"{WEEKDAYS[d.weekday()]} {d.day}", 11, BOLD)
-
-        if reads:
-            page.rect(MARGIN, top + HEAD_ROW, HOURS_COL, strip, fill=HOURS_BG)
-            page.text(MARGIN + 3, top + HEAD_ROW + 9, "Reading", 7, REGULAR, (0.2, 0.2, 0.2))
-            page.line(MARGIN, top + HEAD_ROW, W - MARGIN, top + HEAD_ROW, INK, 0.6)
-        for i, d in enumerate(days):
-            x = MARGIN + HOURS_COL + i * col_w
-            for n, e in enumerate(e for e in mine if e.kind == "reading" and e.day == d):
-                rt = top + HEAD_ROW + 1 + n * READ_ROW
-                fill = _rgb(e.color or groups.NO_COURSE)
-                page.rect(x + 2, rt, col_w - 4, READ_ROW - 1, fill=fill, stroke=fill)
-                label = f"{e.title} ({e.items[0][1]})" if e.items else e.title
-                page.text(x + 4, rt + 8, fit(label, col_w - 8, 6.5, REGULAR), 6.5, REGULAR, WHITE)
 
         for i, d in enumerate(days):
             x = MARGIN + HOURS_COL + i * col_w
@@ -267,7 +240,120 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
         page.rect(MARGIN, top, W - 2 * MARGIN, bottom - top, stroke=INK, line=0.8)
         page.line(MARGIN, grid_top, W - MARGIN, grid_top, INK, 0.6)
         page.text(MARGIN, H - MARGIN + 2, f"Printed on {long_date(printed, weekday=False)}", 9, SERIF)
+
+    for day in tasks.days_between(plan, monday, last):
+        day_pages(doc, day, plan.get("sessions") or [], tz, owner)
     return doc.render()
+
+
+def _day_rows(day: dict, sessions: list[dict], tz) -> list[tuple]:
+    """A day's list as rows: ("course", label, times, colour) then ("task", task, meta)."""
+    by_key = {t["key"]: t for t in day.get("tasks", [])}
+    rows: list[tuple] = []
+    for c in day.get("courses", []):
+        own = [s for s in sessions if s["date"] == day["date"] and (
+            s["kind"] == "flashcards" if c["course_label"] == "Flashcards" and c["course_id"] is None
+            else s.get("course_id") == c["course_id"] and s["kind"] != "flashcards")]
+        times = ", ".join(f"{datetime.fromtimestamp(s['start'], tz):%H:%M}-"
+                          f"{datetime.fromtimestamp(s['end'], tz):%H:%M}" for s in own)
+        rows.append(("course", c["course_label"] or "Other", times or "no time slot",
+                     c.get("color") or groups.NO_COURSE))
+        for k in c.get("keys", []):
+            if k in by_key:
+                rows.append(("task", by_key[k], " · ".join(tasks.meta(by_key[k], tz))))
+    return rows
+
+
+def _row_height(row: tuple, width: float, k: float) -> float:
+    if row[0] == "course":
+        return 26 * k
+    _, t, meta = row
+    lines = len(wrap(t.get("title") or "", width - 22 * k, 11 * k, REGULAR))
+    return lines * 13.5 * k + (12 * k if meta else 0) + 9 * k
+
+
+def day_pages(doc: Document, day: dict, sessions: list[dict], tz, owner: str = "") -> None:
+    """One portrait page with a day's tasks (more only when even the smallest text can't
+    hold them): the date, tasks grouped by course, checkboxes, notes lines."""
+    d = date.fromisoformat(day["date"])
+    rows = _day_rows(day, sessions, tz)
+    width = PW - 2 * DAY_MARGIN
+    head = 74.0
+    room = PH - DAY_MARGIN - head - DAY_MARGIN - 4 * 22  # keep room for 4 note lines
+    for k in DAY_SCALES:
+        if sum(_row_height(r, width, k) for r in rows) <= room:
+            break
+    pages: list[list[tuple]] = [[]]
+    used = 0.0
+    for r in rows:
+        h = _row_height(r, width, k)
+        if pages[-1] and used + h > PH - 2 * DAY_MARGIN - head - 22:
+            pages.append([("course", *rows_course(pages[-1], rows, r))] if r[0] == "task" else [])
+            used = sum(_row_height(x, width, k) for x in pages[-1])
+        pages[-1].append(r)
+        used += h
+    planned = tasks.effort({"minutes": day.get("minutes", 0)})
+    left = sum(1 for t in day.get("tasks", []) if not t.get("done"))
+    for n, chunk in enumerate(pages):
+        page = doc.page(PW, PH)
+        x0 = DAY_MARGIN
+        title = f"{WEEKDAYS[d.weekday()]} {d.day} {MONTHS[d.month - 1]} {d.year}"
+        if n:
+            title += " (continued)"
+        page.text(x0, DAY_MARGIN + 16, fit(title, width * 0.7, 18, BOLD), 18, BOLD)
+        if owner:
+            ow = fit(owner, width * 0.3, 9, REGULAR)
+            page.text(PW - DAY_MARGIN - text_width(ow, 9), DAY_MARGIN + 14, ow, 9, REGULAR, MUTED)
+        sub = [f"{len(day.get('tasks', []))} tasks, {left} to do"]
+        if planned:
+            sub.append(f"{planned} of study planned")
+        page.text(x0, DAY_MARGIN + 36, " · ".join(sub), 10.5, REGULAR, MUTED)
+        page.line(x0, DAY_MARGIN + 48, PW - DAY_MARGIN, DAY_MARGIN + 48, INK, 0.8)
+        top = DAY_MARGIN + head
+        for r in chunk:
+            h = _row_height(r, width, k)
+            if r[0] == "course":
+                _, label, times, color = r
+                page.rect(x0, top + 6 * k, 4, 14 * k, fill=_rgb(color))
+                tw = text_width(times, 9.5 * k, REGULAR)
+                page.text(x0 + 10, top + 17 * k, fit(label, width - tw - 24, 12.5 * k, BOLD),
+                          12.5 * k, BOLD)
+                page.text(PW - DAY_MARGIN - tw, top + 17 * k, times, 9.5 * k, REGULAR, MUTED)
+                page.line(x0, top + h - 1, PW - DAY_MARGIN, top + h - 1, RULE, 0.4)
+            else:
+                _, t, meta = r
+                box = 10 * k
+                bx, by = x0 + 6, top + 4 * k
+                page.rect(bx, by, box, box, stroke=INK, line=0.8)
+                if t.get("done"):
+                    page.line(bx + 2 * k, by + 5 * k, bx + 4.5 * k, by + 8 * k, INK, 1.2)
+                    page.line(bx + 4.5 * k, by + 8 * k, bx + 8.5 * k, by + 1.5 * k, INK, 1.2)
+                tx = x0 + 6 + 16 * k
+                base = top + 12.5 * k
+                for line in wrap(t.get("title") or "", width - 22 * k, 11 * k, REGULAR):
+                    page.text(tx, base, line, 11 * k, REGULAR, MUTED if t.get("done") else INK)
+                    base += 13.5 * k
+                if meta:
+                    page.text(tx, base - 1.5 * k, fit(meta, width - 22 * k, 8.5 * k, REGULAR),
+                              8.5 * k, REGULAR, MUTED)
+            top += h
+        if n == len(pages) - 1:  # notes: ruled lines to the bottom of the page
+            top += 14
+            page.text(x0, top + 10, "Notes", 10.5, BOLD)
+            line_y = top + 32
+            while line_y <= PH - DAY_MARGIN:
+                page.line(x0, line_y, PW - DAY_MARGIN, line_y, RULE, 0.4)
+                line_y += 22
+        page.text(x0, PH - DAY_MARGIN + 22, title.replace(" (continued)", ""), 8, SERIF, MUTED)
+
+
+def rows_course(chunk: list[tuple], rows: list[tuple], row: tuple) -> tuple:
+    """The course header to repeat at the top of a new page, for the task ``row``."""
+    i = rows.index(row)
+    for r in reversed(rows[:i]):
+        if r[0] == "course":
+            return r[1:]
+    return ("", "", groups.NO_COURSE)
 
 
 __all__ = ["render", "entries", "long_date", "text_width"]

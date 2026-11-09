@@ -1,18 +1,19 @@
-"""The published study schedule as an Excel workbook (.xlsx), one sheet per week named by
-that week's Monday (``2026-11-09``), laid out like the calendar:
+"""The published study plan as an Excel workbook (.xlsx), the same structure as the PDF:
 
-- your name and the week on top, then a column per day (Monday to Sunday) and a row per
-  quarter hour, covering only the hours that week uses (like the printed weeks);
-- study sessions grouped by course (``app.planner.groups``) in merged cells at their times,
-  in the course's colour: "Spanish - Study" and what to study under it, one per line (no times);
-  each test or task its own cell;
-- a row under the day names for long readings (every day they run), deadlines and days off,
-  and breaks in grey at their times, if asked;
-- rows grow so text is never cut, the day names and times stay put when scrolling, and each
-  sheet prints on one landscape page wide.
+1. **Calendar** sheets, one per week ("Calendar", or "Calendar 9 Nov" when there are
+   several): your name and the week on top, a column per day and a row per quarter hour
+   over the hours that week uses; each course session (``app.planner.groups``) a merged cell
+   at its times in the course's colour with its course and times (never its tasks); a row
+   under the day names for deadlines and days off, and breaks in grey, if asked. Rows grow
+   so text is never cut; it prints landscape on one page.
+2. **Daily task lists**, one sheet per planning day with tasks ("Mon 9 Nov – Tasks",
+   ``app.planner.tasks``, the same as the web page): the date, tasks grouped by course (a
+   coloured row with the session times), a Done cell per task (a ☐ / ☑ drop-down, printable
+   as a box), priority, deadline, effort and a notes column, then ruled rows for notes. It
+   prints portrait on one page.
 
-The same entries as the PDF (``print_week.entries``); written with ``app.xlsx`` (no
-dependency). Times are in the server's TIMEZONE, like the plan.
+Each sheet has its own print area, margins, orientation and scaling. Written with
+``app.xlsx`` (no dependency). Times are in the server's TIMEZONE, like the plan.
 """
 
 from __future__ import annotations
@@ -20,8 +21,9 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from math import ceil
 
-from app.planner import groups
-from app.planner.print_week import MAX_WEEKS, MIN_SPAN, WEEKDAYS, Entry, _hm, _minutes, entries, long_date
+from app.planner import groups, tasks
+from app.planner.print_week import (MAX_WEEKS, MIN_SPAN, WEEKDAYS, Entry, _day_rows, _hm,
+                                    _minutes, entries, long_date)
 from app.xlsx import Rich, Style, Workbook
 
 SLOT = 15  # minutes per row
@@ -92,8 +94,9 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
             lo = max(0, hi - MIN_SPAN)
         slots = (hi - lo) // SLOT
 
-        ws = book.sheet(start.isoformat())
+        ws = book.sheet("Calendar" if weeks == 1 else f"Calendar {start.day} {start:%b}")
         ws.landscape = True
+        ws.fit_tall = 1
         ws.set(1, 1, owner or "Study plan", TITLE)
         ws.set(2, 1, f"Week of {long_date(start)} to {long_date(days[-1])}", SUBTITLE)
         ws.width(1, 11)
@@ -165,7 +168,90 @@ def render(plan: dict, deadlines: list[dict], first: date, weeks: int, tz, owner
             if h != SLOT_HEIGHT:
                 ws.height(grid + r, h)
         ws.freeze(grid, 2)
+        ws.print_area = (1, 1, grid + slots - 1, 8)
+
+    for day in tasks.days_between(plan, monday, last):
+        day_sheet(book, day, plan.get("sessions") or [], tz, owner)
     return book.render()
+
+
+UNTICKED, TICKED = "☐", "☑"
+TASK_COLS = (("Done", 6), ("Task", 46), ("Priority", 10), ("Deadline", 22), ("Effort", 10),
+             ("Notes", 26))
+LIST_HEAD = Style(bold=True, size=10, fill=HEAD_FILL, border=True, valign="center")
+TICK = Style(size=14, border=True, halign="center", valign="center")
+CELL = Style(border=True, wrap=True, valign="center")
+CELL_DONE = Style(border=True, wrap=True, valign="center", color="#6b7280")
+SMALL = Style(size=9, border=True, wrap=True, valign="center", color="#374151")
+NOTE_LINE = Style(border=True)
+NOTE_ROWS = 10
+
+
+def day_sheet(book: Workbook, day: dict, sessions: list[dict], tz, owner: str = "") -> None:
+    """One sheet with a day's tasks, printed portrait on one page."""
+    d = date.fromisoformat(day["date"])
+    ws = book.sheet(f"{d:%a} {d.day} {d:%b} – Tasks")
+    ws.portrait = True
+    ws.fit_tall = 1
+    ws.margins = (0.5, 0.5, 0.6, 0.6)
+    last_col = len(TASK_COLS)
+    ws.set(1, 1, long_date(d), TITLE)
+    ws.merge(1, 1, 1, 4)
+    if owner:
+        ws.set(1, 5, owner, Style(size=9, color=GREY, halign="right"))
+        ws.merge(1, 5, 1, last_col)
+    left = sum(1 for t in day.get("tasks", []) if not t.get("done"))
+    sub = [f"{len(day.get('tasks', []))} tasks, {left} to do"]
+    planned = tasks.effort({"minutes": day.get("minutes", 0)})
+    if planned:
+        sub.append(f"{planned} of study planned")
+    ws.set(2, 1, " · ".join(sub), SUBTITLE)
+    ws.merge(2, 1, 2, last_col)
+    head = 4
+    for c, (name, width) in enumerate(TASK_COLS, start=1):
+        ws.width(c, width)
+        ws.set(head, c, name, LIST_HEAD)
+    ws.height(head, 18)
+    row = head + 1
+    first_task = None
+    for r in _day_rows(day, sessions, tz):
+        if r[0] == "course":
+            _, label, times, color = r
+            style = Style(bold=True, size=11, color="#ffffff", fill=color, border=True,
+                          valign="center")
+            ws.set(row, 1, f"{label}   {times}", style)
+            for c in range(2, last_col + 1):
+                ws.set(row, c, "", style)
+            ws.merge(row, 1, row, last_col)
+            ws.height(row, 20)
+            row += 1
+            continue
+        _, t, _meta = r
+        done = bool(t.get("done"))
+        first_task = first_task or row
+        title = t.get("title") or ""
+        if t.get("part"):
+            title += f" ({t['part']})"
+        ws.set(row, 1, TICKED if done else UNTICKED, TICK)
+        ws.set(row, 2, title, CELL_DONE if done else CELL)
+        prio = t.get("priority")
+        ws.set(row, 3, prio.capitalize() if prio in ("high", "medium") else "", SMALL)
+        ws.set(row, 4, tasks.due_text(t, tz), SMALL)
+        ws.set(row, 5, tasks.effort(t), SMALL)
+        ws.set(row, 6, "", CELL)
+        ws.height(row, max(22.0, _lines(title, 46) * LINE + 8))
+        row += 1
+    if first_task:
+        ws.choices(first_task, 1, row - 1, 1, [UNTICKED, TICKED])
+    row += 1
+    ws.set(row, 1, "Notes", Style(bold=True, size=11))
+    for n in range(1, NOTE_ROWS + 1):
+        for c in range(1, last_col + 1):
+            ws.set(row + n, c, "", NOTE_LINE)
+        ws.merge(row + n, 1, row + n, last_col)
+        ws.height(row + n, 22)
+    ws.freeze(head + 1, 1)
+    ws.print_area = (1, 1, row + NOTE_ROWS, last_col)
 
 
 __all__ = ["render", "SLOT"]

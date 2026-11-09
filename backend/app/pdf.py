@@ -1,7 +1,7 @@
 """A tiny PDF writer (no dependency): pages with rectangles, lines and text in the standard
 PDF fonts (Helvetica, Helvetica-Bold, Helvetica-Oblique, Times-Roman), WinAnsi encoded.
 
-Enough for the printed study weeks (``app.planner.print_week``). Coordinates are PDF points
+Enough for the printed study plan (``app.planner.print_week``); pages can differ in size. Coordinates are PDF points
 from the bottom left; ``Page`` flips them so callers think top-down like a screen.
 """
 
@@ -117,8 +117,10 @@ class Document:
         self.width, self.height, self.title = width, height, title
         self.pages: list[Page] = []
 
-    def page(self) -> Page:
-        p = Page(self.width, self.height)
+    def page(self, width: float | None = None, height: float | None = None) -> Page:
+        """A new page, the document's size unless given (portrait pages in a landscape
+        document)."""
+        p = Page(width or self.width, height or self.height)
         self.pages.append(p)
         return p
 
