@@ -188,20 +188,39 @@ schedule it anyway. The `get_catch_up_plan` tool and the prompts use the same go
 
 ## Calendar: study schedule, deadlines and subscription
 
-The **Calendar** tab is one calendar for everything: the **study blocks** of your schedule
-(focus blocks with start and end times, built by rules, without AI), your **deadlines** (📌)
-and your **breaks and days off** (grey; untick **Breaks and days off** above the calendar to
-hide them). It opens on the *Week* view (also *Month* and
-*List*; on a phone also *Day*), and then on the view you picked last on that device. Study
-time is grouped by course, one colour per course, the same in the calendar, the feed and the
-PDF: back-to-back study of a course (reading and active recall) is one entry like
-`09:00-10:00 Spanish - Study`, and each test or task is its own entry named after it
-(`10:00-10:30 Spanish - Test 1`); flashcard reviews are *Flashcards*. To keep it easy to
-read, the blocks show no times (the grid does), course names lose the academic year in front
-(`2026/2027-A3FPH12 Phonologie` shows as `A3FPH12 Phonologie`), and in the *Week* and *Day*
-views a study entry lists what it covers, one line each, with the parts of one piece of work
-merged (`Course workbook parts 1-3/4`). The PDF and Excel exports show the same. Tap an entry for what
-to do and its files, or a deadline for details and *Mark done*. The entry's dialog also has:
+The **Calendar** tab answers two questions: *when do I study which course* (the calendar) and
+*what do I get done today* (the day's task list). Both come from one study plan, built by
+rules without AI, and the feed, the PDF and the Excel export show the same plan.
+
+- **Sessions (time):** each block is one **course session**: time given to one course, named
+  by its identifier and name (`A3FPH12 – Phonologie de l'Anglais 3`, the academic year in
+  front is dropped), with its start, end and length, in the course's colour. A session never
+  lists tasks, and quizzes or assignments of that course are part of its session, not
+  separate blocks; flashcard reviews are a *Flashcards* session. The planner gives each course
+  one session a day where it can (a course whose session is over only comes back after the
+  other courses had their turn), so a day has few switches between courses.
+- **Tasks (doing):** each day has its tasks: the sections to study, active recall reviews,
+  quizzes and assignments, the flashcard review, long readings (a task on each day they run,
+  without a time slot) and hand-ins due that day. They are grouped by course, ordered by
+  priority (*High*: late, overdue or due within 2 days; *Medium*: due within a week, or a
+  quiz or assignment) then deadline, with the effort planned that day (`1 h 40`, or
+  `about 30 pages` for a reading) and the part when work runs over several days. **Tick** a
+  task when it's done: a section is marked studied, a deadline done, anything else is just
+  ticked. Ticking never moves the calendar; the next re-plan uses your progress.
+
+On a computer the calendar takes the left (*Week*, *Day* or *Month*; your last pick is
+remembered) and the **focused day**'s tasks the right, in their own scrolling panel. Click a
+day's name (or a session) to focus it: it is highlighted and the list follows, without leaving
+the calendar; ‹ › in the panel move a day. Your deadlines (📌) and your **breaks and days off**
+(grey; untick **Breaks and days off** to hide them) are in the calendar too.
+
+On a phone the day is what you navigate: a week strip at the top (‹ › for the previous or
+next week, a dot under days with study), the day's sessions as a timeline (with its breaks
+and deadlines), then its tasks. **Both / Schedule / Tasks** switches between them and keeps
+the same day.
+
+Tap a session for its tasks (with ticks) and its planned blocks, or a deadline for details and
+*Mark done*. The session's dialog also has:
 
 - **✨ Build the session prompt**: opens the prompt builder filled in for that entry (its course,
   sections and length; an assignment or a quiz picks *Understand an assignment* or *Exam prep*
@@ -241,12 +260,11 @@ same settings, e.g. after you finished sections.
   your progress and new deadlines; turn it off and the plan only changes when you save.
   Breaks and days off are never events in the feed: it only holds what you study and your
   deadlines.
-- **Long readings:** books and other long texts are an all-day entry over the days they take
-  at your reading pace, one after the other within a course (fewer days and more pages a day
-  when a deadline needs the section sooner; *late* when it can't start in time). They take
-  none of your study time, so the timed blocks stay for active study. They show in the
-  all-day row of the calendar, in a strip above each day of the PDF, in the "All day" row of
-  the Excel weeks, and as all-day events (marked free) in the calendar feed.
+- **Long readings:** books and other long texts are not timed: each is a task on every day it
+  runs at your reading pace, one after the other within a course (fewer days and more pages a
+  day when a deadline needs the section sooner; *late* when it can't start in time). They take
+  none of your study time, so the sessions stay for active study, and they are never events in
+  the feed.
 - **Activities:** *Deep work* blocks for sections (with their files), *Practice* blocks for
   assignments and quizzes, two short *Active recall* blocks one and four days after you finish
   a section (spaced repetition; untick **Spaced active recall** to drop them), and a short
@@ -257,8 +275,9 @@ refreshes), and blocks that already ended are kept for six weeks.
 
 ### Subscribe or export
 
-**Subscribe** shows your private feed link: one calendar with the study blocks, deadlines (with
-the alarms you chose under **Reminders**). Breaks and days off are left out.
+**Subscribe** shows your private feed link: one calendar with one event per study session and
+your deadlines (with the alarms you chose under **Reminders**). Tasks never get events of
+their own, and breaks and days off are left out.
 
 - **iPhone:** tap **Subscribe on this device** and confirm.
 - **Google Calendar** (shows on Android): on a computer, *Settings → Add calendar → From URL*,
@@ -266,11 +285,13 @@ the alarms you chose under **Reminders**). Breaks and days off are left out.
 - **Outlook:** *Add calendar → Subscribe from web*, paste the link.
 
 Calendar apps refresh subscriptions on their own schedule (from every few minutes to about
-a day), so a saved change reaches your phone at its next refresh. Study entries are called like
-`Spanish - Study` or `Spanish - Test 1`. Their description starts with an **Open in Study
-Companion** link on its own line (it opens the calendar on that entry), then one paragraph per
-piece of work (what to do, the files), then the Moodle links; done deadlines are prefixed ✓. Times use the server's
-`TIMEZONE`.
+a day), so a saved change reaches your phone at its next refresh. A session's event is named
+after its course (`A3FPH12 – Phonologie de l'Anglais 3`, its identifier as category, its colour
+where your calendar app shows one). Its description has the course and times, then the
+session's **tasks, one per line** (with the part, priority, effort and deadline; done ones as
+`- [x]`), then the files, an **Open in Study Companion** link (it opens the calendar on that
+session) and the Moodle links. Done deadlines are prefixed ✓. Times use the server's
+`TIMEZONE`. The download and the subscription are the same feed of the same saved plan.
 
 The link contains a private token, so anyone with it can read your plan and deadline titles
 (nothing else). If it leaks, tap **New link**: the old one stops working at once and you
@@ -280,23 +301,34 @@ subscribe again with the new one. The token is stripped from Caddy's and the app
 import than subscribe (Google Calendar *Settings › Import*, Apple Calendar *File › Import*, Outlook *Add
 calendar › Upload from file*).
 
-**Export › Export as PDF** makes a PDF of one or more weeks (from the week shown), one landscape
-page per week like a printed timetable: your name from Moodle and the week at the top, a column
-per day (Monday to Friday, plus the weekend when something is planned), your study sessions at
-their times, grouped by course like the calendar (`Spanish - Study` in the
-course's colour, listing what to study; each test or task its own box),
-deadlines, breaks and days off if you want them, and the date it was printed. The grid only
-covers the hours that week uses, plus half an hour so the last end time has its row (a
-session ending at 17:00 sits above a 17:00 row), and text is never cut: it wraps or gets smaller. **Open PDF** shows it in a new tab, **Download** saves the file;
-the server builds it, so nothing goes through the print dialog.
+**Export › Export as PDF** makes a PDF of one or more weeks (from the week shown):
 
-**Export › Export as Excel** downloads the same weeks as an Excel workbook (`.xlsx`, opens in
-Excel, LibreOffice, Numbers or Google Sheets): one sheet per week, named by its Monday
-(`2026-11-09`), with your name and the week on top, a column per day (Monday to Sunday) and a
-row per quarter hour over the hours that week uses. Study sessions are merged cells at their
-times in the course's colour, listing what to study; deadlines and days off sit in a row under
-the day names and breaks in grey, if you want them. The day names and times stay put when you
-scroll, rows grow so text isn't cut, and each sheet prints one landscape page wide.
+1. **The calendar**, one A4 landscape page per week like a printed timetable: your name from
+   Moodle and the week at the top, a column per day (Monday to Friday, plus the weekend when
+   something is planned), one box per course session at its times in the course's colour (its
+   course and times, never its tasks), deadlines, breaks and days off if you want them, and the
+   date it was printed. The grid only covers the hours that week uses, plus half an hour so the
+   last end time has its row, and text is never cut.
+2. **One A4 portrait page per planning day**: the date and day name, the day's tasks grouped by
+   course (with the session times), a checkbox each (ticked when done), priority, deadline and
+   effort, and ruled lines for notes. The text gets smaller before a day needs a second page.
+
+**Open PDF** shows it in a new tab, **Download** saves the file; the server builds it, so
+nothing goes through the print dialog.
+
+**Export › Export as Excel** downloads the same as a workbook (`.xlsx`, opens in Excel,
+LibreOffice, Numbers or Google Sheets), with the same structure:
+
+1. **Calendar** (one sheet per week when you export several, `Calendar 9 Nov`): a column per
+   day and a row per quarter hour over the hours that week uses, each course session a merged
+   cell at its times in the course's colour; deadlines and days off in a row under the day
+   names and breaks in grey, if you want them. It prints landscape on one page.
+2. **One sheet per planning day** (`Mon 9 Nov – Tasks`): the date, the tasks grouped by course
+   under a coloured row with the session times, a **Done** cell per task (pick ☑ in its
+   drop-down, or tick the printed ☐ by hand), priority, deadline, effort and a *Notes* column,
+   then ruled rows for notes. It prints portrait on one page.
+
+Each sheet has its own print area, margins and scaling, so *Print* gives clean pages.
 
 ## Ask AI (prompt builder)
 

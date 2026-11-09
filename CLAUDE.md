@@ -43,12 +43,14 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `backend/app/materials.py` course read model (period -> sections) shared by MCP tools and prompts
 - `backend/app/study.py` study loop: Claude's notes, questions (SM-2 spaced repetition), quiz results,
   sections marked studied, hours per day; `backend/app/planner/` rule-based catch-up plan, `planner/schedule.py`
-  timed study schedule (capacity, unavailabilities, course weights, recall blocks, long readings as
-  day entries; `ScheduleSettings`), `api/schedule.py`
-  its API (published schedule, preview, save, `/api/schedule.pdf`); `planner/groups.py` how blocks are shown (grouped by course, tests/tasks
-  apart, course colours; web, PDF and ICS); `planner/print_week.py` the
-  timetable PDF (one landscape page per week) drawn with `app/pdf.py`, a tiny PDF writer (no dependency);
-  `planner/sheet_week.py` the same weeks as an Excel workbook (one sheet per week named by its Monday,
+  timed study schedule (capacity, unavailabilities, course weights, one session per course a day,
+  recall blocks, long readings as untimed tasks; `ScheduleSettings`), `api/schedule.py`
+  its API (published schedule, preview, save, `/api/schedule.pdf`); `planner/groups.py` course-level sessions
+  (one per run of a course, course colours); `planner/tasks.py` each day's tasks (by course, priority,
+  deadline, effort, linked to a session or none) and their ticks (`PlanTaskMark`, `POST /api/plan/tasks`):
+  the one plan model every view and export uses (published schedule's `sessions` + `plan_days`); `planner/print_week.py` the
+  PDF (calendar: one landscape page per week, then one portrait task page per day) drawn with `app/pdf.py`, a tiny PDF writer (no dependency);
+  `planner/sheet_week.py` the same as an Excel workbook (calendar sheet, then one task sheet per day,
   `/api/schedule.xlsx`) written with `app/xlsx.py`, a tiny .xlsx writer (no dependency); `planner/published.py` the saved schedule the calendar
   view, printed weeks and ICS feed show (`PublishedSchedule`, history, nightly re-plan, unavailabilities)
 - `backend/app/study_time.py` study sessions (web timer, manual, Claude's `log_study_time`), totals, streak;
@@ -63,7 +65,9 @@ the source of truth; work one milestone at a time and open one PR per milestone.
 - `frontend/` React + Vite + TS PWA (hash routes in `src/router.ts`, API types in `src/api.ts`);
   `npm run build` -> `frontend/dist`, served by the backend (`FRONTEND_DIR` in the image).
   Navigation map in `src/nav.ts` (sections = tabs, their pages, page titles): a new page needs a line there.
-  `pages/Calendar.tsx` is the unified calendar (published schedule + deadlines + unavailabilities, the
+  `pages/Calendar.tsx` is the unified calendar (course sessions + deadlines + unavailabilities on the left,
+  the focused day's tasks on the right, `components/DayTasks.tsx`; phone: `components/DayTimeline.tsx` week
+  strip + day timeline, then tasks; the
   schedule settings form `components/ScheduleForm.tsx` with preview/save, `components/EventDialog.tsx` (an entry's
   details: links in the app and at the source, a prompt-builder link filled in via `#/prompt?goal=&topic=&section_from=...`), `CalendarFeed.tsx`, `ExportWeeks.tsx`;
   Export menu: PDF from `/api/schedule.pdf`, Excel from `/api/schedule.xlsx`, or ICS; last view remembered in localStorage). `components/SectionNav.tsx` shows a section's pages; `components/Tour.tsx` is the first-visit tour (`?` replays it).

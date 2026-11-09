@@ -2,18 +2,18 @@ import { useEffect, useState } from "react";
 import { Button, Check, Field, FieldRow, Input, Modal, Row, Select, Small, Toggles } from "../ui";
 
 // Export weeks of the saved schedule, built by the server:
-// - PDF: one A4 landscape page per week, like a printed timetable (app/planner/print_week.py).
-//   Open shows it in a new tab; Download saves the file.
-// - Excel: one sheet per week named by its Monday, a column per day and a row per quarter hour
+// - PDF: the calendar (one A4 landscape page per week), then one portrait page of tasks per
+//   day (app/planner/print_week.py). Open shows it in a new tab; Download saves the file.
+// - Excel: the same as sheets: a calendar sheet, then one task sheet per day
 //   (app/planner/sheet_week.py). Download only (a browser can't show it).
 
 export type WeeksFormat = "pdf" | "xlsx";
 
 const FORMATS = {
-  pdf: { name: "PDF", what: "One page per week: a column per day, your study blocks at their times." },
+  pdf: { name: "PDF", what: "The calendar (a page per week), then a page of tasks for each day, with checkboxes." },
   xlsx: {
     name: "Excel",
-    what: "One sheet per week, named by its Monday: a column per day, your study blocks at their times.",
+    what: "A calendar sheet, then a sheet of tasks for each day, with a Done column. Prints cleanly.",
   },
 } as const;
 
