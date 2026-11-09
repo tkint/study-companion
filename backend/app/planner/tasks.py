@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import time
+import zlib
 from datetime import date, datetime, timedelta
 
 from sqlalchemy.engine import Engine
@@ -34,21 +35,25 @@ from app.planner import groups
 USER = 1
 DAY = 86400
 DONE_STATES = {1, 2}  # Moodle completion: complete, pass
-KEY = re.compile(r"^(section|deadline|recall|reading)-\d{1,12}(-\d)?$|^flashcards-\d{4}-\d\d-\d\d$")
+KEY = re.compile(r"^(section|deadline|recall|reading|item)-\d{1,12}(-\d)?$|^flashcards-\d{4}-\d\d-\d\d$")
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 KIND_OF_ITEM = {"assign": "assignment", "quiz": "quiz", "event": "event"}
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
 def task_key(b: dict) -> str:
-    """A stable key for the work of a block (the same on every day it is planned)."""
+    """A stable key for the work of a block (the same on every day it is planned). Work
+    without a section or deadline id (not from a sync) gets one from its course and title."""
     if b.get("kind") == "flashcards":
         return f"flashcards-{b.get('date')}"
-    if b.get("kind") == "recall":
-        return f"recall-{b.get('section_id') or 0}-{int(b.get('part') or 1)}"
-    if b.get("deadline_id") and b.get("item_kind") != "section":
+    if b.get("deadline_id") and b.get("item_kind") != "section" and b.get("kind") != "recall":
         return f"deadline-{b['deadline_id']}"
-    return f"section-{b.get('section_id') or 0}"
+    if not b.get("section_id"):
+        made = zlib.crc32(f"{b.get('course_id')}:{b.get('kind')}:{b.get('title')}".encode())
+        return f"item-{made}" + (f"-{int(b.get('part') or 1)}" if b.get("kind") == "recall" else "")
+    if b.get("kind") == "recall":
+        return f"recall-{b['section_id']}-{int(b.get('part') or 1)}"
+    return f"section-{b['section_id']}"
 
 
 def _kind(b: dict) -> str:
@@ -316,3 +321,47 @@ def set_done(engine: Engine, key: str, done: bool, now: float | None = None) -> 
             s.delete(mark)
         s.commit()
     return True
+
+
+# ---------------------------------------------------------------------- shown in exports
+
+
+def effort(t: dict) -> str:
+    """"1 h 40", "about 30 pages" (a reading), or ""."""
+    if t.get("kind") == "reading":
+        return f"about {t['pages']} pages" if t.get("pages") else ""
+    m = int(t.get("minutes") or 0)
+    if not m:
+        return ""
+    h, r = divmod(m, 60)
+    return f"{h} h {r:02d}" if h and r else (f"{h} h" if h else f"{r} min")
+
+
+def due_text(t: dict, tz) -> str:
+    """"Due Thu 12 Nov 12:00", "Needed by Fri 20 Nov 23:59", or ""."""
+    if not t.get("due"):
+        return ""
+    what = "Needed by" if t.get("kind") in ("study", "review", "reading") else "Due"
+    return f"{what} {datetime.fromtimestamp(t['due'], tz):%a %d %b %H:%M}"
+
+
+def meta(t: dict, tz) -> list[str]:
+    """What the printed lists show under a task: priority, deadline, effort, part, late."""
+    out = []
+    if t.get("priority") in ("high", "medium"):
+        out.append(f"{t['priority'].capitalize()} priority")
+    if due_text(t, tz):
+        out.append(due_text(t, tz))
+    if effort(t):
+        out.append(effort(t))
+    if t.get("part"):
+        out.append(t["part"])
+    if t.get("late") and not t.get("done"):
+        out.append("late")
+    return out
+
+
+def days_between(plan: dict, first: date, last: date) -> list[dict]:
+    """The plan's days from ``first`` to ``last`` (inclusive) that have tasks."""
+    return [d for d in plan.get("plan_days", []) if d.get("tasks")
+            and first.isoformat() <= d["date"] <= last.isoformat()]
