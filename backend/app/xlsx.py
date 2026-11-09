@@ -1,6 +1,7 @@
 """A tiny .xlsx writer (no dependency): sheets of text cells with fonts, fills, borders,
-wrapping, merged cells, column widths, row heights, frozen panes and a landscape print
-setup. Cells can hold rich text (runs, some bold).
+wrapping, merged cells, column widths, row heights, frozen panes, drop-down lists (data
+validation) and a print setup per sheet (orientation, print area, margins, fit to pages).
+Cells can hold rich text (runs, some bold).
 
 Enough for the study weeks as a spreadsheet (``app.planner.sheet_week``). An .xlsx file is a
 zip of XML parts (Office Open XML, ECMA-376); this writes the smallest set Excel, LibreOffice
@@ -81,6 +82,15 @@ class Sheet:
         self.heights: dict[int, float] = {}
         self.frozen: tuple[int, int] | None = None  # first scrolling row and column
         self.landscape = False
+        self.portrait = False
+        self.fit_tall = 0  # pages tall when fitting to the page (0 = as many as needed)
+        self.print_area: tuple[int, int, int, int] | None = None  # rows and columns, inclusive
+        self.margins = (0.4, 0.4, 0.5, 0.5)  # left, right, top, bottom (inches)
+        self.lists: list[tuple[str, list[str]]] = []  # (range "A5:A20", choices)
+
+    def choices(self, row1: int, col1: int, row2: int, col2: int, values: list[str]) -> None:
+        """A drop-down list of ``values`` on the cells from (row1, col1) to (row2, col2)."""
+        self.lists.append((f"{ref(row1, col1)}:{ref(row2, col2)}", values))
 
     def set(self, row: int, col: int, value: str | Rich = "", style: Style | None = None) -> None:
         """Put text (or rich text runs) in a cell, 1-based ``row`` and ``col``."""
@@ -118,7 +128,7 @@ class Sheet:
         max_c = max((c for r, c in self.cells), default=1)
         out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">']
-        if self.landscape:
+        if self.landscape or self.portrait:
             out.append('<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>')
         out.append(f'<dimension ref="A1:{ref(max_r, max_c)}"/>')
         if self.frozen and self.frozen != (1, 1):
@@ -160,9 +170,18 @@ class Sheet:
             out.append(f'<mergeCells count="{len(self.merges)}">' + "".join(
                 f'<mergeCell ref="{ref(a, b)}:{ref(c, d)}"/>' for a, b, c, d in self.merges)
                 + "</mergeCells>")
-        out.append('<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>')
-        if self.landscape:
-            out.append('<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>')
+        if self.lists:
+            out.append(f'<dataValidations count="{len(self.lists)}">' + "".join(
+                f'<dataValidation type="list" allowBlank="1" showDropDown="0" sqref="{rng}">'
+                f'<formula1>"{escape(",".join(values))}"</formula1></dataValidation>'
+                for rng, values in self.lists) + "</dataValidations>")
+        left, right, top, bottom = self.margins
+        out.append(f'<pageMargins left="{left:g}" right="{right:g}" top="{top:g}" '
+                   f'bottom="{bottom:g}" header="0.3" footer="0.3"/>')
+        if self.landscape or self.portrait:
+            way = "landscape" if self.landscape else "portrait"
+            out.append(f'<pageSetup paperSize="9" orientation="{way}" fitToWidth="1" '
+                       f'fitToHeight="{self.fit_tall}"/>')
         out.append("</worksheet>")
         return "".join(out)
 
@@ -238,6 +257,18 @@ class Workbook:
         self.sheets.append(ws)
         return ws
 
+    def _names(self) -> str:
+        """Each sheet's print area (a defined name local to the sheet)."""
+        names = []
+        for i, ws in enumerate(self.sheets):
+            if ws.print_area:
+                r1, c1, r2, c2 = ws.print_area
+                quoted = ws.name.replace("'", "''")
+                area = (f"'{quoted}'!${col_name(c1)}${r1}:${col_name(c2)}${r2}")
+                names.append(f'<definedName name="_xlnm.Print_Area" localSheetId="{i}">'
+                             f"{escape(area)}</definedName>")
+        return f"<definedNames>{''.join(names)}</definedNames>" if names else ""
+
     def render(self) -> bytes:
         if not self.sheets:
             self.sheet("Sheet1")
@@ -277,7 +308,7 @@ class Workbook:
             f'xmlns:r="{rel}"><bookViews><workbookView/></bookViews><sheets>'
             + "".join(f'<sheet name="{escape(ws.name, {chr(34): "&quot;"})}" sheetId="{i}" r:id="rId{i}"/>'
                       for i, ws in zip(n, self.sheets))
-            + "</sheets></workbook>")
+            + "</sheets>" + self._names() + "</workbook>")
         parts["xl/_rels/workbook.xml.rels"] = (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'

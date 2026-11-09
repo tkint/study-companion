@@ -561,15 +561,22 @@ def test_xlsx_export(settings, engine, c):
     assert res.headers["content-disposition"] == (
         f'attachment; filename="study-plan-{monday.isoformat()}.xlsx"')
     book = _xlsx(res.content)
-    # One sheet per week, named by its Monday.
-    assert list(book) == [monday.isoformat(), (monday + timedelta(days=7)).isoformat()]
-    week = book[monday.isoformat()]
+    # A calendar sheet per week, then a task sheet per planning day (like the PDF).
+    nxt = monday + timedelta(days=7)
+    days = [d for d in plan["plan_days"] if d["tasks"]
+            and monday.isoformat() <= d["date"] <= (monday + timedelta(days=13)).isoformat()]
+    names = list(book)
+    assert names[:2] == [f"Calendar {monday.day} {monday:%b}", f"Calendar {nxt.day} {nxt:%b}"]
+    assert len(names) == 2 + len(days) and all(n.endswith(" – Tasks") for n in names[2:])
+    week = book[names[0]]
     assert week["cells"]["A1"] == "Study plan" and week["cells"]["A2"].startswith("Week of Monday")
     assert week["cells"]["B4"].startswith("Monday") and week["cells"]["H4"].startswith("Sunday")
     both = "\n".join(v for sheet in book.values() for v in sheet["cells"].values())
     assert "Lunch" in both and " – " in both and week["merges"] and week["frozen"]
-    blocks = [b for d in plan["days"] for b in d["blocks"]]
-    assert any(b["title"][:8] in both for b in blocks)
+    lists = book[names[2]]["cells"]
+    assert lists["A4"] == "Done" and lists["B4"] == "Task"
+    assert days[0]["tasks"][0]["title"] in "\n".join(lists.values())
+    assert sum(1 for v in lists.values() if v in ("☐", "☑")) == len(days[0]["tasks"])
     no_busy = _xlsx(c.get(f"/api/schedule.xlsx?busy=0&weeks=2&from={first}").content)
     assert "Lunch" not in "\n".join(v for s in no_busy.values() for v in s["cells"].values())
 
@@ -600,8 +607,8 @@ def test_xlsx_week_layout(settings):
     deadlines = [{"due_at": ts(12, 23, 59), "name": "Assignment 2", "course_name": "Linear Algebra"}]
     out = sheet_week.render(plan, deadlines, d_(2026, 11, 11), 1, tz, owner="Ada <Lovelace> & co")
     book = _xlsx(out)
-    assert list(book) == ["2026-11-09"]
-    cells = book["2026-11-09"]["cells"]
+    assert list(book) == ["Calendar"]  # no tasks in this plan: no day sheets
+    cells = book["Calendar"]["cells"]
     assert cells["A1"] == "Ada <Lovelace> & co"
     assert cells["A2"] == "Week of Monday 9 November 2026 to Sunday 15 November 2026"
     assert cells["B4"] == "Monday 9 Nov" and cells["F4"] == "Friday 13 Nov"
@@ -613,7 +620,7 @@ def test_xlsx_week_layout(settings):
     study = cells["B6"]
     # No times in the cells (the rows show them), no bullets: the work one per line.
     assert study == "LA – Linear Algebra\n09:00-09:45 · 45 min"  # the session, not its tasks
-    merges = book["2026-11-09"]["merges"]
+    merges = book["Calendar"]["merges"]
     assert "B6:B8" in merges
     assert cells["C18"] == "Lunch" and "C18:C21" in merges  # 12:00 = 6 + 12 rows
     assert cells["D26"] == "LA – Linear Algebra\n14:00-15:00 · 1 h" and "D26:D29" in merges
@@ -755,8 +762,10 @@ def test_readings_in_exports(settings, engine, c):
     assert "Read: Novel 1" not in pdf.pages[0].extract_text()  # not in the calendar
     assert "Read: Novel 1" in pdf.pages[1].extract_text()  # in its days' task lists
     book = _xlsx(c.get(f"/api/schedule.xlsx?from={first}").content)
-    cells = "\n".join(v for sheet in book.values() for v in sheet["cells"].values())
-    assert "Read: Novel 1" not in cells  # not timed: not in the calendar
+    sheets = list(book.values())
+    calendar = "\n".join(sheets[0]["cells"].values())
+    listed = "\n".join(sheets[1]["cells"].values())
+    assert "Read: Novel 1" not in calendar and "Read: Novel 1" in listed
 
 
 def test_one_course_does_not_flood_the_schedule(settings, engine, morning):

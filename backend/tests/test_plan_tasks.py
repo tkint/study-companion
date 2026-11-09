@@ -218,3 +218,31 @@ def test_ics_download_and_feed_are_the_same(settings, engine):
     assert down and [strip(e) for e in down] == [strip(e) for e in feed]
     sessions = c.get("/api/schedule").json()["sessions"]
     assert sum(1 for e in feed if "UID:schedule-" in e) == len(sessions)
+
+
+def test_xlsx_sheets_print_setup(settings):
+    import zipfile
+    from datetime import date
+    from io import BytesIO
+
+    from app.planner import sheet_week
+
+    tz = settings.tz
+    data = _plan(tz)
+    plan = {**data, **tasks.build(data, tz, {"section-11": True}),
+            "config": {"day_start": "08:00", "day_end": "22:00"}, "busy": []}
+    z = zipfile.ZipFile(BytesIO(sheet_week.render(plan, [], date(2026, 11, 9), 1, tz)))
+    book = z.read("xl/workbook.xml").decode()
+    assert '<sheet name="Calendar"' in book and "Mon 9 Nov – Tasks" in book
+    assert "Thu 12 Nov – Tasks" in book  # the hand-in due that day, without a slot
+    # Each sheet its own print area; the calendar landscape, the day lists portrait.
+    assert book.count("_xlnm.Print_Area") == 5
+    cal = z.read("xl/worksheets/sheet1.xml").decode()
+    day = z.read("xl/worksheets/sheet2.xml").decode()
+    assert 'orientation="landscape" fitToWidth="1" fitToHeight="1"' in cal
+    assert 'orientation="portrait" fitToWidth="1" fitToHeight="1"' in day
+    # A Done drop-down (☐ / ☑) on the task rows; the ticked task shows ☑.
+    assert '<dataValidation type="list"' in day and "☐,☑" in day
+    assert "☑" in day.split("<dataValidations")[0]
+    assert "Section 1: Workbook (parts 1-2/3)" in day and "Phonologie" in day
+    assert "Workbook" not in cal  # tasks are never in the calendar
